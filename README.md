@@ -109,15 +109,6 @@ See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 
 ---
 
-## Status (2026-09)
-
-dalcom-skills at release 2.1.8 is the single implementation, shipping 304 skills across 22 plugins for
-Claude Code, Codex, Cursor, and any Agent Plugins client. The three prompt files were stripped of
-persona doctrine in early September 2026, so the methodology carries no agent identity of its own.
-Releases ship from the implementation repository, not from here.
-
----
-
 ## Contributing
 
 Open an issue to discuss ideas or report bugs. PRs improving the methodology, prompts, or tooling documentation are welcome.
