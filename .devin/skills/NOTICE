@@ -346,7 +346,7 @@ Derivative note: per pinned A1 spec, a1-grill adapts Pocock grilling (1495d01430
 ast-grep catalog
 Source: https://ast-grep.github.io/catalog/
 License: MIT (https://opensource.org/licenses/MIT)
-Copyright: Copyright (c) 2022-2026 Herrington Darkholme
+Copyright: Copyright (c) 2022 Herrington Darkholme
 Local adaptations: ast-grep (recipes reference: plugins/dstack-code/skills/ast-grep/references/recipes.md)
 
 The MIT permission text below applies to every work in the preceding section. Each work retains the
