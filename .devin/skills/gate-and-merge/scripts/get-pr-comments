@@ -112,7 +112,7 @@ query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
   }
 }')
 
-tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-get-pr-comments.XXXXXX")
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dstack-get-pr-comments.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT
 threads_file="$tmp_dir/threads.json"
 comments_file="$tmp_dir/comments.json"

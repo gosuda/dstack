@@ -17,7 +17,7 @@ if [ $# -lt 1 ]; then
 fi
 
 THREAD_ID=$1
-tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-reply-to-thread.XXXXXX")
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dstack-reply-to-thread.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT
 body_file="$tmp_dir/body.txt"
 payload_file="$tmp_dir/payload.json"
