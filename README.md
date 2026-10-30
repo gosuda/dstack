@@ -25,7 +25,7 @@
 
 ## What is DStack
 
-DStack (formerly Outline-Driven Development) is a coding methodology for LLM code agents. It occupies the space between two failure modes: vibes (too shallow, non-reproducible) and specs (too rigid, too expensive to maintain). The unit of truth is a versioned outline whose hash anchors every diff, every test, and every diagram.
+DStack (formerly Outline-Driven Development) is a coding methodology for LLM code agents. It occupies the space between two failure modes: vibes (too shallow, non-reproducible) and specs (too rigid, too expensive to maintain). We balance it with the sweeter taste(dalcom).
 
 The outline is harness-agnostic. One implementation carries it to every agent, and the methodology
 itself lives here as prompt files that any agent can consume. See [PHILOSOPHY.md](PHILOSOPHY.md)
