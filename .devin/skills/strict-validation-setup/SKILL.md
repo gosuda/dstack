@@ -5,79 +5,92 @@ description: 'Use when a user invokes a strict-mode validation or verifiable-goa
 
 # Strict validation setup
 
-## Contract
+A user goal becomes a strict tooling config, a per-task GOALS.md scaffold with observable criteria, and one deliberately failing test per criterion. Everything lands as a single atomic, reversible local write set. Config-only or GOALS-only partial results never satisfy this skill, and project-wide commands never run here. The run ends after one verification pass. It does not stay resident.
 
-| Field | Bound contract |
+Nothing in this skill touches remotes, credentials, deployed state, or irreversible changes. Rollback is version control.
+
+## Refusals that stop the run before writing
+
+| Condition | Behavior |
 |---|---|
-| Trigger | User invokes a strict-mode validation or verifiable-goals loop setup. |
-| Authority | Reversible local: writes only idempotent tooling-config merges, per-task GOALS.md scaffolds, an `AGENTS.md` stable pointer, and failing tests; rollback is version control. No remote mutation. No credential or deployed mutation. |
-| Side effect | Merges strict-mode tooling configs idempotently, ensures AGENTS.md points to per-task GOALS.md, scaffolds `.agent-tasks/<id>/GOALS.md`, and writes failing tests; one-shot bootstrap. |
-| Done | Strict configs are merged idempotently and per-task GOALS.md plus failing tests are in place, with task goals kept out of AGENTS.md. |
+| `no-supported-manifest` | Name the supported manifests. Write nothing. |
+| `multiple-ecosystems` | Name all detected primary manifests. Require one explicit project scope. Write nothing. |
+| `unsupported-ecosystem` | Name the detected ecosystem and stop without a false reference claim. C++, Java, Kotlin, Spring Boot, Nest-specific, and React-specific setups are unsupported. |
+| `config-conflict` | Name the path, key, current value, and required value. Require explicit overwrite authorization naming that key. |
+| `config-shape-unsupported` | Name the manifest or config shape that cannot merge without a partial or destructive rewrite. Write nothing. |
+| `goal-not-observable` | Ask for the missing observable outcome before writing. |
+| `test-framework-missing` | Name the supported frameworks for the ecosystem. Add no dependencies or generic tests. |
+| `task-test-location-unsupported` | Explain why the existing runner cannot execute `.agent-tasks/<id>/tests`. Write nothing rather than claim failing tests are in place. |
+| `agents-task-content` | Name the task-specific AGENTS.md lines. Write nothing until the user chooses how to separate them. |
+| `task-path-conflict` | Name each unrelated or conflicting task file. Overwrite nothing. |
+| `write-failed` | Restore every prior target byte for byte and remove only newly created files. |
+| `verification-mismatch` | Restore the complete write set. Report expected and actual path or key, or expected and actual criterion. |
 
-## Inputs
+## What the run needs
 
-- User goal (required): enough observable behavior to derive at least one pass/fail success criterion. If not observable, stop before writing and ask for the missing outcome.
-- Task ID (optional): must match `^[a-z0-9][a-z0-9-]{0,63}$`. If absent, use `task-` followed by the first 12 lowercase hexadecimal characters of SHA-256 over the exact UTF-8 user-goal text.
-- Overwrite authorization (optional): permits replacement of a named conflicting non-strict config value. It does not permit replacing unrelated configuration or whole files.
-- Project root (required): contains exactly one supported primary ecosystem: TypeScript, Python, Rust, Go, or OCaml. A TypeScript project may also contain `package.json`; that pair is one ecosystem.
+The user goal is required, and it must carry enough observable behavior to derive at least one pass or fail criterion. Without that, stop and ask for the missing outcome.
 
-This skill reads or creates `AGENTS.md` only to ensure one stable pointer: `Per-task goals live in .agent-tasks/<task-id>/GOALS.md.` It never writes task-specific criteria there and never reads or edits `CLAUDE.md`.
+The task ID is optional. When absent, derive it as `task-` plus the first 12 lowercase hexadecimal characters of SHA-256 over the exact UTF-8 goal text. A supplied ID must match `^[a-z0-9][a-z0-9-]{0,63}$`. Overwrite authorization is optional and narrow: it permits replacing one named conflicting non-strict config value, never unrelated configuration or whole files. The project root is required and must contain exactly one supported primary ecosystem. TypeScript counts with `package.json` alongside as one ecosystem.
 
-## Refusal
+This skill reads or creates `AGENTS.md` for a single purpose: ensuring one stable pointer line, `Per-task goals live in .agent-tasks/<task-id>/GOALS.md.` Task-specific criteria never go there. `CLAUDE.md` is never read or edited.
 
-- `no-supported-manifest`: name the supported manifests; write nothing.
-- `multiple-ecosystems`: name all detected primary manifests; require one explicit project scope; write nothing.
-- `unsupported-ecosystem`: name the detected ecosystem and stop without a false reference claim. C++, Java, Kotlin, Spring Boot, Nest-specific, and React-specific setup are unsupported.
-- `config-conflict`: name the path, key, current value, and required value; require explicit overwrite authorization for that key.
-- `config-shape-unsupported`: name the manifest/config shape that cannot be merged without a partial or destructive rewrite; write nothing.
-- `goal-not-observable`: ask for the missing observable outcome before writing.
-- `test-framework-missing`: name the supported frameworks for the ecosystem; do not add dependencies or generic tests.
-- `task-test-location-unsupported`: explain why the existing runner cannot execute `.agent-tasks/<id>/tests`; write nothing rather than claiming failing tests are in place.
-- `agents-task-content`: name the task-specific AGENTS.md lines; write nothing until the user chooses how to separate them.
-- `task-path-conflict`: name each existing unrelated or conflicting task file; overwrite nothing.
-- `write-failed`: restore every prior target byte-for-byte and remove only newly created files.
-- `verification-mismatch`: restore the complete write set; report expected and actual path/key or criterion.
+## Detect the ecosystem, merge its strict config
 
-No partial config-only or GOALS-only result satisfies the contract.
+Detect exactly one supported primary ecosystem at the project root. TypeScript comes from `tsconfig.json`. Python comes from `pyproject.toml`. Rust comes from `Cargo.toml`. Go comes from `go.mod`. OCaml comes from `dune-project` or a root `*.opam` file. Treat `package.json` without `tsconfig.json` as unsupported JavaScript, not TypeScript.
 
-## Procedure
+Zero or several primary ecosystems stops the run before any write, with the exact manifests reported.
 
-1. **Detect one supported ecosystem.** At the project root, detect TypeScript from `tsconfig.json`; Python from `pyproject.toml`; Rust from `Cargo.toml`; Go from `go.mod`; OCaml from `dune-project` or root `*.opam`. Treat `package.json` without `tsconfig.json` as unsupported JavaScript, not TypeScript. If none or more than one primary ecosystem is detected, stop before writing and report the exact manifests. Done when: exactly one ecosystem is detected or a stop condition is reported.
-2. **Select and merge the exact strict configuration.** Parse the existing format; never append text blindly. Preserve unrelated keys and formatting where the parser/editor permits. A required key already set to the required value is unchanged. A missing key is inserted. A conflicting value is `config-conflict` unless overwrite authorization names that key. Load `references/<ecosystem>.md` (`typescript.md`, `python.md`, `rust.md`, `go.md`, or `ocaml.md`) for the exact config keys, values, and merge shape for the detected ecosystem. Done when: the config is merged idempotently at the exact path.
-3. **Ensure the stable goal-location pointer.** Read `AGENTS.md` if it exists. If absent, create it with the single line `Per-task goals live in .agent-tasks/<task-id>/GOALS.md.` If it already contains an equivalent stable pointer, leave it unchanged. If it contains task-specific goals or success criteria, stop with `agents-task-content` and name the lines; do not move or delete them without explicit user direction. Never read or edit `CLAUDE.md`. Done when: `AGENTS.md` contains the stable pointer and no task-specific content from this run.
-4. **Derive complete criteria before scaffolding.** Translate the user goal into the smallest ordered list of observable criteria, numbered `SC-01`, `SC-02`, and so on. Each criterion names an input or setup, observable behavior, and expected result. Reject subjective, circular, or implementation-only criteria. Determine one existing project test framework before writing: TypeScript supports `vitest`, `jest`, or `node:test`; Python supports `pytest` or `unittest`; Rust and Go use their built-in test harnesses; OCaml supports `alcotest`, `ounit2`, or Dune cram tests. Infer the framework only from existing manifest dependencies/configuration or existing tests. Done when: an ordered criteria list is derived and a supported framework is confirmed.
-5. **Write the exact GOALS.md layout.** Create `.agent-tasks/<task-id>/GOALS.md` with no placeholders:
+Load `references/<ecosystem>.md` (`typescript.md`, `python.md`, `rust.md`, `go.md`, or `ocaml.md`) for the exact config keys, values, and merge shape. Parse the existing config format instead of appending text blindly. Preserve unrelated keys and formatting wherever the parser or editor permits. A required key already at its required value stays untouched. A missing key gets inserted. A conflicting value is `config-conflict` unless overwrite authorization names that key.
 
-   ```markdown
-   # <task-id>
+## Point AGENTS.md at the task, derive criteria, scaffold GOALS.md
 
-   ## Goal
-   <exact user goal>
+Read `AGENTS.md` when it exists. Create it with the single pointer line when absent. Leave an equivalent stable pointer unchanged. Stop with `agents-task-content`, naming the lines, when it holds task-specific goals or success criteria. Never move or delete those lines without explicit user direction.
 
-   ## Success criteria
-   - [ ] SC-01: <observable criterion>
-   - [ ] SC-02: <observable criterion, if any>
+Translate the goal into the smallest ordered list of observable criteria, each identified by a meaningful slug and stated by its observable purpose. Coded labels such as `SC-01` or `SC-02`, phase-and-counter prefixes, and parenthesized IDs are forbidden as human labels; criteria and headings name their actual purpose directly with no decorative prefix. Each criterion names an input or setup, an observable behavior, and an expected result. Subjective, circular, and implementation-only criteria are out.
 
-   ## Verification
-   - SC-01: `.agent-tasks/<task-id>/tests/sc-01.<language extension>`, `<existing targeted test command>`
-   - SC-02: `.agent-tasks/<task-id>/tests/sc-02.<language extension>`, `<existing targeted test command>`
+Settle on one existing project test framework before scaffolding. TypeScript supports `vitest`, `jest`, or `node:test`. Python supports `pytest` or `unittest`. Rust and Go use their built-in harnesses. OCaml supports `alcotest`, `ounit2`, or Dune cram tests. Infer the framework only from existing manifest dependencies, configuration, or existing tests.
 
-   ## Boundaries
-   - Project-stable rules remain in project configuration.
-   - Task-specific goals and criteria remain under `.agent-tasks/<task-id>/`.
-   ```
+Create `.agent-tasks/<task-id>/GOALS.md` with no placeholders:
 
-   Substitute every angle-bracket form with the resolved value and emit only as many criterion and verification lines as exist. Preserve the user's goal verbatim under Goal. Do not mention or point from AGENTS.md. Done when: `GOALS.md` is written with no placeholders.
-6. **Write one deliberately failing test per criterion using the established framework.** Each file name is `sc-NN` plus the framework extension. Each test name begins `SC-NN:` and quotes the criterion. The deliberate failure must execute unconditionally when that test runs; it is replaced by the task implementation, not hidden behind skip/xfail/todo. Per-framework patterns:
-   - TypeScript: Vitest: `import { expect, test } from "vitest"; test("SC-NN: criterion", () => { expect.fail("SC-NN unmet: criterion"); });`. Jest: `test("SC-NN: criterion", () => { throw new Error("SC-NN unmet: criterion"); });`. `node:test`: `import test from "node:test"; test("SC-NN: criterion", () => { throw new Error("SC-NN unmet: criterion"); });`. Use `.test.ts` for Vitest/Jest and `.test.ts` for `node:test` only when the existing runner transpiles TypeScript; otherwise use `.test.mjs`.
-   - Python: pytest: `def test_sc_nn() -> None:\n    raise AssertionError("SC-NN unmet: criterion")`. unittest: a `unittest.TestCase` method calling `self.fail("SC-NN unmet: criterion")`. Use `test_sc_nn.py`.
-   - Rust: `sc_nn.rs` with `#[test]\nfn sc_nn() { panic!("SC-NN unmet: criterion"); }`. Place under `.agent-tasks/<task-id>/tests/`. If the project has no mechanism that compiles tests from that directory, stop with `task-test-location-unsupported`.
-   - Go: `sc_nn_test.go` in package `tests` only if the existing module/test command includes `.agent-tasks`; otherwise stop with `task-test-location-unsupported`. Body: `func TestSCNN(t *testing.T) { t.Fatal("SC-NN unmet: criterion") }`.
-   - OCaml: Alcotest: a case calling `Alcotest.fail "SC-NN unmet: criterion"`. OUnit2: `assert_failure "SC-NN unmet: criterion"`. Cram: `sc-nn.t` with the established project command followed by an intentionally mismatched expected output line `[SC-NN unmet: criterion]`. Require an existing Dune stanza or cram directory rule; otherwise stop with `task-test-location-unsupported`.
-   Escape criterion text according to the target language's string-literal rules. Never leave `TODO`, `pass`, skipped tests, empty bodies, or generic assertions. Done when: one failing test per criterion is written.
-7. **Commit the local write set atomically.** Before changing files, retain exact bytes of every existing target config, GOALS file, and criterion-test path. Require the task directory not to contain unrelated files that would be overwritten. Apply the config merge, GOALS.md, and all tests as one reversible set. On any write failure, restore prior bytes and remove only files created by this run. Done when: the write set is applied atomically or restored on failure.
-8. **Verify the frozen done predicate.** Parse the written config and require every strict key/value from step 2. Recompute the merge and require byte-identical output. Re-read GOALS.md and require the exact layout, goal, criteria, and test links. Re-read every test and require its SC identifier, quoted criterion, and unconditional deliberate failure. Confirm `AGENTS.md` contains the stable pointer and no task-specific content added by this run; confirm this run did not read or modify `CLAUDE.md`. Stop after this one-shot verification; do not remain resident or run project-wide commands. Done when: every verification check passes.
+```markdown
+# <task-id>
 
-## Output
+## Goal
+<exact user goal>
 
-Detected ecosystem's strict-mode config merged idempotently at the exact path; `AGENTS.md` with the stable GOALS.md pointer and no task-specific criteria; `.agent-tasks/<task-id>/GOALS.md` with complete goal, observable criteria, and test links; `.agent-tasks/<task-id>/tests/` with one executable deliberately failing test per criterion. No `CLAUDE.md`, support reference, compatibility alias, or unlisted file is created.
+## Success criteria
+- [ ] <observable criterion purpose>
+- [ ] <observable criterion purpose, if any>
+
+## Verification
+- <meaningful-slug>: `.agent-tasks/<task-id>/tests/<meaningful-slug>.<language extension>`, `<existing targeted test command>`
+- <meaningful-slug>: `.agent-tasks/<task-id>/tests/<meaningful-slug>.<language extension>`, `<existing targeted test command>`
+
+## Boundaries
+- Project-stable rules remain in project configuration.
+- Task-specific goals and criteria remain under `.agent-tasks/<task-id>/`.
+```
+
+Substitute every angle-bracket form with its resolved value and emit only as many criterion and verification lines as exist. Success criteria state observable purpose directly, and verification lines map each meaningful slug to its test file without decorative coded prefixes. Preserve the user goal verbatim under Goal. Never mention or point from AGENTS.md.
+
+## Write one failing test per criterion, commit atomically, verify once
+
+Each test file is named with a meaningful slug reflecting the criterion purpose instead of `sc-01.*`, joined to the framework extension. Test names state the actual criterion purpose directly without `SC-NN:` prefixes or decorative codes. The deliberate failure executes unconditionally when that test runs. Task implementation replaces it later. Skip, xfail, todo, `pass`, empty bodies, and generic assertions never count.
+
+Per-framework patterns:
+
+- TypeScript with Vitest: `import { expect, test } from "vitest"; test("criterion purpose", () => { expect.fail("Unmet: criterion purpose"); });`. Jest: `test("criterion purpose", () => { throw new Error("Unmet: criterion purpose"); });`. `node:test`: `import test from "node:test"; test("criterion purpose", () => { throw new Error("Unmet: criterion purpose"); });`. Use `<slug>.test.ts` for Vitest and Jest, and for `node:test` only when the existing runner transpiles TypeScript. Otherwise use `<slug>.test.mjs`.
+- Python pytest: `def test_<slug>() -> None:\n    raise AssertionError("Unmet: criterion purpose")`. unittest: a `unittest.TestCase` method named `test_<slug>` calling `self.fail("Unmet: criterion purpose")`. Use `test_<slug>.py`.
+- Rust: `<slug>.rs` with `#[test]\nfn <slug>() { panic!("Unmet: criterion purpose"); }`, placed under `.agent-tasks/<task-id>/tests/`. Without a project mechanism compiling tests from that directory, stop with `task-test-location-unsupported`.
+- Go: `<slug>_test.go` in package `tests` only when the existing module and test command include `.agent-tasks`. Otherwise stop with `task-test-location-unsupported`. Body: `func Test<SlugCamel>(t *testing.T) { t.Fatal("Unmet: criterion purpose") }`.
+- OCaml Alcotest: a case calling `Alcotest.fail "Unmet: criterion purpose"`. OUnit2: `assert_failure "Unmet: criterion purpose"`. Cram: `<slug>.t` with the established project command followed by an intentionally mismatched expected output line `[Unmet: criterion purpose]`. Require an existing Dune stanza or cram directory rule. Otherwise stop with `task-test-location-unsupported`.
+
+Escape criterion text per the target language string-literal rules.
+
+Retain exact bytes of every existing target config, GOALS file, and criterion-test path before changing files. Refuse a task directory containing unrelated files that would be overwritten. Apply the config merge, GOALS.md, and all tests as one reversible set. Any write failure restores prior bytes and removes only files created by this run.
+
+Verify the frozen result a single time. Parse the written config and require every strict key and value from the merge step. Recompute the merge and require byte-identical output. Re-read GOALS.md and require the exact layout, goal, criteria, and test links. Re-read every test and require its meaningful slug identity, quoted criterion purpose, and unconditional deliberate failure. Confirm `AGENTS.md` carries the stable pointer with no task-specific content from this run, and confirm this run never read or modified `CLAUDE.md`. Then stop.
+
+## What exists afterward
+
+The ecosystem strict config merged idempotently at its exact path. `AGENTS.md` holds the stable GOALS.md pointer and no task-specific criteria. `.agent-tasks/<task-id>/GOALS.md` holds the complete goal, observable criteria, and test links. `.agent-tasks/<task-id>/tests/` holds one executable, deliberately failing test per criterion. No `CLAUDE.md`, support reference, compatibility alias, or unlisted file gets created.

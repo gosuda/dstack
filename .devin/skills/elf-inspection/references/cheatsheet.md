@@ -1,8 +1,10 @@
 # ELF inspection cheatsheet
 
-Sources: readelf(1), objdump(1), nm(1) man pages.
+Use these commands to inspect binaries and shared libraries without running them. Sources: readelf(1), objdump(1), nm(1) man pages.
 
 ## Quick reference
+
+Pick the row for the question you need answered. `readelf` reports structure. `nm` reports symbols. `objdump` disassembles or dumps bytes.
 
 | Task | Command |
 |------|---------|
@@ -27,6 +29,8 @@ Sources: readelf(1), objdump(1), nm(1) man pages.
 
 ## nm symbol types
 
+Uppercase means global. Lowercase means local. `U` marks a dependency the binary expects someone else to provide.
+
 | Code | Meaning |
 |------|---------|
 | `T` | Global function, text |
@@ -47,6 +51,8 @@ Sources: readelf(1), objdump(1), nm(1) man pages.
 
 ## Common ELF sections
 
+Code lives in `.text`. Writable globals live in `.data` and `.bss`. The loader uses `.plt`, `.got`, and the relocation sections to bind external calls at run time.
+
 | Section | Content |
 |---------|---------|
 | `.text` | Executable code |
@@ -66,6 +72,8 @@ Sources: readelf(1), objdump(1), nm(1) man pages.
 
 ## Hardening checks
 
+Each line tests one mitigation. A missing match means that mitigation is absent. `checksec` runs the same checks in one call but needs a separate install.
+
 ```bash
 readelf -h prog | grep 'Type:'      # ET_DYN with an entry point means PIE
 readelf -l prog | grep 'GNU_RELRO'
@@ -77,6 +85,8 @@ checksec --file=prog                # one-call check, separate install
 ```
 
 ## Shared library soname
+
+Read the recorded soname first. The two symlinks follow the same convention as the soname lifecycle: versioned file, loader name, linker name.
 
 ```bash
 readelf -d libfoo.so | grep SONAME

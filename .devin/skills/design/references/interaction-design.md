@@ -124,18 +124,25 @@ Modern solution: tether an overlay to its trigger without JavaScript.
 
 .dropdown {
   position: fixed;
-  position-anchor: --menu-trigger;
-  position-area: block-end span-inline-end;
-  margin-top: 4px;
+  margin-top: var(--space-4);
 }
 
-@position-try --flip-above {
-  position-area: block-start span-inline-end;
-  margin-bottom: 4px;
+@supports (anchor-name: --menu-trigger) {
+  .dropdown {
+    position-anchor: --menu-trigger;
+    position-area: block-end span-inline-end;
+  }
+
+  @position-try --flip-above {
+    position-area: block-start span-inline-end;
+    margin-bottom: var(--space-4);
+  }
 }
 ```
 
-`position: fixed` escapes any `overflow` clipping on ancestors. `@position-try` handles viewport edges. **Browser support:** not Baseline. webstatus.dev reports limited availability. Keep the fallback path below.
+Only the anchor tethering sits behind the `@supports` gate; the fixed-position fallback styling above applies everywhere, and the manual-coordinate fallback below covers engines where the gate fails.
+
+`position: fixed` escapes any `overflow` clipping on ancestors. `@position-try` handles viewport edges. **Browser support:** Baseline Newly, partial in every engine (Chrome/Edge 125+, Firefox 147+, Safari/iOS 26+); Widely pending. Keep the fallback path below.
 
 ### Popover + anchor combo
 
@@ -214,6 +221,6 @@ Never rely on gestures as the only way to perform an action.
 
 ---
 
-Avoid: removing focus indicators without alternatives; using placeholder text as labels; touch targets <44×44px; generic error messages; custom controls without ARIA / keyboard support.
+Avoid: removing focus indicators without alternatives; using placeholder text as labels; touch targets below 44×44 (Apple HIG default control size; WCAG 2.2 AA floor is 24×24 CSS px); generic error messages; custom controls without ARIA / keyboard support.
 
 **Cross-refs.** See `web.md` for HTML/CSS interaction primitives; `react.md` for React-specific state-management patterns; `motion.md` for state transitions; `anti-slop.md §1.6` for the modal / hero-metric / card-grid bans this reference assumes.

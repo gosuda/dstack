@@ -1,8 +1,12 @@
 # x86-64 assembly reference
 
-Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
+Use this reference when you read or write x86-64 assembly. Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
+
+Operands follow AT&T order throughout: source first, destination second. `mov %rsp, %rbp` copies the stack pointer into the base pointer.
 
 ## Data movement
+
+Use `lea` when you need the address itself. It computes the address without touching memory.
 
 | Instruction | Effect |
 |-------------|--------|
@@ -17,6 +21,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 
 ## Arithmetic
 
+The one-operand multiply and divide forms split the result across two registers. `inc` and `dec` leave the carry flag alone.
+
 | Instruction | Effect |
 |-------------|--------|
 | `add src, dst` | `dst += src` |
@@ -29,6 +35,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 | `neg dst` | Two's complement negate |
 
 ## Bit operations
+
+Shifts fill from opposite ends. `shl` and `sal` are the same instruction. Rotates wrap bits around instead of dropping them.
 
 | Instruction | Effect |
 |-------------|--------|
@@ -45,6 +53,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 
 ## Comparison and branching
 
+`cmp` and `test` set flags and discard the result. The branch reads the flags. Prefer the branchless `cmovcc` or `setcc` when the condition body is short.
+
 | Instruction | Effect |
 |-------------|--------|
 | `cmp a, b` | Set flags from `a - b` without storing |
@@ -56,6 +66,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 | `loop label` | Decrement `rcx`, jump when nonzero |
 
 ## rflags bits
+
+You read these flags through the conditional jumps below. Signed comparisons use `SF` with `OF`. Unsigned comparisons use `CF`.
 
 | Bit | Flag | Set when |
 |-----|------|----------|
@@ -70,6 +82,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 | OF | Overflow | Signed overflow |
 
 ## Conditional jumps
+
+The `l`/`g` family is for signed values. The `b`/`a` family is for unsigned values. Do not mix them.
 
 | Instruction | Condition | Flags |
 |-------------|-----------|-------|
@@ -92,6 +106,8 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 
 ## SIMD header map
 
+Include one header for the instruction set you target. When you need several sets, include `<immintrin.h>` alone. It covers everything through AVX-512.
+
 | Header | Provides |
 |--------|----------|
 | `<xmmintrin.h>` | SSE, `__m128` |
@@ -104,16 +120,20 @@ Sources: Intel SDM, the System V AMD64 ABI, and GCC inline asm documentation.
 
 ## Prologue patterns
 
+Keep the frame pointer when you need stable frame addresses for debugging or unwinding. Omit it in optimized code and address locals through the stack pointer. Compilers omit it by default at `-O2`.
+
 Frame pointer kept:
 
 ```asm
 push %rbp
 mov  %rsp, %rbp
-sub  $N, %rsp          # allocate locals, keep rsp 16-byte aligned
+sub  $N, %rsp
 # body
-leave                  # mov %rbp, %rsp; pop %rbp
+leave
 ret
 ```
+
+`leave` restores the stack pointer from the base pointer and pops the saved base pointer. Keep the stack pointer 16-byte aligned after the allocation.
 
 Frame pointer omitted, the default at `-O2`:
 
@@ -124,7 +144,7 @@ add $N, %rsp
 ret
 ```
 
-Callee-saved registers used by the body:
+Save each callee-saved register you use, and restore them in reverse push order:
 
 ```asm
 push %rbx
@@ -137,4 +157,4 @@ pop %rbx
 ret
 ```
 
-Restore in reverse push order. On Linux the kernel is built with `-mno-red-zone`, so kernel-mode code never relies on the 128-byte red zone.
+On Linux the kernel is built with `-mno-red-zone`, so kernel-mode code never relies on the 128-byte red zone.

@@ -99,7 +99,7 @@ Source: <https://github.com/arxanas/git-branchless/wiki/Command:-git-restack>
 **in-memory** before touching the working copy. When a conflict is found,
 the operation:
 
-1. Skips that subtree silently.
+1. Skips that subtree without touching the working copy.
 2. Continues with other subtrees that did not conflict.
 3. Reports skipped subtrees in the summary line.
 

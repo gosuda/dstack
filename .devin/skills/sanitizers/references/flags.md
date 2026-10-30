@@ -1,6 +1,6 @@
 # Sanitizer flags reference
 
-Build flags and runtime option variables. Grounded channels: GCC 16.x and Clang 23.1.0; sanitizers ship inside the compiler distribution and switch on through `-fsanitize=`.
+Use this when you need the exact build flag or runtime option for a sanitizer run. Sanitizers ship with the compiler. You enable them with `-fsanitize=`. The entries below were checked against GCC 16.x and Clang 23.1.4.
 
 ## Quick table
 
@@ -15,51 +15,61 @@ Build flags and runtime option variables. Grounded channels: GCC 16.x and Clang 
 | HWASan | `-fsanitize=hwaddress` | no | yes | arm64; newer x86-64 with LAM |
 | MemTag | `-fsanitize=memtag-stack` | no | yes | AArch64 with `+memtag` march |
 
-## Flags required alongside
+## Recommended flags for sanitizer builds
+
+Recommend these three flags for each sanitized build. They keep stacks readable, add source locations to reports, and keep optimization representative while still finding bugs.
 
 ```bash
--fno-omit-frame-pointer   # readable stacks
--g                        # source locations in reports
--O1                       # representative and still bug-finding
+-fno-omit-frame-pointer
+-g
+-O1
 ```
 
 ## Recovery control
 
+Abort on the first error in CI. Log and continue only when you need to collect several findings in one interactive run.
+
 ```bash
--fno-sanitize-recover=all         # abort on first error; CI default
--fno-sanitize-recover=undefined   # abort on UBSan errors only
--fsanitize-recover=all            # log and continue
+-fno-sanitize-recover=all
+-fno-sanitize-recover=undefined
+-fsanitize-recover=all
 ```
+
+`-fno-sanitize-recover=all` aborts on the first error from each recoverable check. `-fno-sanitize-recover=undefined` aborts only on UBSan errors. `-fsanitize-recover=all` logs each recoverable error and continues. ASan errors always terminate; recovery mode does not apply to them.
 
 ## UBSan check selection
 
-`-fsanitize=undefined` covers the undefined behaviors. Named checks extend or narrow it:
+`-fsanitize=undefined` covers the undefined behaviors. Named checks extend or narrow that set.
+
+`signed-integer-overflow` belongs to the undefined group. `unsigned-integer-overflow` is not undefined behavior, so enable it only when you explicitly want it.
 
 ```bash
--fsanitize=signed-integer-overflow   # in the undefined group
--fsanitize=unsigned-integer-overflow # NOT undefined; opt-in only
+-fsanitize=signed-integer-overflow
+-fsanitize=unsigned-integer-overflow
 -fsanitize=float-divide-by-zero
 -fsanitize=float-cast-overflow
 -fsanitize=null
 -fsanitize=alignment
--fsanitize=bounds                    # array indexing with known bounds
--fsanitize=vptr                      # C++ virtual call type
+-fsanitize=bounds
+-fsanitize=vptr
 -fsanitize=pointer-overflow
 -fsanitize=builtin
 ```
 
-Clang groups several integer checks under `-fsanitize=integer`; GCC does not, so spell the checks out in portable builds.
+`bounds` covers array indexing with known bounds. `vptr` covers C++ virtual-call type checks. Clang groups several integer checks under `-fsanitize=integer`. GCC has no such group, so spell the checks out in portable builds.
 
 ## ASan-specific flags
 
+`-fsanitize-address-use-after-scope` detects use-after-scope. `-fsanitize-address-use-after-return` detects use-after-return but runs slowly, so enable it only when you suspect that bug.
+
 ```bash
--fsanitize-address-use-after-scope    # detect use-after-scope
--fsanitize-address-use-after-return   # detect use-after-return; slow
+-fsanitize-address-use-after-scope
+-fsanitize-address-use-after-return
 ```
 
 ## Runtime option variables
 
-Form: `ASAN_OPTIONS=key=value:key2=value2 ./prog`.
+Set options as `ASAN_OPTIONS=key=value:key2=value2 ./prog`. The same colon-separated form applies to `UBSAN_OPTIONS`, `TSAN_OPTIONS`, and `LSAN_OPTIONS`.
 
 ### ASAN_OPTIONS
 

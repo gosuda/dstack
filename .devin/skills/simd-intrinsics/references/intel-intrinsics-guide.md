@@ -36,7 +36,7 @@
 | Broadcast | `_mm_set1_ps` | `_mm256_set1_ps` |
 | Zero | `_mm_setzero_ps` | `_mm256_setzero_ps` |
 | Compare equal | `_mm_cmpeq_ps` | `_mm256_cmp_ps(v, v, _CMP_EQ_OQ)` |
-| Blend | `_mm_blend_ps` | `_mm256_blend_ps` |
+| Blend, needs SSE4.1 | `_mm_blend_ps` | `_mm256_blend_ps` |
 | Shuffle | `_mm_shuffle_ps` | `_mm256_shuffle_ps` |
 | Horizontal add | `_mm_hadd_ps`, SSE3 | `_mm256_hadd_ps` |
 

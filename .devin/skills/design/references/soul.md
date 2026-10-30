@@ -79,15 +79,15 @@ When two principles collide on a single decision, generosity and honesty win. De
 
 The canonical reading list. Internalize before improvising.
 
-- Dieter Rams' 10 principles of good design: innovative, useful, aesthetic, understandable, unobtrusive, honest, long-lasting, thorough down to the last detail, environmentally friendly, as little design as possible. Most-quoted: *"Less but better"* (*Weniger aber besser*). Anchor product: the Braun T1000 radio, every dial has a function, every surface a reason, no element decorative.
+- 10 principles of good design: innovative, useful, aesthetic, understandable, unobtrusive, honest, long-lasting, thorough down to the last detail, environmentally friendly, as little design as possible. Anchor product: the Braun T1000 radio, every dial has a function, every surface a reason, no element decorative.
 
-- **John Maeda's *Laws of Simplicity*** (MIT Press, 2006): ten laws: reduce, organize, time, learn, differences, context, emotion, trust, failure, the one. The operating frame: *subtract the obvious, add the meaningful*. Reduction is not absence; it is concentration.
+- *Laws of Simplicity* (MIT Press, 2006): ten laws: reduce, organize, time, learn, differences, context, emotion, trust, failure, the one. The operating frame: *subtract the obvious, add the meaningful*. Reduction is not absence; it is concentration.
 
-- Brad Frost on craft: atomic design and the Pattern Lab philosophy: components are atoms, molecules, organisms; design systems are care expressed at scale. Frost's frame turns restraint from a single-surface discipline into an institutional one.
+- Atomic design and the Pattern Lab philosophy: components are atoms, molecules, organisms; design systems are care expressed at scale. That frame turns restraint from a single-surface discipline into an institutional one.
 
-- Tobias van Schneider: *"design that gives a damn"*; the personal-investment lens. Surfaces that feel alive are surfaces somebody fought for. Anonymous design ships anonymous product.
+- *"Design that gives a damn"*: the personal-investment lens. Surfaces that feel alive are surfaces somebody fought for. Anonymous design ships anonymous product.
 
-These four form the readable canon. Rams supplies the principles, Maeda supplies the operations, Frost scales the discipline, van Schneider supplies the conviction. Sections 4,6 apply the canon.
+These four form the readable canon. The principles source supplies the principles, the operations source supplies the operations. Full author mapping lives externally. Sections 4,6 apply the canon.
 
 The canon is small on purpose. A larger reading list would buy breadth at the cost of internalization; these four are short enough to re-read in an afternoon and rich enough to argue with for a career.
 
@@ -121,15 +121,15 @@ Pasting the look without the *register* produces hollow imitation. The exemplars
 
 The diagnostic: if the design rationale collapses to "it looks like Linear", the design has no rationale. The rationale is the constraint that made Linear *choose* the look, name that constraint, or pick a different exemplar whose constraint matches the surface at hand.
 
-## 6. The taste-spine
+## 6. Taste built from looking
 
 Taste is opinion built from looking. It is not innate, and it is not learned from a single source. Train the eye on Linear / Stripe / Things 3 / Read.cv / Rosé Pine / Anthropic, not as templates to copy but as *evidence* that restraint compounds across surfaces, runtimes, and decades.
 
-Each exemplar is doing the same thing under different constraints: subtracting the obvious, surfacing the meaningful, committing to one intentional moment, and refusing to compensate for thinness with decoration. Reading them in parallel, not in isolation, is what builds the spine.
+Each exemplar is doing the same thing under different constraints: subtracting the obvious, surfacing the meaningful, committing to one intentional moment, and refusing to compensate for thinness with decoration. Reading them in parallel, not in isolation, is what builds the judgment.
 
-The spine is what allows a designer to reject a direction without articulating the rejection in the moment. The articulation comes later, when the surface is read aloud against the exemplars and the divergence is named. Until that articulation exists, the rejection is a hunch; with it, the rejection is a critique.
+The judgment is what allows a designer to reject a direction without articulating the rejection in the moment. The articulation comes later, when the surface is read aloud against the exemplars and the divergence is named. Until that articulation exists, the rejection is a hunch; with it, the rejection is a critique.
 
-The spine compounds slowly. A year of looking at one exemplar a week, naming what is and is not working, builds more taste than a weekend of Pinterest scrolling. Looking with intent is the input; the spine is the output.
+The judgment compounds slowly. A year of looking at one exemplar a week, naming what is and is not working, builds more taste than a weekend of Pinterest scrolling. Looking with intent is the input; the judgment is the output.
 
 For extracted OKLCH values plus type stacks per exemplar, see `references/anti-slop.md` §4 taste anchors. That file holds the concrete tokens; this file holds the lens.
 

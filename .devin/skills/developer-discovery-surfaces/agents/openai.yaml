@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Discovery Surfaces"
+  short_description: "Use when auditing GitHub presence or preparing curated directory submission packets for a developer tool."

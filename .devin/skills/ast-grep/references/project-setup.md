@@ -1,6 +1,6 @@
 # Project setup and testing
 
-Set up a project structure before using ast-grep to lint or scan a codebase.
+Set up a project structure before using YAML rules to lint or scan a codebase.
 
 ## Scaffolding
 
@@ -62,13 +62,18 @@ invalid:
 # Run all tests
 ast-grep test
 
-# Update snapshots (for error messages/fixes)
+# Update snapshots for human review of diagnostic or fix changes
 ast-grep test -U
 
 # Interactive mode
 ast-grep test -i
 ```
 
-### Snapshots
+### Snapshots and verification
 
-When you run tests with `-U`, ast-grep creates a `__snapshots__` directory. This stores the expected output (error messages, fix replacements) for your invalid cases. This checks that the rule triggers and produces the correct diagnostic/fix.
+When you run tests with `-U`, ast-grep creates or updates a `__snapshots__` directory storing diagnostic messages and fix replacements for invalid cases. Treat snapshots as human review aids to inspect diffs during development, never as an automated acceptance oracle or proof of correctness. Saved output wording pins broken or unintended behavior.
+
+Automated acceptance relies on independent invariants:
+- Valid cases serve as input fixtures proving that conforming constructs, edge cases, and non-target code do not trigger the rule.
+- Invalid cases serve as input fixtures that exercise target patterns, syntax boundaries, and adversarial variants to prove the rule triggers where intended.
+- Fix transformations must be verified against independent invariants, ensuring the rewritten code produces valid syntax and the expected target AST structure rather than relying on brittle snapshot string matching as an oracle.

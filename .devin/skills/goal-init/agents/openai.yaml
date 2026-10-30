@@ -1,5 +1,0 @@
-interface:
-  display_name: "Goal Init"
-  short_description: "Use when a durable effort needs an approved, checkable success predicate before work starts."
-policy:
-  allow_implicit_invocation: false

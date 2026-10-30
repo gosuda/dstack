@@ -35,7 +35,7 @@ Modify meta-variables before using them in `fix`.
 ```yaml
 transform:
   NEW_VAR:
-    # String-style syntax (ast-grep 0.45.x)
+    # String-style syntax (ast-grep 0.51.x)
     substring($OLD_VAR, startChar=1, endChar=-1)
 ```
 

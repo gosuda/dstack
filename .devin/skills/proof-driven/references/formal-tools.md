@@ -5,8 +5,8 @@
 | Tool | Strength | Status | Use when |
 |------|----------|---------------|----------|
 | Lean 4 | General-purpose theorem prover, mathlib | Mature | Mathematical proofs, algorithm correctness |
-| Dafny | Automated verification, Hoare logic | Active (AI-assisted annotations emerging) | Pre/postcondition verification |
-| Rocq 9.2 (formerly Coq) | Dependent types, extraction to OCaml/Haskell | Mature | Certified compilers, crypto |
+| Dafny | Automated verification, precondition/postcondition logic | Active (AI-assisted annotations emerging) | Pre/postcondition verification |
+| Rocq 9.3.0 (formerly Coq) | Dependent types, extraction to OCaml/Haskell | Mature | Certified compilers, crypto |
 | Kani 0.66+ | Bounded model checking for Rust | Active development (Safety-Critical Rust Consortium) | Memory safety, UB, loop invariants |
 | Verus | SMT-based verification for Rust | Practical (Asterinas OS verified) | Systems-level Rust verification |
 

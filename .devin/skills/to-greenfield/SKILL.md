@@ -1,50 +1,44 @@
 ---
 name: to-greenfield
-description: 'Use when the user says greenfield this or rescue this codebase, names a field (dark, red, blue, or brown), or diagnoses a subsystem. Not for specs: use to-spec. Not for remote or irreversible changes.'
+description: 'Use when the user says greenfield this or rescue this codebase, names a field (dark, red, blue, or brown), or diagnoses a subsystem. Not for specs. Not for remote or irreversible changes.'
 ---
 
-# To greenfield
+# Rescuing a subsystem toward greenfield
 
-## Contract
+You diagnose one troubled subsystem and land the first real fix. Read first, mutate once, and report what changed and what comes next.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User says 'greenfield this' or 'rescue this codebase', or names a field. |
-| Authority | Reversible local: writes only named local artifacts for exactly one bounded first corrective action (read-only diagnosis first); rollback is stated before any mutation (version control or undo). No remote mutation. |
-| Side effect | Field diagnosis and the first corrective action are reported in chat; durable effects are limited to the single bounded action this skill executes under its own authority. |
-| Done | The field (dark, red, brown, or blue) is named with its one-fact evidence and the first corrective action has been executed. |
+Use this when the user says "greenfield this", "rescue this codebase", names a field color, or asks for a subsystem diagnosis. Do not use it for writing specs, for remote changes, or for anything irreversible.
 
-## Inputs
+## Bound the work before you touch anything
 
-1. **Target scope** (required): one repository region or subsystem to diagnose. "Greenfield this" scopes to the subsystem the working session covers; a larger repository is diagnosed per subsystem, never as one undifferentiated whole.
-2. **Field name** (optional): a user-named field: dark, red, blue, or brown. It is a hypothesis, not authority: diagnosis must confirm or refute it with evidence before any action.
-3. **Verifier command** (optional): the project's check command for the scoped subsystem. When absent, read it from the project's own configuration or task runner; never invent one.
+One invocation covers one subsystem: name it and the paths it covers. A larger repository gets one pass per subsystem, never a single undifferentiated sweep. A second subsystem is a second invocation. If no identifiable subsystem or region exists, stop, report the blocker, and change nothing.
 
-## Refusals
+Diagnosis is read-only: file reads, symbol and path searches, and the project's own verifier for the scoped subsystem. If the user named a field color, treat it as a hypothesis to confirm or refute with evidence, never as authority. If no verifier command was supplied, read it from the project's configuration or task runner; never invent one. State the rollback path (version control or undo) before any mutation.
 
-- Will not widen scope beyond one subsystem: a second subsystem is a second invocation.
-- Will not execute more than one corrective action per invocation.
-- Will not invent evidence to support a field diagnosis.
-- Will not swallow a failed first action or claim Done: revert and report non-converged.
+## Name the field from evidence
 
-## Procedure
+Pick exactly one field, citing exactly one fact. Red comes first, then dark, then blue, then brown, and a broken blue setup counts as red until it is green.
 
-1. **Bound the scope.** Name the subsystem under diagnosis and the paths it covers. Stop rather than widen scope; a second subsystem is a second invocation. **Done when:** the subsystem and its paths are named.
-2. **Diagnose the field** through read-only inspection, including verifier runs and path and symbol searches. Apply this precedence: red trumps all (a broken bluefield is redfield until green), then darkfield, then bluefield, then brownfield. Redfield: verifier fails, active regressions, red CI, or broken build. Darkfield: no tests and no docs; structure unclear; nobody can say what a change would break. Bluefield: two coexisting implementations of one concern: old/new directories, migration flags, `v2` suffixes, TODO-migrate markers. Brownfield: green and working, but compat shims, legacy patterns, and dead weight. **Done when:** one field is selected with its evidence.
-3. Cite exactly one fact as the field's evidence: verifier output for red, a missing-tests-and-docs observation for dark, a named dual-implementation pair for blue, or a shim and legacy-pattern list for brown. If the user-named field is refuted, report the refuting fact and proceed with the evidence-supported field. **Done when:** the one-fact evidence is cited.
-4. **State the rollback path**, then execute exactly one first corrective action for the diagnosed field. Redfield: fix the single highest-priority verifier failure with the smallest change that turns that check green; quarantine a flaky check by naming it in the report, never by deleting it. Darkfield: map the scoped subsystem (structure, entry points, dependencies) and write one newcomer doc as a local artifact. Bluefield: record the concern's canonical and legacy paths with their remaining callers in the chat report, then migrate the first remaining caller onto the canonical path. Brownfield: add one behavior-pinning characterization test where coverage is thinnest. **Done when:** the one corrective action is executed and its rollback path is stated.
-5. **Verify the action.** Red: rerun the single failing verifier and confirm green. Dark: every doc claim traces to a mapped path. Blue: the migrated caller resolves against the canonical path only. Brown: the new test passes as written; a failing one refutes the diagnosis. **Done when:** the action is verified.
-6. **Report in chat.** Field, one-fact evidence, action executed, files touched, rollback path, verification result, and the next action for that field. One diagnosis and one first action per invocation. **Done when:** the chat report is emitted with all seven elements.
+- Red: the verifier fails, regressions are active, CI is red, or the build is broken. Evidence is the verifier output.
+- Dark: no tests and no docs, structure unclear, nobody can say what a change would break. Evidence is the missing-tests-and-docs observation tied to the mapped paths.
+- Blue: two coexisting implementations of one concern (old/new directories, migration flags, `v2` suffixes, TODO-migrate markers). Evidence is the named dual-implementation pair.
+- Brown: green and working, but compat shims, legacy patterns, and dead weight. Evidence is the shim and legacy-pattern list.
 
-## Failure and recovery
+If the signals support no single field, report the observed facts and the competing fields, execute no action, and end blocked. Never invent evidence. If the user-named field is refuted, report the refuting fact and proceed with the evidence-supported field.
 
-| Failure class | Behavior |
-|---|---|
-| Unboundable scope (no identifiable subsystem or region) | Report the blocker, mutate nothing, end blocked. |
-| Inconclusive diagnosis (signals support no single field) | Report the observed facts and the competing fields, execute no action, end blocked. Never invent evidence. |
-| Failed first action (verifier stays red, migrated caller breaks, doc or test cannot be validated) | Revert the touched change to its prior state, report the failure, the unchanged field state, and the next action; end non-converged. Never swallow the error or claim Done. |
-| Partial-result rule | At most one edit or one artifact is ever in flight; on any failure its rollback removes it completely, and a diagnosis failure leaves zero mutations. |
+Greenfield itself needs no action: when a re-diagnosis assigns no color to any scoped subsystem, the subsystem is already there.
 
-## Output
+## Land one clean replacement
 
-A chat report naming the field, its one-fact evidence, the first corrective action executed, files touched, the rollback path, the verification result, and the next action for the field; darkfield also leaves the one newcomer-doc artifact: greenfield is reached when a re-diagnosis assigns no color to any scoped subsystem.
+Execute exactly one first corrective action for the diagnosed field, and make it a scoped clean replacement by default: replace the broken structure rather than patching around it, absorb its special cases into the canonical path, migrate all in-scope callers onto the replacement, delete the obsolete mechanism the replacement supersedes, and preserve essential behavior, validation, and proof. Never break live consumers, destroy data, or take a nonreversible step without explicit user approval. When the replacement needs such an act, stop and propose it instead.
+
+- Red: fix the single highest-priority verifier failure with a replacement that turns that check green. A flaky check gets named in the report as quarantined, never silently deleted.
+- Dark: map the subsystem (structure, entry points, dependencies) and write one newcomer doc as a local artifact. Every doc claim must trace to a mapped path.
+- Blue: record the concern's canonical and legacy paths with their remaining callers, then migrate all remaining callers onto the canonical path so every migrated caller resolves against the canonical path only.
+- Brown: add one behavior-pinning characterization test where coverage is thinnest. The new test must pass as written. A failing one refutes the diagnosis.
+
+At most one edit or one artifact is ever in flight. Verify the action in the field's own terms: red reruns the single failing verifier and confirms green; dark checks every doc claim against a mapped path; blue confirms all migrated callers resolve canonically; brown requires the new test to pass. If the action fails (verifier stays red, a migrated caller breaks, the doc or test cannot be validated), revert the touched change to its prior state completely, report the failure, the unchanged field state, and the next action, and end non-converged. Never swallow the error or claim success.
+
+## Report so the next step is obvious
+
+Reply in chat with the field, its one-fact evidence, the action executed, files touched, the rollback path, the verification result, and the next action for that field. Darkfield additionally leaves the one newcomer-doc artifact. One diagnosis and one first action per invocation.

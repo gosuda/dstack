@@ -1,24 +1,21 @@
 # Token integration analyzer: assessment categories
 
-Branch detail for the 10 assessment categories referenced by SKILL.md step 3.
-For each applicable category, evaluate every checklist item against the codebase
-and produce a compliance finding (pass, warning, or fail) with file and line
-references.
+You work through the checklist below for step 3 of the procedure in `SKILL.md`. For each applicable category, evaluate every item against the codebase and produce a compliance finding (pass, warning, or fail) with file and line references. Skip a category only when the token type or analysis context makes it inapplicable, and say so in the report.
 
-## General Considerations
+## General considerations
 
 - Audit history
 - Team transparency
 - Security contact
 
-## Contract Composition
+## Contract composition
 
 - Complexity
 - SafeMath or Solidity 0.8+ arithmetic guards
 - Non-token functions
 - Single address entry point
 
-## Owner Privileges
+## Owner privileges
 
 - Upgradeability (proxy patterns)
 - Minting caps
@@ -26,27 +23,27 @@ references.
 - Blacklisting
 - Team accountability
 
-## ERC20 Conformity
+## ERC20 conformity
 
 - Boolean return values on transfer/transferFrom
 - Metadata presence
 - Decimals type and value
 - Race-condition mitigation (increaseAllowance/decreaseAllowance)
 
-## ERC20 Extension Risks
+## ERC20 extension risks
 
 - External calls in transfer (ERC777 hooks)
 - Transfer fees
 - Rebasing or yield-bearing mechanics
 
-## Token Scarcity Analysis (on-chain only when address and RPC are supplied)
+## Token scarcity analysis (on-chain only when address and RPC are supplied)
 
 - Supply distribution
 - Holder concentration
 - Exchange listings
 - Flash-loan and flash-mint risk
 
-## Weird ERC20 Patterns
+## Weird ERC20 patterns
 
 Check all 24 known nonstandard behaviors:
 
@@ -75,7 +72,7 @@ Check all 24 known nonstandard behaviors:
 23. Snapshot mechanisms affecting balance reads
 24. Delegated voting or checkpoint mechanisms
 
-## Token Integration Safety
+## Token integration safety
 
 - Safe transfer patterns (SafeERC20)
 - Balance verification before/after transfer
@@ -83,7 +80,7 @@ Check all 24 known nonstandard behaviors:
 - Wrapper contracts
 - Reentrancy guards on token interactions
 
-## ERC721 Conformity
+## ERC721 conformity
 
 - Transfers to 0x0 revert
 - safeTransferFrom and onERC721Received
@@ -92,7 +89,7 @@ Check all 24 known nonstandard behaviors:
 - Approval clearing on transfer
 - Token ID immutability
 
-## ERC721 Common Risks
+## ERC721 common risks
 
 - onERC721Received reentrancy
 - Safe minting to contracts

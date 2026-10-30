@@ -125,8 +125,8 @@ vst1q_f32(ptr, v);                      // store
 
 ## Thumb-2 notes
 
-Cortex-M cores execute Thumb-2. Most 32-bit ARM instructions exist in Thumb encoding, and 16-bit encodings keep code small. Conditional execution inside `it` blocks replaces many branches, but the block is narrow; prefer real branches for long bodies. Use the `bl` and `bx lr` pair through a linker that supports `ARM`/`Thumb` interworking, and check that function pointers carry the Thumb bit. Load immediate constants through the literal pool when the value does not fit an encoding.
+Cortex-M cores execute Thumb-2. Most 32-bit ARM instructions have a Thumb encoding, and the 16-bit encodings keep code small. Conditional execution inside `it` blocks replaces many short branches. The block is narrow, so prefer real branches for long bodies. Use the `bl` and `bx lr` pair through a linker that supports `ARM`/`Thumb` interworking. Check that function pointers carry the Thumb bit. Load immediate constants through the literal pool when the value does not fit an encoding.
 
 ## SVE and SME pointers
 
-Write NEON for baseline portability. Guard SVE code on a runtime check of the SVE feature and a length-agnostic loop, because the vector length is implementation defined. On Apple silicon, AMX is reached only through system libraries, so use Accelerate or Metal for large matrix work instead of writing AMX code.
+Write NEON for baseline portability. Guard SVE code behind a runtime check of the SVE feature. Keep SVE loops length-agnostic, because the vector length is implementation defined. On Apple silicon, AMX is reachable only through system libraries. Use Accelerate or Metal for large matrix work instead of writing AMX code.

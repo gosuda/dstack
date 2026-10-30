@@ -1,3 +1,0 @@
-interface:
-  display_name: "Fastify Schema First Service"
-  short_description: "Use when building or extending a Fastify application: routes, plugins, hooks, database wiring."

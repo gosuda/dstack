@@ -1,3 +1,0 @@
-interface:
-  display_name: "Scaffold Nextjs"
-  short_description: "Use when asked to scaffold a Next.js turborepo, Vercel app, or Node.js 24 TypeScript 7 CLI project, including scaffold-cli mode."

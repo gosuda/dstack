@@ -1,61 +1,77 @@
 ---
 name: frontend-ui-engineering
-description: 'Use when asked to build or modify production-quality components, layouts, state, and pages with WCAG 2.1 AA and real content. Not for token-system design: use frontend-design-deslop.'
+description: 'Use when asked to build or modify production-quality components, layouts, state, and pages with WCAG 2.1 AA and real content. Not for token-system design.'
 ---
 
 # Frontend UI engineering
 
-## Contract
+You build or modify user facing interfaces in the local working tree so they look hand crafted, work by keyboard and screen reader, and hold up at every breakpoint. This covers components, layouts, state, and pages. It never covers token system design with slop audit gates, and it never touches remote, credential, publish, deploy, or irreversible changes. Rollback is undoing the local edits.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Building or modifying user-facing interfaces and pages: creating components, implementing layouts, managing state, meeting WCAG requirements, or when the output must look production-quality and hand-crafted. |
-| Authority | Reversible local: writes only named UI component and page files in the local working tree; rollback is undo. No remote mutation. |
-| Side effect | UI components and pages created or modified in the local working tree. |
-| Done | The UI meets the project design system, passes WCAG 2.1 AA keyboard and focus checks, is responsive at the required breakpoints, uses real content instead of placeholders, and rejects every named AI-aesthetic tell. |
+## Bound the work before writing
 
-## Not for
+List every component and page file you will create or modify, and touch nothing outside that list. Colocate each component with its tests and local types. You need four things before writing:
 
-- Token-system design with slop-audit gates: use frontend-design-deslop.
-- Remote, credential, publish, deploy, or irreversible changes.
-
-## Inputs
-
-Required:
-- The component or page to build or modify, and the local file paths that will be created or changed.
-- The project design system: spacing scale, semantic color tokens, type hierarchy, and border-radius scale. If absent, stop and request it; never invent values the system does not define.
+- The component or page and the local paths that will change.
+- The project design system: spacing scale, semantic color tokens, type hierarchy, border radius scale. If it is absent, stop and request it. Never invent values the system does not define.
 - The required responsive breakpoints.
 - Real content (actual labels, copy, and data shapes) for every rendered surface.
 
-Optional:
-- Framework and styling mechanism in use.
-- State-management requirements and data-fetching approach.
+Framework and styling mechanism, state management and data fetching approach, and trusted reference screens from the product team help when they exist, but the four items above are mandatory.
 
-## Procedure
+## Let tokens carry every value
 
-1. Bound scope before writing: list every component and page file that will be created or modified. Do not touch files outside that list. Done when: the file list is stated and bounded.
-2. Read the project design system and use its tokens exclusively: spacing scale, semantic color tokens (`text-primary`, `bg-surface`, `border-default`), type hierarchy, and border-radius scale. Never use raw hex values, off-scale pixel values, or invented spacing. Done when: every value traces to a design-system token.
-3. Separate data fetching from presentation: a container component handles loading, error, and empty states; a presentational component receives resolved data and renders it. Done when: data fetching and presentation are in separate components.
-4. Compose small focused components rather than over-configured ones. Keep each component under roughly 200 lines and focused on one concern; split larger components by composition. Done when: no component exceeds 200 lines and each has one concern.
-5. Choose the narrowest state category that fits, in order: local component state, lifted to the parent, context, URL, server-state library, global store. Use local state for component UI, lifted state shared between two or three siblings, context for read-heavy write-rare values (theme, auth, locale), URL state for shareable filters and pagination, a server-state library for remote cached data, and a global store only for complex app-wide client state. Lift state or use context before prop-drilling past one level, and never prop-drill deeper than three levels. Done when: the state approach is the narrowest that fits and prop-drilling stays within its limits.
-6. Make every interactive element keyboard accessible. Use the native HTML element first (`<button>`, `<a>`, `<input>`) so elements are focusable by default; reach for ARIA only when no native element fits. If a non-interactive element must act as a control, add `role`, `tabIndex`, and `Enter`/`Space` key handlers. Provide `aria-label` for icon-only controls and for inputs with no visible label; pair inputs with `<label htmlFor>`. Done when: every interactive element is keyboard accessible with a visible label or aria-label.
-7. Manage focus when content changes: move focus to newly revealed content or its close control, and trap focus inside modal dialogs while they are open. Done when: focus management is implemented for every dynamic content change and modal.
-8. Render meaningful empty, loading, and error states for every data-driven surface. Use skeleton placeholders marked `aria-busy="true"` for loading, never blank screens or spinners for content areas. Never use color as the sole indicator of state; pair color with text or icons. Done when: all three states are rendered for every data-driven surface and no state relies on color alone.
-9. Build mobile-first responsive layouts using the project breakpoint system, then expand upward. Verify the layout at 320px, 768px, 1024px, and 1440px, or at the project's required breakpoints if they differ. Done when: the layout is verified at all required breakpoints.
-10. Use real content everywhere. Placeholder or lorem-ipsum text hides wrapping, overflow, and length problems that real content reveals. Done when: every rendered surface uses real content.
-11. Reject the AI aesthetic with concrete tells: no default purple or indigo palettes, no excessive gradients, no `rounded-2xl` on everything, no oversized uniform padding, no stock card grids, no generic hero sections where content-first layouts serve, and no layered shadows unless the design system specifies them. Use the project's actual palette, flat or subtle gradients matching the system, and consistent border-radius from the system. Done when: every AI-aesthetic tell is checked and rejected.
-12. Verify before declaring done: render without console errors; Tab through every interactive element; confirm a screen reader can convey structure; confirm responsiveness at the required breakpoints; confirm loading, error, and empty states are handled; confirm design-system adherence; run axe-core or browser dev-tools accessibility scan and resolve every warning. Done when: every check passes with zero warnings.
+Use the system tokens exclusively for spacing, color, type, and radius. Semantic colors such as text-primary, bg-surface, and border-default are the palette. Raw hex values, off scale pixel values, and invented spacing have no place here. When you spot one, replace it with the token or remove the pattern.
 
-## Failure and recovery
+| Check | Rule |
+|---|---|
+| Spacing | Every value comes from the spacing scale |
+| Color | Every value traces to a semantic token |
+| Type | Every size and weight comes from the hierarchy |
+| Radius | Every corner comes from the border radius scale |
 
-- Missing design system (no tokens, spacing scale, or color tokens available): stop and request it. Do not invent a palette, spacing values, or typography. No file is written.
-- Accessibility check fails (keyboard trap, missing focus target, contrast below 4.5:1 for normal text or 3:1 for large text, color used as the sole state indicator): fix the failing element before proceeding. Never suppress the warning or special-case the input.
-- Component exceeds roughly 200 lines or mixes data fetching with presentation: split it before continuing.
-- Off-scale spacing, raw hex color, or AI-aesthetic pattern detected: replace with the design-system token or remove the pattern.
-- Console errors or accessibility warnings remain: the done predicate does not hold. Report blocked with the exact failing check and the file; do not claim success.
-- Partial result: ship only the components that pass the done predicate. Mark any unfinished component as blocked and name the failing check.
-- Rollback: discard the uncommitted local changes or restore the prior file state. The skill performs no remote, VCS, credential, or deployment mutation, so recovery is local file restoration.
+## Ground a new look in evidence
 
-## Output
+When the product needs a distinct visual direction, study two or three relevant trusted screens before choosing a layout. Record what you decided about hierarchy, density, navigation, controls, responsive behavior, and interaction states. Turn those decisions into a short design contract naming the screen job, the primary action, the required states, the responsive rules, and the patterns to reject. Rebuild the useful structure in the product's own components, tokens, content, and visual language. Never copy another product's branding, proprietary text, imagery, or exact layout. When no references exist, document the assumptions and verify the result against the design system.
 
-Created or modified UI component and page files in the local working tree, plus a per-component verification report naming each check and its pass or fail state: console-clean, keyboard navigation, screen-reader conveyance, responsive breakpoints, loading/error/empty states, design-system adherence, and accessibility scan.
+Reject the AI aesthetic against concrete tells: default purple or indigo palettes, excessive gradients, rounded-2xl on everything, oversized uniform padding, stock card grids, generic hero sections where a content first layout serves, layered shadows the system never specified. Use the project actual palette, flat or subtle gradients matching the system, and the system border radius.
+
+## Keep components small and separated
+
+Keep each component under roughly 200 lines and focused on one concern, splitting larger ones by composition. Separate data fetching from presentation: a container handles loading, error, and empty states while a presentational component receives resolved data and renders it. A component past the line limit or one that mixes fetching with rendering gets split before you continue.
+
+## Pick the narrowest state that fits
+
+| Situation | Use this |
+|---|---|
+| UI owned by one component | Local component state |
+| State shared by two or three siblings | Lifted to the parent |
+| Read heavy, write rare values such as theme, auth, locale | Context |
+| Shareable filters and pagination | URL state |
+| Remote cached data | A server state library |
+| Complex app wide client state | A global store, and only then |
+
+Lift state or reach for context before prop drilling past one level, and never drill deeper than three levels.
+
+## Make it keyboard and screen reader ready
+
+Prefer the native element first (button, a, input) so controls are focusable by default, and reach for ARIA only when no native element fits. A non interactive element acting as a control needs role, tabIndex, and Enter and Space key handlers. Icon only controls and inputs with no visible label need aria-label, and inputs pair with label htmlFor. When content changes, move focus to the newly revealed content or its close control, and trap focus inside open modal dialogs. Every interactive element ends keyboard accessible with a visible label or aria-label.
+
+Render meaningful empty, loading, and error states for every data driven surface. Loading uses skeleton placeholders marked aria-busy="true", never a blank screen and never a spinner for content areas. Never use color as the sole indicator of state: pair color with text or icons.
+
+## Lay out mobile first with real content
+
+Build mobile first with the project breakpoint system and expand upward, verifying at 320px, 768px, 1024px, and 1440px, or at the project breakpoints when they differ. Placeholder and lorem ipsum text stays out, since it hides the wrapping, overflow, and length problems that real content reveals.
+
+## Verify before calling it done
+
+| Check | What passes |
+|---|---|
+| Console | Renders with zero console errors |
+| Keyboard | Tab reaches every interactive element in a sensible order |
+| Screen reader | Structure and labels are conveyed |
+| Responsive | Layout holds at all required breakpoints |
+| States | Loading, error, and empty states all render |
+| System | Every value traces to a design token |
+| Scan | axe-core or browser dev tools accessibility scan reports zero warnings |
+
+An accessibility failure (keyboard trap, missing focus target, contrast below 4.5 to 1 for normal text or 3 to 1 for large text, color as the sole state indicator) gets fixed before proceeding. Warnings are never suppressed and inputs are never special cased. If checks still fail, the work is blocked: report the exact failing check and the file, and do not claim success. Ship only the components that pass; mark any unfinished one blocked with its failing check.

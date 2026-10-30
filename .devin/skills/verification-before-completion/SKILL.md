@@ -1,46 +1,48 @@
 ---
 name: verification-before-completion
-description: 'Use when a task, feature, or fix is called done, complete, finished, or fixed, or before a commit, PR, or next task. Not for fact-checking: use verify-both-ways. Not for measuring: use verify-this.'
+description: 'Use when a task, feature, or fix is called done, complete, finished, or fixed, or before a commit, PR, or next task. Not for fact-checking. Not for measuring.'
 ---
 
 # Verification before completion
 
-## Contract
+You stand between a "done" claim and the work moving on. The moment someone calls a task done, complete, finished, fixed, or passing, or a commit, a pull request, or a next-task move is about to happen, or satisfaction is about to be expressed, you check the claim against fresh evidence. Each claim needs fresh output from exactly one proving action, the claim wording needs to match that output, and failures get reported honestly.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A done, fixed, passes, complete, or ready claim is imminent; a commit, PR, or next-task move is about to happen; or satisfaction is about to be expressed. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. Reads only what is required to classify the claim, and executes the one named proving action. |
-| Side effect | Runs the narrow proving command or scenario; edits nothing; blocks the completion claim when the output contradicts it. |
-| Done | Each claim carries fresh output from exactly one proving action (or the UNVERIFIED-NO-SURFACE classification when no checkable surface exists), the claim wording matches the output, and failures are reported honestly. |
+You are read-only. You mutate no file, no version control state, no credential, nothing paid, published, deployed, or remote. You read only what the classification requires, and you run the one named proving action. This skill is not fact-checking and not measuring.
 
-## Inputs
+What you need before starting: the specific claim being made, what would prove it, whether that proof has been run, and the output of the check. Useful alongside: the exact command or scenario run, the raw output read, and any partial results.
 
-- Fires on: Explicit invocation, or a user utterance that contains a completion claim.
-- Must supply: The specific claim being made; what would prove it; whether it has been run; the output of the check.
-- Optional: The exact command or scenario run; the raw output read; any partial results.
+## Name the checkable surface
 
-## Procedure
+A prose-only change is not automatically a no-check surface. Counts, paths, literal requirements, executable examples, and rendering claims all stay checkable. Reserve UNVERIFIED-NO-SURFACE for claims with no observable check at all.
 
-1. **Handle the no-check surface.** If the change has no checkable surface (comment-only, pure prose, a rename with no attached behavior), state that plainly and classify as UNVERIFIED-NO-SURFACE. Do not invent a check to run; skip the proving-action steps and report the classification. **Done when:** the surface is classified as checkable or UNVERIFIED-NO-SURFACE.
-2. **Name the proving action.** For a checkable surface, identify the precise action that would prove the claim: a specific test, build, lint pass, input scenario, file read, or reproduction of the original failure. "The three tests covering the retry path" is precise; "the test suite" is not. **Done when:** one precise proving action is named for the checkable surface.
-3. **Run it.** Execute the named action after the last relevant edit to the code. Do not run before the edit and claim the result as post-edit evidence. **Done when:** the proving action has been executed after the last edit.
-4. **Read all of it.** Read the full output and the exit code. Do not read only a tail, a summary, or the last line. Treat the exit code as a fact to check. **Done when:** the full output and exit code are read.
-5. **Classify.** VERIFIED if the output confirms the claim at its stated scope; PARTIAL if evidence exists but does not cover the full scope (state what passed and what was left unchecked); UNVERIFIED if no check was run (state "not run" plainly); FAILED if the output contradicts the claim (report the contradiction exactly). **Done when:** one classification is assigned with its justification.
-6. **Report.** State the classification, the action that was run, what it showed, and the exact claim wording it does or does not support. Do not hedge; do not round up a partial result to "done." **Done when:** the report states the classification, action, output, and claim wording.
+## Name one proving action
 
-## Failure and recovery
-unrun-check: The check was not executed. Report UNVERIFIED. Do not substitute a hedge or a confidence statement.
+Name a single action whose target and output can establish the claim. Record whatever shapes the claim: the checkout or content identity, the runtime and feature profile, the loaded or packaged entrypoint, the selected test population, and the run or job identity. For measurable claims, first restate the claim as a falsifiable hypothesis naming the metric, the expected direction, and the pass/fail threshold; a claim that cannot be restated this way stops here. Inspect the prepared target as given: you do not create worktrees, rebuild installations, mutate fixtures, repair caches, or acquire credentials.
 
-contradicted-claim: The output shows failure, error, or unexpected state. Report FAILED with the exact output. Do not suppress it, qualify it, or claim success despite the output.
+## Run it after the last edit
 
-timeout: The proving action did not complete. Report TIMEOUT with the partial output present. Do not treat a partial run as a pass.
+Execute the named action after the last relevant edit to the code. A run from before the edit never counts as post-edit evidence.
 
-stale-check: A check was run, but the code changed after it. Treat as UNVERIFIED; re-run before the claim can be made.
+## Read all of it
 
-Partial-result rule: A partial result is reported as partial. It is not rounded up. No retry is attempted unless the user explicitly requests one; this skill does not perform that action itself.
+Read the producer's actual final status and the complete diagnostics. When output is filtered or piped, trust the producer's status, not the final consumer's exit. Confirm the intended tests, rules, paths, or branches were actually exercised. A suspiciously short run is a reason to inspect the execution evidence, not a failure verdict by itself.
 
-Non-mutation rule: This skill reads and classifies. It does not write, commit, open PRs, move tickets, or change any state outside its own output.
+## Classify
 
-## Output
-One terminal classification (VERIFIED, PARTIAL, UNVERIFIED, UNVERIFIED-NO-SURFACE, FAILED, or TIMEOUT) with the action run (or the no-surface statement), what it showed, and the claim wording it supports or contradicts; non-VERIFIED classifications followed by one sentence stating the reason.
+For an absence claim, establish that the producer succeeded and searched the intended scope. Empty output can be valid; an errored producer, an empty input population, the wrong target, or an inactive rule cannot establish absence. For exact-content claims, compare against the authoritative full content at the required byte, line, or structural granularity.
+
+Keep the proof layers separate. A source inspection does not establish the running process image. A host check does not establish a gated target. Parser acceptance does not establish a complete request. Renderer parsing does not establish styling. A mocked transport does not establish a live provider path. Report PARTIAL or UNVERIFIED whenever the requested layer went unexercised, and verification grants no authority to retry, repair, publish, or waive the missing layer.
+
+Bind the proving action to its exact workspace, full revision or content snapshot, configuration, command, and claimed surface. A dirty-worktree result proves that snapshot, not every commit it contains. A result from before a rebase, a repair fold, or a relevant edit is not final-candidate proof. Confirm the intended artifact or tests actually executed and that a test filter selected the intended cases. When comparing base and candidate, use comparable scenarios and independently attributable build artifacts, and group only comparable failure shapes together. For before/after claims, run the same probe against the baseline and the changed state, compute the delta against the threshold, and classify as met, unmet, or blocked-confounded. For count or corpus claims, state the population, the predicate, the denominator, subgroup boundaries, and missing attributes, and judge against the claim's own threshold rather than an invented universal one.
+
+Isolate build or cache state when reuse could execute across revisions; never assume a particular build tool is free of that collision. Diagnose wrapper or environment failures from observed output before changing the environment: a wrapper parse failure, a missing fixture, a timeout, or an inability to link is not a successful source check. Read complete output and the unmasked exit status. Search summaries may locate diagnostics but prove neither absence of failures nor completeness of a run. One green base run plus one red candidate run supports a comparison; the pair alone never establishes causality for an intermittent failure. An all-green result is recorded as non-reproduced with attribution unestablished, not as exoneration. Record uncertain attribution as uncertain: impose no fixed rerun count and never declare an untouched-path failure pre-existing.
+
+## Report plainly
+
+State the classification, the action run, what it showed, and the exact claim wording it does or does not support. Do not hedge, and never round a partial result up to "done."
+
+Standing rules hold throughout: a check never executed is UNVERIFIED, with no hedge or confidence statement substituted. Output showing failure, error, or unexpected state is FAILED with the exact output, never suppressed, qualified, or talked around. An action that never completed is TIMEOUT with whatever partial output exists; a partial run is never a pass. A check run before the code changed is UNVERIFIED until re-run. A partial result is reported as partial, never rounded up, and no retry is attempted unless the user explicitly requests one; this skill does not perform that retry itself. And throughout, this skill reads and classifies only: it writes nothing, commits nothing, opens no pull requests, moves no tickets, and changes no state outside its own output.
+
+## What you hand back
+
+One terminal classification (VERIFIED, PARTIAL, UNVERIFIED, UNVERIFIED-NO-SURFACE, FAILED, or TIMEOUT) with the action run or the no-surface statement, what it showed, and the claim wording it supports or contradicts. Every non-VERIFIED classification carries one sentence stating the reason.

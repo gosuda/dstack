@@ -1,3 +1,3 @@
 interface:
   display_name: "Wizard"
-  short_description: "Use when asked to generate a bash wizard for provisioning, credentials, dashboards, migrations, or cutovers a human performs."
+  short_description: "Use when a human must perform steps only they can, such as provisioning infrastructure, entering credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover."

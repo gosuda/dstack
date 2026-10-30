@@ -6,44 +6,32 @@ disable-model-invocation: true
 
 # UI animation
 
-## Contract
+You build one animation that serves the interface: feedback, transition, continuity, or guidance. If the motion serves none of those, you say so and wait instead of animating. You work only with files under the project directory, with version control as rollback, and you never reach across network, authentication, or non local execution. Curve fitting may run a Python script to extract motion, and that script stays inside the project too.
 
-| Field | Bound contract |
+This skill fires on asks like spring animation, gesture, easing, screen recording, animate this, curve fitting, or choreography. It does not audit existing motion and does not hunt for animation opportunities.
+
+## Name the target and the approach
+
+First confirm the target is a UI element, component, or screen under the project directory. Then pick the approach: when the user names a framework or library, route to its animation primitives; when the user supplies a screen recording or video, propose curve fitting extraction before writing code. When the framework is unstated and cannot be inferred from the project, stop and ask the user to name it.
+
+Reject requests with no functional purpose, stating the reason and waiting for clarification. Reject compound asks that bundle multiple animation types unless the user splits them, since this skill builds exactly one animation type per run: entrance, exit, state transition, scroll linked, gesture driven, or continuous ambient.
+
+## Give every moving element a physics model
+
+| Element kind | Parameters to set |
 |---|---|
-| Trigger | spring animation, gesture, easing, screen recording, animate this, curve fitting, choreography |
-| Authority | Reversible local: writes only files under the project directory; rollback is version control. No remote mutation. |
-| Side effect | Produces animation code/curves; may run Python scripts to extract motion |
-| Done | Animation uses correct springs, curves, choreography, and respects reduced motion |
+| Spring | Mass, stiffness, damping, and the settling criterion |
+| Easing curve or keyframes | Duration and easing (CSS cubic-bezier or equivalent). Default to fast (150 to 250 ms) for micro interactions and medium (250 to 400 ms) for transitions |
+| Gesture driven | Drag axis, snap points, and release velocity |
 
-## Inputs
+Never hard code an arbitrary number without rationale. When several elements move together, state the choreography explicitly: the sequence, the stagger interval, and the overlap.
 
-- Required: a UI element or component to animate, or an explicit request to build an animation from scratch.
-- Optional: reference recording (screen capture or video), target framework or library (CSS, React, SwiftUI, Compose, etc.), existing design tokens or motion constants.
-- Blocked: anything requiring network calls, authentication, or non-local execution beyond the project directory.
+## Write the code inline and respect reduced motion
 
-## Procedure
+Produce the code in the target framework or library, inlining the animation rather than assuming a shared motion library exists. Annotate each transition with the element it affects and its model specific parameters (curve name and duration, or spring stiffness, damping, and mass).
 
-1. **Classify the ask.** If the user names a framework or library, route to its animation primitives. If the user supplies a screen recording or video, propose curve-fitting extraction before writing code. **Done when:** the framework is identified and the approach is chosen.
-2. **Validate scope.** Confirm the animation target is a UI element, component, or screen under the project directory. **Done when:** the target is confirmed local and in-scope.
-3. **Decide whether to animate.** Reject a request if animation does not serve a clear functional purpose (feedback, transition, continuity, guidance). State the rejection reason and wait for clarification. **Done when:** a functional purpose is confirmed or the rejection is delivered.
-4. **Select animation type.** Choose from: entrance, exit, state transition, scroll-linked, gesture-driven, or continuous ambient. Reject compound multi-type animations unless the user splits them. **Done when:** exactly one animation type is selected.
-5. **Design the animation.** For each moving element:
-   - Pick a physics model: spring (mass–stiffness–damping), easing curve (CSS cubic-bezier or equivalent), or keyframe sequence.
-   - Choose a duration and easing. Default to fast (150–250 ms) for micro-interactions, medium (250–400 ms) for transitions.
-   - For spring animations, compute or estimate stiffness, damping, and mass. Never hard-code arbitrary numbers without rationale.
-   - For gesture-driven animations, model the drag axis, snap points, and release velocity.
-   **Done when:** every moving element has a physics model, duration, and easing.
-6. **Apply choreography.** When multiple elements move together, define the sequence, stagger interval, and overlap. State the choreography logic explicitly. **Done when:** the sequence and stagger are defined for every concurrent element.
-7. **Respect reduced motion.** If the user request or the `prefers-reduced-motion` media query is detected, replace physics-based or continuous animations with instant state changes or opacity-only fades. Document this substitution. **Done when:** reduced-motion handling is present and documented.
-8. **Write the animation code.** Produce code in the target framework or library. Annotate each transition with the curve name, duration, and the element it affects. Inline the animation; do not assume a shared motion library exists. **Done when:** every animation block has a named curve, duration, and target.
-9. **Validate the output.** Confirm every animation block has a defined curve, duration, and target. Confirm reduced-motion is handled. If a Python script was run to extract motion, note the script name and what it produced. **Done when:** all blocks pass the validation checks.
+When the user requests reduced motion or the `prefers-reduced-motion` media query is detected, replace physics based or continuous animations with instant state changes or opacity only fades, and document that substitution.
 
-## Failure and recovery
-- Scope violation: the request targets a non-local or credential-protected resource. Stop immediately. Return the classification that was blocked and the reason.
-- Framework unknown: the target framework is not stated and cannot be inferred from the project. Stop at Procedure step 1. Ask the user to name a framework.
-- No functional purpose: the animation serves no feedback, transition, continuity, or guidance purpose. Stop at Procedure step 3. State the rejection reason.
-- Partial result: if a Python script fails mid-run, discard any partial output. Report the script name, the failure point, and the last valid output before the failure. Do not claim the animation is complete.
-- Non-converged: animation quality cannot be judged algorithmically. Present the output for user review. Mark the skill complete only when the user confirms the animation meets the done predicate.
+Before handing back, confirm every animation block names its target and parameters and that reduced motion handling is present and documented. When a Python script ran for curve fitting, record the script name and what it produced. If a script fails mid run, discard any partial output and report the script name, the failure point, and the last valid output before the failure.
 
-## Output
-A code artifact with named animations/curves/spring parameters per element, duration and easing per transition, a reduced-motion substitution flag if applied, and fitted parameters plus script name if curve fitting was performed.
+Animation quality cannot be judged algorithmically, so the work is complete only when the user confirms the result meets the need. Present the artifact for review and wait for that confirmation. The handoff names each animation with its curves or spring parameters per element, duration and easing per transition, the reduced motion substitution flag when applied, and fitted parameters plus script name when curve fitting was performed.

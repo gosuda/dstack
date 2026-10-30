@@ -5,23 +5,18 @@ description: 'Use when the user asks for direction and a compilable 3D workflow 
 
 # Compile 3D workflow
 
-## Contract
+You turn an interview about direction into a workflow file a machine can check: a task DAG (topology), concept groups over those tasks (ontology), and control cycles (feedback loops). You interview, you author, you validate, you write the file. Nothing remote, no credentials, no publish, no deploy, nothing irreversible.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The user asks for direction and a compilable 3D workflow from an interview. |
-| Authority | Reversible local: writes only the named local 3D workflow artifact file; rollback is deleting that file. No remote mutation. |
-| Side effect | Writes one local 3D workflow artifact file. |
-| Done | A validated local 3D workflow artifact file exists and passes every structural check. |
+This stays local and reversible: you write only the named local artifact file, and rollback is deleting that file. No remote state is touched.
 
-## Inputs
+What you need before starting:
 
-- A direction interview with the user, supplying: the problem being solved, what success looks like, binding constraints, and what is explicitly out of scope. All four required; none inferred.
+- A direction interview with the user, supplying all four of these, recorded verbatim and never inferred: the problem being solved, what success looks like, binding constraints, and what is explicitly out of scope.
 - The output file path for the workflow artifact. Required.
 
-## Artifact schema
+## Author the artifact from the interview answers
 
-The workflow artifact is a YAML file with this structure:
+Build the three dimensions from what the user said. The file is YAML with this structure:
 
 ```yaml
 problem: <string>
@@ -44,31 +39,27 @@ feedback_loops:
     actuator: <string>
 ```
 
-Every node id referenced in `depends_on` must exist in `nodes`. Every node id in ontology group `members` must exist in `nodes`. Every feedback loop must name a sensor, comparator, and actuator as non-empty strings.
+Topology is a DAG of tasks. Each node carries an id, a task description, and a `depends_on` list naming the node ids it waits on. No cycles, no node depending on itself, and every `depends_on` entry must reference an existing node id. Ontology groups are named concept clusters over the work: every group is non-empty and every member must exist in the topology. Feedback loops are cybernetic control cycles: each loop names its sensor (what is measured), comparator (what is expected), and actuator (what action re-routes), all as non-empty strings.
 
-## Procedure
+## Validate every structural check before writing
 
-1. Conduct the direction interview. Ask the user for the problem, success criteria, binding constraints, and explicit out-of-scope. Record the answers verbatim. Done when: all four interview inputs are recorded verbatim, or the missing input is named and the skill stops.
-2. Author the workflow artifact from the interview answers. Build the three dimensions:
-   - Topology: a DAG of tasks. Each node has an id, a task description, and a depends_on list naming the node ids it waits on. No cycles. No node depends on itself. Every depends_on entry must reference an existing node id.
-   - Ontology groups: named concept clusters classifying the work domains. Each group names its member node ids. Every group is non-empty. Every member must exist in the topology.
-   - Feedback loops: cybernetic control cycles. Each loop names its sensor (what is measured), comparator (what is expected), and actuator (what action re-routes). All three are non-empty strings.
-   Done when: the artifact combines all three dimensions from the interview answers.
-3. Validate the artifact against the schema. Check every rule:
-   - Every node has a unique id and a non-empty task.
-   - Every depends_on entry references an existing node id.
-   - No cycle exists in the dependency graph (topological sort succeeds).
-   - Every ontology group is non-empty and every member references an existing node id.
-   - Every feedback loop names a non-empty sensor, comparator, and actuator.
-   Done when: every check passes, or the specific defect is named and the skill stops.
-4. Write the validated artifact to the output file path as YAML. State the rollback path: delete the local artifact file. No remote state was touched. Done when: the artifact file is written and the rollback path is stated.
+Check each rule, and stop with the specific defect named if any check fails:
 
-## Failure and recovery
+- Every node has a unique id and a non-empty task.
+- Every `depends_on` entry references an existing node id.
+- No cycle exists in the dependency graph (a topological sort succeeds).
+- Every ontology group is non-empty and every member references an existing node id.
+- Every feedback loop names a non-empty sensor, comparator, and actuator.
 
-- Interview incomplete: if the user cannot supply the problem, success criteria, constraints, or scope, stop and report which inputs are missing. Do not infer or fabricate direction.
-- Schema validation failure: if any node lacks dependencies, any ontology group is empty, any feedback loop is missing its sensor, comparator, or actuator, any depends_on entry references a non-existent node, or a cycle exists in the dependency graph, report the specific defect and stop. Do not emit a partial artifact as complete.
-- Partial-result rule: a partially written artifact file is not a compiled workflow. Delete it and report the rollback.
+Only a file passing every check counts as a compiled workflow. A partially written file is not one: delete it and report the rollback.
 
-## Output
+Write the validated artifact to the output path as YAML, then state the rollback path (delete the local artifact file) and that no remote state was touched.
 
-A validated local 3D workflow artifact file (YAML) containing the DAG topology, ontology groups, and feedback loops, with every structural check passing.
+## When the workflow cannot compile
+
+- Interview incomplete: the user cannot supply the problem, success criteria, constraints, or scope. Stop and report which inputs are missing. Do not infer or fabricate direction.
+- Schema validation failure: a node without an id or task, a `depends_on` entry pointing at a non-existent node, a cycle in the graph, an empty ontology group or a member pointing nowhere, or a feedback loop missing its sensor, comparator, or actuator. Report the specific defect and stop. Do not present a partial artifact as complete.
+
+## What you hand back
+
+A validated local YAML artifact at the output path, containing the DAG topology, ontology groups, and feedback loops, with every structural check passing.

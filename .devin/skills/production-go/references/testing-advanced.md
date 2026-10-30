@@ -1,8 +1,10 @@
 # Advanced Testing Patterns
 
-Beyond table-driven tests: native fuzzing finds inputs you didn't imagine, property-based tests check invariants over thousands of cases, `synctest` makes time-dependent concurrency *deterministic*, and `benchstat` tells you whether a change is real or noise. The meta-rule: **don't mock what you can run for real** (testcontainers), and don't run for real what a fake clock can simulate (`synctest`).
+Beyond table-driven tests: native fuzzing finds inputs you didn't imagine, property-based tests check invariants over thousands of cases, `synctest` makes time-dependent concurrency *deterministic*, and `benchstat` tells you whether a change is real or noise.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. This is the DELTA beyond [testing.md](testing.md): table-driven, subtests, `httptest`, basic `f.Add`/`f.Fuzz`, golden files, and `b.Loop` live there.
+Anchor on formal invariants and algebraic properties (verify pre- and post-conditions $\{P\} C \{Q\}$ rather than accidental execution traces) and ruthless empirical validation (run real dependencies in containers, replace flaky wall-clock sleeps with deterministic simulation, and test state transitions so tests survive refactorings). The meta-rule: **don't mock what you can run for real** (testcontainers), and don't run for real what a fake clock can simulate (`synctest`).
+
+> Verified against Go **1.26.4** (stable) + the final **Go 1.27** release notes (GA 2026-08-19; current stable pin 1.27.3 per SKILL.md), re-checked 2026-10 after 2026-06 RC research. Version tags `[1.N]` mark the release a claim applies to. This is the DELTA beyond [testing.md](testing.md): table-driven, subtests, `httptest`, basic `f.Add`/`f.Fuzz`, golden files, and `b.Loop` live there.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -44,14 +46,15 @@ Beyond table-driven tests: native fuzzing finds inputs you didn't imagine, prope
 - Fuzzing args are a **closed type set**: `string`, `[]byte`; `int`,`int8`,`int16`,`int32`/`rune`,`int64`; `uint`,`uint8`/`byte`,`uint16`,`uint32`,`uint64`; `float32`,`float64`; `bool`. **No structs/slices/maps/time.Time.** Every `f.Add` seed (and every `testdata/fuzz` file) must match the arg types **exactly, in order**.
 - Per-input execution timeout is **1 second**: a target that deadlocks or loops is reported as a failure. Keep targets fast and **free of global state** (workers run in parallel, nondeterministic order).
 
+Do this: fuzz `[]byte`, decode inside, and assert a property (round-trip here).
+
 ```go
-// CORRECT — fuzz []byte, decode inside, assert a property (round-trip).
 func FuzzRoundTrip(f *testing.F) {
-    f.Add([]byte(`{"id":1,"name":"a"}`)) // seed types == fuzz arg types
+    f.Add([]byte(`{"id":1,"name":"a"}`))
     f.Fuzz(func(t *testing.T, data []byte) {
         var u User
         if err := json.Unmarshal(data, &u); err != nil {
-            return // reject invalid input — not a failure
+            return
         }
         out, err := json.Marshal(u)
         if err != nil {
@@ -68,14 +71,14 @@ func FuzzRoundTrip(f *testing.F) {
 }
 ```
 
+Seed types must match the fuzz argument types exactly. Rejecting undecodable input is not a failure.
+
+Not this: a struct as a fuzz argument does not compile, and an `f.Add` seed whose type mismatches the fuzz arguments panics at test start.
+
 ```go
-// WRONG — won't compile: struct is not an allowed fuzz arg type.
 func FuzzUser(f *testing.F) {
-    f.Fuzz(func(t *testing.T, u User) { /* ... */ }) // compile error
+    f.Fuzz(func(t *testing.T, u User) { /* ... */ })
 }
-// WRONG — seed type mismatch panics at test start (int seed, []byte arg).
-f.Add(42)
-f.Fuzz(func(t *testing.T, b []byte) {})
 ```
 
 **Corpus layout & CI strategy**: the part models skip:
@@ -85,9 +88,11 @@ f.Fuzz(func(t *testing.T, b []byte) {})
 - `go test -fuzz` with **no `-fuzztime` runs forever**, which is useless in CI. Pattern: a time-boxed fuzz job (`-fuzztime=60s` per target) nightly, plus the always-on seed-corpus replay in the normal unit run. For continuous deep fuzzing, native Go targets are supported by **OSS-Fuzz**.
 
 ```bash
-go test -run=^$ -fuzz=FuzzRoundTrip -fuzztime=60s ./...   # nightly/CI, time-boxed
-go test ./...                                              # replays seed+regression corpus (no -fuzz)
+go test -run=^$ -fuzz=FuzzRoundTrip -fuzztime=60s ./...
+go test ./...
 ```
+
+The first line is the time-boxed nightly fuzz job. The second replays the seed plus regression corpus without fuzzing.
 
 **Knobs & limits:** `-fuzzminimizetime` (shrink budget; `0` disables shrinking), `-parallel` (defaults `$GOMAXPROCS`; `-cpu` is ignored while fuzzing). Coverage instrumentation exists **only on AMD64 and ARM64**; on other arches the corpus can't grow, so fuzzing degenerates to replay. Large binary seeds: convert with `golang.org/x/tools/cmd/file2fuzz` (encodes a file as a `[]byte` corpus entry). **A fuzz failure prints a `go test -run=FuzzXxx/<hash>` line; paste it to reproduce deterministically.**
 
@@ -97,11 +102,13 @@ go test ./...                                              # replays seed+regres
 
 When inputs don't fit fuzzing's type whitelist (structs, slices of structs, stateful sequences), use `pgregory.net/rapid`: generate typed values, assert invariants, get **automatic shrinking** to a minimal failing case.
 
+The `rapid.Check` callback takes a `*rapid.T`, not a `*testing.T`; values come out through `.Draw`.
+
 ```go
 import "pgregory.net/rapid"
 
 func TestSortIdempotent(t *testing.T) {
-    rapid.Check(t, func(t *rapid.T) {                 // *rapid.T, not *testing.T
+    rapid.Check(t, func(t *rapid.T) {
         xs := rapid.SliceOf(rapid.Int()).Draw(t, "xs")
         sort.Ints(xs)
         once := slices.Clone(xs)
@@ -126,6 +133,8 @@ genUser := rapid.Custom(func(t *rapid.T) User {
 
 Stateful / model-based testing is the highest-value use: drive a real implementation and a simple model through random operation sequences, assert they agree. Catches ordering and concurrency bugs that example tests never reach.
 
+The empty-string key (`""`) runs after every step as a global invariant check; here it asserts the real queue length tracks the model.
+
 ```go
 func TestQueueModel(t *testing.T) {
     rapid.Check(t, func(t *rapid.T) {
@@ -144,7 +153,7 @@ func TestQueueModel(t *testing.T) {
                 }
                 model = model[1:]
             },
-            "": func(t *rapid.T) { // "" runs after every step: a global invariant check
+            "": func(t *rapid.T) {
                 if real.Len() != len(model) {
                     t.Fatalf("len drift: %d vs %d", real.Len(), len(model))
                 }
@@ -164,8 +173,9 @@ Property tests vs fuzzing: fuzzing is coverage-*guided* (best for parsers/decode
 
 **Decision order.** (1) Can you use the real thing cheaply? Use it (in-memory fake, `httptest`, testcontainer). (2) Small interface (≤3 methods)? Hand-write a mock. (3) Large/volatile interface verified across many tests? Generate. **Mock at the *boundary*** (network calls, the clock, third-party SDKs), never your own value types or pure functions.
 
+Function fields make per-test behavior trivial, with zero dependencies. Hand mocks are the default.
+
 ```go
-// Hand mock — function fields make per-test behavior trivial; zero deps. Best default.
 type stubRepo struct {
     getUser func(ctx context.Context, id string) (*User, error)
 }
@@ -178,25 +188,42 @@ func (s stubRepo) GetUser(ctx context.Context, id string) (*User, error) {
 
 | Tool | Import / status [2026] | Style | Use when |
 |---|---|---|---|
-| **`go.uber.org/mock`** (`mockgen`) | **v0.6.0**, maintained fork of golang/mock | Expectation DSL (`EXPECT().M().Return()`) | You want strict call-order/count assertions; large interfaces |
+| **`go.uber.org/mock`** (`mockgen`) | **v0.6.0**, maintained fork of golang/mock | Expectation DSL (`EXPECT().M().Return()`) | Large interfaces; verifying external protocol order without pinning private calls |
 | **`matryer/moq`** | Active | Generates a plain struct of `MFunc` fields + call recorder | You like hand-mock ergonomics but want them generated |
 | **`mockery`** | Active, config-driven (`.mockery.yaml`) | testify-style (`m.On(...).Return(...)`) | Codebases already on `testify/mock` |
 | `github.com/golang/mock` | **Archived** | none | Never; migrate to `go.uber.org/mock` |
 
-```go
-// go.uber.org/mock [v0.6.0] — NewController auto-cleans up; no defer ctrl.Finish().
-ctrl := gomock.NewController(t)
-repo := NewMockUserRepository(ctrl) // generated by `mockgen`
-repo.EXPECT().
-    GetUser(gomock.Any(), gomock.Eq("123")).
-    Return(&User{ID: "123", Name: "Alice"}, nil).
-    Times(1)
-```
+`go.uber.org/mock` [v0.6.0] registers `Finish` through `t.Cleanup` when it receives a `*testing.T`, so no deferred `Finish` call is needed.
 
 ```go
-// WRONG — obsolete since the controller registers t.Cleanup(Finish) itself.
-ctrl := gomock.NewController(t)
-defer ctrl.Finish() // redundant when a *testing.T is passed
+func TestOrderService_PaymentFailure(t *testing.T) {
+    ctrl := gomock.NewController(t)
+    gw := NewMockPaymentGateway(ctrl)
+
+    // Boundary expectation: inject external gateway failure to verify caller resilience.
+    gw.EXPECT().
+        Charge(gomock.Any(), int64(5000)).
+        Return("", ErrCardDeclined)
+
+    store := &memOrderStore{
+        orders: map[string]*Order{
+            "o1": {ID: "o1", Amount: 5000, Status: StatusPendingPayment},
+        },
+    }
+    svc := NewOrderService(gw, store)
+
+    err := svc.Checkout(t.Context(), "o1")
+
+    // Invariant: caller translates external failure into typed domain error
+    // and preserves order state (never marked Paid or deleted).
+    if !errors.Is(err, ErrPaymentFailed) {
+        t.Fatalf("got err %v, want %v", err, ErrPaymentFailed)
+    }
+    order, _ := store.Find("o1")
+    if order.Status != StatusPendingPayment {
+        t.Errorf("order status = %v, want %v", order.Status, StatusPendingPayment)
+    }
+}
 ```
 
 Generate via the `tool` directive [1.24] so the version is pinned in `go.mod` (no `//go:generate` magic comment needed for the dep):
@@ -205,7 +232,7 @@ Generate via the `tool` directive [1.24] so the version is pinned in `go.mod` (n
 //go:generate go tool mockgen -source=repo.go -destination=mock_repo_test.go -package=user
 ```
 
-**When NOT to mock** (the expert call models miss): mocking your own database layer encodes your *assumptions* about SQL, not its *behavior*; the mock passes while the query is wrong (use a container). Mocking time via an injected `Clock` interface is now inferior to a `synctest` fake clock (no production interface pollution). Over-mocking asserts *implementation* (which methods were called) instead of *behavior*; those tests break on every refactor. **A test that only verifies "the mock was called" verifies nothing about correctness.**
+**When NOT to mock** (the expert call models miss): mocking your own database layer encodes your *assumptions* about SQL, not its *behavior*; the mock passes while the query is wrong (use a container). Mocking time via an injected `Clock` interface is now inferior to a `synctest` fake clock (no production interface pollution). Over-mocking asserts *internal implementation details* (which private methods were called and how many times) instead of *system behavior and invariants*; those tests break on harmless refactorings. **A test that only verifies "the mock was called" or echoes the mock's return value verifies zero invariants.** Verify the system's state transitions and typed error handling instead.
 
 See also [testing.md#mocking](testing.md#mocking) for the interface-at-the-consumer principle.
 
@@ -230,12 +257,12 @@ func newPostgres(t *testing.T) string {
     ctr, err := postgres.Run(ctx, "postgres:17-alpine",
         postgres.WithDatabase("app"),
         postgres.WithUsername("test"), postgres.WithPassword("test"),
-        testcontainers.WithWaitStrategy(                  // wait for READINESS, not just "started"
+        testcontainers.WithWaitStrategy(
             wait.ForLog("database system is ready to accept connections").
                 WithOccurrence(2).WithStartupTimeout(30*time.Second)),
     )
     if err != nil { t.Fatalf("start postgres: %v", err) }
-    t.Cleanup(func() { testcontainers.TerminateContainer(ctr) }) // ALWAYS terminate
+    t.Cleanup(func() { testcontainers.TerminateContainer(ctr) })
     dsn, err := ctr.ConnectionString(ctx, "sslmode=disable")
     if err != nil { t.Fatalf("dsn: %v", err) }
     return dsn
@@ -250,49 +277,95 @@ See also [testing.md#integration](testing.md#integration) and [database.md](data
 
 ## Contract Testing {#contract-testing}
 
-Consumer-driven contracts verify a provider honors what consumers actually need, **without running both services together**. The consumer test records expectations as a *pact* (JSON); the provider replays it. Use Pact when teams own services independently; for a monorepo where you control both ends, prefer a shared integration test.
+When two services evolve independently, prove the consumer works against the real provider, not against a static recording of it. A recorded pact (JSON) plus replay pins the bytes the provider once sent; an equivalent reimplementation that renames a field or reorders output passes the provider's own tests yet breaks the replay, and the replay breakage proves nothing about what the consumer actually needs. Run both sides together instead: start the real provider (its actual handler, or the service in a container), drive it with the real consumer, and assert semantic predicates on what the consumer decodes.
 
 ```go
-import (
-    "github.com/pact-foundation/pact-go/v2/consumer"
-    "github.com/pact-foundation/pact-go/v2/matchers"
-)
+func TestUserClientAgainstRealProvider(t *testing.T) {
+    srv := httptest.NewServer(realProviderHandler(t))
+    t.Cleanup(srv.Close)
 
-func TestUserClientContract(t *testing.T) {
-    mock, err := consumer.NewV2Pact(consumer.MockHTTPProviderConfig{
-        Consumer: "frontend", Provider: "user-service",
-    })
-    if err != nil { t.Fatal(err) }
+    c := NewUserClient(srv.URL)
+    u, err := c.GetUser(context.Background(), 42)
+    if err != nil {
+        t.Fatalf("get user: %v", err)
+    }
+    if u.ID != 42 || u.Name == "" {
+        t.Errorf("decoded user loses fields: %+v", u)
+    }
+}
 
-    err = mock.AddInteraction().
-        Given("user 42 exists").                       // provider state
-        UponReceiving("a request for user 42").
-        WithRequest("GET", "/users/42").
-        WillRespondWith(200, func(b *consumer.V2ResponseBuilder) {
-            b.Header("Content-Type", matchers.String("application/json"))
-            b.JSONBody(matchers.MapMatcher{
-                "id":   matchers.Like(42),               // match TYPE, not exact value
-                "name": matchers.Like("Alice"),
-            })
-        }).
-        ExecuteTest(t, func(cfg consumer.MockServerConfig) error {
-            c := NewUserClient(fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port))
-            u, err := c.GetUser(context.Background(), 42)
-            if err != nil { return err }
-            if u.Name == "" { return fmt.Errorf("name not parsed") }
-            return nil
-        })
-    if err != nil { t.Fatal(err) }
+func TestUserClientToleratesAdditiveChanges(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        fmt.Fprint(w, `{"id":42,"name":"Alice","nickname":"Al"}`)
+    }))
+    t.Cleanup(srv.Close)
+
+    u, err := NewUserClient(srv.URL).GetUser(context.Background(), 42)
+    if err != nil {
+        t.Fatalf("get user: %v", err)
+    }
+    if u.ID != 42 || u.Name != "Alice" {
+        t.Errorf("old client must decode id and name and ignore the rest: %+v", u)
+    }
+}
+
+func TestUserClientSurfacesProviderErrors(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        http.Error(w, "boom", http.StatusInternalServerError)
+    }))
+    t.Cleanup(srv.Close)
+
+    _, err := NewUserClient(srv.URL).GetUser(context.Background(), 42)
+    var provErr *ProviderError
+    if !errors.As(err, &provErr) {
+        t.Fatalf("expected *ProviderError, got %v (%T)", err, err)
+    }
+    if provErr.StatusCode != http.StatusInternalServerError {
+        t.Errorf("got status %d, want 500", provErr.StatusCode)
+    }
 }
 ```
 
-**Tips:** match on **types** (`Like`, `Term`, `EachLike`) not literals, or the contract breaks on every data change. Pact-Go v2 needs a native FFI lib; run `pact-go install` in CI before tests. Provider verification (`provider.NewVerifier().VerifyProvider`) replays the JSON with `StateHandlers` seeding each `Given` state; publish pacts to a Pact Broker and run provider verification on **every provider PR**; that's the whole point.
+Three properties, each independent of byte layout: the consumer decodes the real provider's responses, it tolerates additive fields from a newer provider (backward compatibility), and it surfaces provider failures as typed errors instead of silent zero values (fault behavior).
+
+**Separating inspection artifacts from proof**: A recorded pact file is an *inspection and schema synchronization artifact* shared between teams. Replaying against recorded JSON proves only that the consumer parses historical payloads; it does not prove provider compatibility. When services share a repository or can run locally, live integration tests (real handlers or containerized services) provide the actual proof. When teams must cross organizational silos with Pact, define contracts using semantic matchers (types and ranges, never rigid byte literals), verify the pact against the live provider service on every change, and treat consumer replay green as weak evidence.
 
 ---
 
 ## Snapshot Testing {#snapshot-testing}
 
-For large structured output (rendered templates, serialized trees, CLI help), snapshot tests beat hand-written expectations. `go-cmp` golden files ([testing.md#golden-files](testing.md#golden-files)) cover most cases with stdlib + `-update`; reach for `github.com/bradleyjkemp/cupaloy/v2` only for its auto-managed `.snapshots/` ergonomics: `cupaloy.SnapshotT(t, value)`, update with `UPDATE_SNAPSHOTS=true go test`. **The discipline matters more than the tool:** output must be deterministic: sort maps, strip timestamps/UUIDs/addresses before snapshotting, or every run is a false diff. Review `.snapshots/`/`.golden` diffs in PRs **like code** (a blind `-update` defeats the purpose). Prefer golden-file (stdlib + `cmp.Diff`) over a snapshot dep when you can.
+For large structured output (rendered templates, serialized trees, CLI help), do not let saved bytes decide pass or fail. Snapshot helpers (`cupaloy.SnapshotT`, golden files) compare against committed output, and `UPDATE_SNAPSHOTS=true` overwrites the oracle: the test then proves the output did not change, not that it is right, and any equivalent reimplementation breaks it. Compare canonical form against a semantic predicate instead, and prove the predicate is sensitive enough to catch drift.
+
+```go
+func TestRenderHelp(t *testing.T) {
+    out := renderHelp(allCommands())
+
+    // 1. Proof: Output parses into structured AST/tokens under format rules.
+    doc, err := parseHelp(out)
+    if err != nil {
+        t.Fatalf("help output does not parse: %v", err)
+    }
+
+    // 2. Proof: Semantic completeness invariant (every command and short description is present).
+    for _, cmd := range allCommands() {
+        if !mentions(doc, cmd.Name, cmd.Short) {
+            t.Errorf("help omits command %s", cmd.Name)
+        }
+    }
+
+    // 3. Proof: Sensitivity check proves the predicate is non-vacuous.
+    mutated := renderHelp(allCommandsPlus(junkCommand()))
+    if canonical(mutated) == canonical(out) {
+        t.Error("predicate is vacuous: a changed command set renders identical canonical form")
+    }
+
+    // Inspection artifact: snapshots may be dumped to t.ArtifactDir() for human review,
+    // but never act as the pass/fail gate.
+}
+```
+
+Three parts: canonicalize (sort maps, strip timestamps, UUIDs, and addresses) so inspection is deterministic; assert semantic predicates (every command documented, output parses against the schema); and run a sensitivity check proving the assertion can fail (a mutated input must change the canonical form). A saved-output diff may appear in the failure log or under `t.ArtifactDir()` as an inspection aid; it must never be the gate. [testing.md#golden-files](testing.md#golden-files) states the same rule for golden files.
 
 ---
 
@@ -304,26 +377,27 @@ For large structured output (rendered templates, serialized trees, CLI help), sn
 import "testing/synctest"
 
 func TestRateLimiterRefill(t *testing.T) {
-    synctest.Test(t, func(t *testing.T) {        // [1.26] signature: Test(t, func(*testing.T))
+    synctest.Test(t, func(t *testing.T) {
         lim := NewLimiter(10, time.Second)
         for range 10 {
             if !lim.Allow() { t.Fatal("first 10 must pass") }
         }
         if lim.Allow() { t.Fatal("11th must be denied") }
 
-        time.Sleep(time.Second) // fake clock — completes instantly
-        synctest.Wait()         // let the refill goroutine settle
+        time.Sleep(time.Second)
+        synctest.Wait()
         if !lim.Allow() { t.Fatal("must allow after refill") }
     })
 }
 ```
+
+The sleep runs on the fake clock and completes instantly. The `Wait` drains the refill goroutine so the final assertion sees settled state.
 
 What counts as "durably blocked" (the whole mental model): a channel send/recv or `select` on bubble channels, `sync.Cond.Wait`, `sync.WaitGroup.Wait` (when `Add` happened in the bubble), and `time.Sleep`. **NOT durably blocked:** locking a `sync.Mutex`, **network/file I/O**, and syscalls: something *outside* the bubble could unblock them. So a goroutine parked on a real socket **stalls the bubble** (time never advances) → use `net.Pipe()` for in-process networking, never a loopback listener.
 
 Forbidden inside a bubble: `t.Run`, `t.Parallel`, `t.Deadline`. A `sync.WaitGroup` declared as a *package var* (`var wg sync.WaitGroup`) can't associate with the bubble and won't block durably; use `var wg = new(sync.WaitGroup)` or a local. Cleanups/finalizers (`runtime.AddCleanup`/`SetFinalizer`) run **outside** any bubble.
 
 ```go
-// CORRECT — Wait() drains pending goroutines so assertions see settled state.
 func TestAfterFunc(t *testing.T) {
     synctest.Test(t, func(t *testing.T) {
         ctx, cancel := context.WithCancel(t.Context())
@@ -339,7 +413,7 @@ func TestAfterFunc(t *testing.T) {
 }
 ```
 
-`synctest.Wait()` returns once all *other* bubble goroutines are durably blocked (it does **not** advance the clock); `time.Sleep` is what advances it. Mixing them (sleep to reach a deadline, `Wait()` to drain side effects) is the core idiom.
+`synctest.Wait()` returns once all *other* bubble goroutines are durably blocked (it does **not** advance the clock); `time.Sleep` is what advances it. Mixing them (sleep to reach a deadline, `Wait()` to drain side effects) is the core idiom, fused into one call by the [1.27] `synctest.Sleep` helper.
 
 ---
 
@@ -371,15 +445,15 @@ Process traps: (1) **Re-running until green is p-hacking**: at α=0.05, ~1 in 20
 
 Flakes come from four sources: **(a)** shared mutable state across parallel tests, **(b)** real wall-clock timing, **(c)** ordering dependence, **(d)** leaked goroutines/resources. Fixes map one-to-one.
 
+Build state inside the subtest: parallel subtests need per-case isolated state.
+
 ```go
-// CORRECT — parallel subtests with PER-CASE isolated state (no shared `tt` capture footgun in 1.22+,
-// but shared fixtures still race). Build state inside the subtest.
 func TestHandlers(t *testing.T) {
     cases := []struct{ name, in, want string }{ /* ... */ }
     for _, tc := range cases {
         t.Run(tc.name, func(t *testing.T) {
             t.Parallel()
-            db := newPostgres(t)          // each subtest its own fixture
+            db := newPostgres(t)
             // ...assert...
         })
     }
@@ -398,8 +472,9 @@ func TestHandlers(t *testing.T) {
 
 Generic code needs **instantiation coverage**, not just line coverage: a bug can hide in the behavior for one type argument while the lines are "covered" by another. The compiler may also share one instantiation across several types (GC shape stenciling), so coverage tooling counts the *generic* lines once regardless of how many types exercise them; green coverage ≠ all type args tested.
 
+Table over type arguments, not just values: one subtest per instantiation.
+
 ```go
-// Table over TYPE ARGUMENTS, not just values. One subtest per instantiation.
 func TestMapKeys(t *testing.T) {
     t.Run("int", func(t *testing.T) {
         got := Keys(map[int]string{1: "a", 2: "b"})
@@ -460,28 +535,56 @@ func TestDBLatencyTolerance(t *testing.T) {
     if err != nil { t.Fatal(err) }
     t.Cleanup(func() { proxy.Delete() })
 
+    // Inject 500ms downstream latency
     proxy.AddToxic("lag", "latency", "downstream", 1.0, toxiproxy.Attributes{
-        "latency": 500, "jitter": 100,
+        "latency": 500, "jitter": 50,
     })
-    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-    defer cancel()
-    if _, err := svc.GetUser(ctx, "42"); err == nil {
-        t.Error("expected timeout/degraded response under injected latency")
+
+    // Service configured with a 200ms query timeout
+    svc := NewUserService("localhost:15432", WithQueryTimeout(200*time.Millisecond))
+    _, err = svc.GetUser(t.Context(), "42")
+    if !errors.Is(err, context.DeadlineExceeded) {
+        t.Fatalf("got err %v, want context.DeadlineExceeded under injected latency", err)
     }
 }
 ```
 
-Toxics: `latency`, `bandwidth`, `slow_close`, `timeout`, `slicer`, `reset_peer`, `limit_data`. Toxiproxy needs a running server (Docker in CI). **Zero-dependency alternative**: wrap a dependency and fail deterministically:
+Toxics include `latency`, `bandwidth`, `slow_close`, `timeout`, `slicer`, `reset_peer`, and `limit_data`. Toxiproxy needs a running server (Docker in CI). A zero-dependency alternative wraps a store and fails deterministically:
 
 ```go
+var ErrInjectedReset = errors.New("injected: connection reset")
+
 type faultyStore struct {
     Store
     failAfter, calls int
 }
 func (f *faultyStore) Get(ctx context.Context, k string) (string, error) {
     f.calls++
-    if f.calls > f.failAfter { return "", errors.New("injected: connection reset") }
+    if f.calls > f.failAfter { return "", ErrInjectedReset }
     return f.Store.Get(ctx, k)
+}
+
+func TestRetryingStore_Resilience(t *testing.T) {
+    base := &memStore{data: map[string]string{"k": "v"}}
+    faulty := &faultyStore{Store: base, failAfter: 2} // fails on 3rd call
+    store := NewRetryingStore(faulty, MaxRetries(3))
+
+    // Success within retry budget verifies recovery invariant
+    val, err := store.Get(t.Context(), "k")
+    if err != nil {
+        t.Fatalf("unexpected err: %v", err)
+    }
+    if val != "v" {
+        t.Errorf("got %q, want v", val)
+    }
+
+    // Failure exceeding retry budget returns typed sentinel
+    exhausted := &faultyStore{Store: base, failAfter: 0} // always fails
+    failingStore := NewRetryingStore(exhausted, MaxRetries(2))
+    _, err = failingStore.Get(t.Context(), "k")
+    if !errors.Is(err, ErrServiceUnavailable) {
+        t.Errorf("got err %v, want %v", err, ErrServiceUnavailable)
+    }
 }
 ```
 
@@ -491,24 +594,26 @@ Interface-based injection covers most needs (test that retry stops after N, that
 
 ## Goroutine Leak Detection {#goroutine-leaks}
 
+Prefer one check per package, which works alongside `t.Parallel()`. Reserve per-test checks for cases that need scoping; they conflict with `t.Parallel()`.
+
 ```go
 import "go.uber.org/goleak"
 
-// Preferred: one check per package — works WITH t.Parallel().
 func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
 
-// Per-test only when you need scoping — but it conflicts with t.Parallel().
 func TestNoLeak(t *testing.T) {
     defer goleak.VerifyNone(t,
-        goleak.IgnoreTopFunction("database/sql.(*DB).connectionOpener"), // known pool goroutine
+        goleak.IgnoreTopFunction("database/sql.(*DB).connectionOpener"),
     )
     ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()                        // omit this and the test reports the leak
+    defer cancel()
     go worker(ctx)
 }
 ```
 
-**Why models get this wrong:** `goleak.VerifyNone(t)` snapshots all goroutines at call time, so under `t.Parallel()` *sibling* tests' goroutines get flagged as leaks; `VerifyNone` and `t.Parallel()` are **mutually exclusive**. `VerifyTestMain` runs after the package finishes and is the right default. Filter genuine long-lived runtime goroutines (DB pools, `http.Server`, the reaper) with `IgnoreTopFunction`/`IgnoreCurrent`, not by disabling the check. Go 1.26 also ships an experimental **goroutine-leak profile** in the runtime for production diagnosis, complementary to `goleak`. See also [concurrency.md#goroutine-lifecycle](concurrency.md#goroutine-lifecycle).
+Filter known long-lived goroutines (pool maintenance, servers) with `IgnoreTopFunction`, not by disabling the check. Cancel every context you create; an uncancelled worker reports as a leak.
+
+**Why models get this wrong:** `goleak.VerifyNone(t)` snapshots all goroutines at call time, so under `t.Parallel()` *sibling* tests' goroutines get flagged as leaks. Go 1.26 shipped an experimental **goroutine-leak profile**, GA in [1.27] as the `goroutineleak` profile (`runtime/pprof`, `/debug/pprof/goroutineleak`; the `goroutineleakprofile` GOEXPERIMENT is deleted), for production diagnosis and complementary to `goleak`. See also [concurrency.md#goroutine-lifecycle](concurrency.md#goroutine-lifecycle).
 
 ---
 
@@ -521,10 +626,12 @@ func TempDB(t *testing.T) *sql.DB {
     t.Helper()
     db := openTestDB(t)
     migrate(t, db)
-    t.Cleanup(func() { db.Close() })   // beats defer: survives t.Fatal, composes across helpers
+    t.Cleanup(func() { db.Close() })
     return db
 }
 ```
+
+Prefer `t.Cleanup` over `defer` in helpers: it survives `t.Fatal`, runs after subtests finish, and composes across nested helpers.
 
 Fixtures via `embed` keep `testdata/` the single source of truth (and `go vet`/tooling ignores `testdata/`):
 
@@ -540,8 +647,8 @@ internal/
 ├── testutil/              # shared helpers, fixtures, testdata/
 └── user/
     ├── repo.go
-    ├── repo_test.go            # white-box (package user) — unexported access
-    ├── repo_export_test.go     # black-box (package user_test) — public API only
+    ├── repo_test.go            # white-box (package user): unexported access
+    ├── repo_export_test.go     # black-box (package user_test): public API only
     └── repo_integ_test.go      # //go:build integration
 tests/e2e/                  # separate go.mod: heavy deps don't pollute the main module graph
 ```
@@ -557,7 +664,7 @@ Rules: `//go:build integration` (or `testing.Short()`) gates slow tests; `packag
 | stdlib `testing` (fuzz, `b.Loop`, subtests) | **Default** | Almost always |
 | `testing/synctest` (stdlib) | **Stable** [1.26] | Time/concurrency determinism; supersedes injected `Clock` interfaces in tests |
 | `pgregory.net/rapid` | Active, standard | Property-based + stateful/model tests |
-| `go.uber.org/mock` (`github.com/uber/mock`) | **Active**, v0.6.0, the maintained gomock | Generated mocks with call-order/count assertions |
+| `go.uber.org/mock` (`github.com/uber/mock`) | **Active**, v0.6.0, the maintained gomock | Generated mocks for boundary isolation; verify caller behavior and state postconditions, not mock echoes |
 | `github.com/golang/mock` | **Archived** | Never; migrate to `go.uber.org/mock` |
 | `matryer/moq` | Active | Struct-of-funcs generated mocks (hand-mock feel) |
 | `mockery` | Active | testify-style generated mocks, YAML-configured |
@@ -566,11 +673,11 @@ Rules: `//go:build integration` (or `testing.Short()`) gates slow tests; `packag
 | `go.uber.org/goleak` | Active, standard | Goroutine-leak detection (`VerifyTestMain`) |
 | `golang.org/x/perf/cmd/benchstat` | Active (Go team) | Statistical A/B benchmark comparison |
 | `github.com/stretchr/testify` | Active, ubiquitous | Assertions/`require`; `mock` for testify-style mocking |
-| `github.com/google/go-cmp` | Active, standard | Deep equality + golden diffs (`cmp.Diff`) |
-| `pact-foundation/pact-go/v2` | Active | Consumer-driven contract testing (needs FFI) |
+| `github.com/google/go-cmp` | Active, standard | Deep equality (`cmp.Diff`); diffs are a debug aid, never the pass oracle |
+| `pact-foundation/pact-go/v2` | Active (needs FFI) | Last resort when the provider cannot run in test; default to a shared integration test against the real provider |
 | `Shopify/toxiproxy` (client) | Active | Network-level fault injection |
 | `tsenart/vegeta/v12` | Active | Constant-rate load testing (lib + CLI) |
-| `cupaloy/v2` | Maintained | Snapshot testing (prefer stdlib golden when feasible) |
+| `cupaloy/v2` | Maintained | Avoid as an oracle: `UPDATE_SNAPSHOTS` overwrites the proof; assert semantic predicates over canonical form instead |
 
 ---
 
@@ -584,7 +691,7 @@ Rules: `//go:build integration` (or `testing.Short()`) gates slow tests; `packag
 | **1.24** | `b.Loop()` (opt-out of dead-code elim, auto setup/teardown timing); `tool` directive (pin `mockgen`); `synctest` experiment (`GOEXPERIMENT=synctest`, `synctest.Run`) |
 | **1.25** | `synctest` graduates to `testing/synctest` (`Test`/`Wait`) in this line; `go test -json` improvements |
 | **1.26** | `testing/synctest` **stable**; `t.ArtifactDir()` + `go test -artifacts`; `go.uber.org/mock` ecosystem at v0.6.x; experimental goroutine-leak profile |
-| **1.27 (RC)** | Generic methods (richer generic test helpers); `encoding/json/v2` GA (golden/snapshot error text & output may differ; re-baseline). Treat as draft until GA (~Aug 2026). |
+| **1.27** | Generic methods (richer generic test helpers); `encoding/json/v2` + `jsontext` stable (v1 backed by v2: behavior preserved, error text may differ, so re-baseline golden files deliberately and never blindly); `httptest.NewTestServer` (in-memory fake network for `synctest` bubbles); `synctest.Sleep`; `goroutineleak` profile GA (experiment removed). GA 2026-08-19, confirmed against the final release notes. |
 
 > Note: `synctest`'s exact graduation point is the 1.25→1.26 line; this skill targets the **stable** `synctest.Test` API [1.26]. The 1.24 experiment used `synctest.Run(func())`.
 
@@ -605,10 +712,11 @@ Rules: `//go:build integration` (or `testing.Short()`) gates slow tests; `packag
 11. Calling `t.Run`/`t.Parallel`/`t.Deadline` **inside a `synctest` bubble** (forbidden), or doing real network/file I/O in a bubble (stalls the fake clock, use `net.Pipe`).
 12. `defer` for teardown that must survive `t.Fatal`; use `t.Cleanup`.
 13. Assuming generic code is tested because lines are covered; it needs **per-type-argument** subtests / property tests.
-14. Snapshot/golden tests over non-deterministic output (timestamps, map order, UUIDs) → perpetual false diffs.
-15. Pact matchers on literal values instead of `Like`/`EachLike` types → contract breaks on every data change.
+14. Saved-output oracles (snapshot/golden) over any output, deterministic or not: they pin bytes instead of proving behavior, and any equivalent reimplementation breaks them. Assert semantic predicates over canonical form; use saved output only as an inspection aid.
+15. Cross-service checks via recorded pacts instead of a shared integration test against the real provider: replays pin bytes an equivalent reimplementation breaks. Pact is an inspection artifact for cross-team contracts; verify against live providers on every change.
 16. Starting queries before a testcontainer is *ready* (port-open ≠ accepting); use a log/ping wait strategy (`WithOccurrence(2)` for Postgres).
 17. Forgetting `-shuffle=on` / `-count=1` in CI; caches hide flakes and ordering deps.
+18. Treating mock-return echoes or call counts as proof of correctness. A test that programs a mock to return a value and asserts that the caller returns that value proves zero caller invariants. Verify state transitions on in-memory stores and typed error handling instead.
 
 ---
 

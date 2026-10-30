@@ -5,55 +5,37 @@ description: 'Use when monitoring a file, log, endpoint, or artifact for drift o
 
 # Watch for
 
-## Contract
+You sit on a changing surface and say what changed. In the default `watch` mode you sample a file, URL, log, or artifact on an interval, judge each sample against your anomaly criteria, and finish with a summary when the stop condition arrives. In `until` mode you poll a target until a falsifiable completion predicate holds, then report the terminal verdict. Either way you only read, you never mutate anything remote, and you never pretend a predicate holds when it does not.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User wants to observe a changing surface and receive anomaly judgments, or poll a changing target until a completion predicate holds. |
-| Authority | Read-only: local reads of the bounded surface at each sampling interval. No remote mutation. |
-| Side effect | Local reads of the bounded surface; a terminal completion verdict in `until` mode. |
-| Done | The stop condition is met and a final summary is emitted (`watch` mode), or a terminal classification is returned (`until` mode). |
+What you need before starting:
 
-## Inputs
+- Mode, required: `watch` (the default) or `until`.
+- Surface address for `watch`, or target for `until`, required: the file, URL, log, or artifact to observe or poll.
+- Anomaly criteria, required for `watch`: the condition, pattern, threshold, or structural rule that marks a sample anomalous.
+- Completion predicate, required for `until`: a falsifiable condition checked against the current observed state on each poll.
+- Sampling or poll interval, required: seconds between reads, a cron expression, or an event-driven trigger name.
+- Stop condition, required for `watch`: a predicate that ends the watch on its own, or an explicit tick count after which it stops.
+- Deadline or maximum poll count, required for `until`: the watch stops at whichever comes first.
 
-- Mode (required): `watch` (default) or `until`.
-- Surface address / Target (required): the file, URL, log, or artifact to observe or poll.
-- Anomaly criteria (required for `watch`): the condition, pattern, threshold, or structural rule that classifies a sampled state as anomalous.
-- Completion predicate (required for `until`): a falsifiable condition evaluated against the current observed state of the target each poll.
-- Sampling / poll interval (required): time between reads, as a number of seconds, a cron expression, or an event-driven trigger name.
-- Stop condition (required for `watch`): a predicate that ends the watch automatically, or an explicit tick count after which the watch stops.
-- Deadline or maximum poll count (required for `until`): bounds the watch. The watch stops at whichever comes first.
+## Binding the surface and taking a baseline
 
-## Procedure
+Record the mode, the address, the interval, and the mode-specific control (anomaly criteria for `watch`, completion predicate plus deadline and max polls for `until`). Refuse anything outside that declared scope. Then read the surface once and record the baseline snapshot.
 
-1. Bound the surface and select the mode. Record the address, the interval, and the mode-specific control (anomaly criteria for `watch`, or completion predicate and deadline/max-poll for `until`). Refuse to observe anything outside the declared scope. Done when: mode, address, interval, and control are recorded.
-2. Capture the initial state. Read the surface once. Done when: the baseline snapshot is recorded.
-3. Wait the interval and sample the surface. If the surface is unreadable, emit an error judgment (`watch`) or stop and report `blocked` with the last known state (`until`); in `watch`, wait for the next interval rather than widening scope. Done when: a sample is read or an error/blocked judgment is emitted.
-4. Evaluate the mode-specific condition.
-   - Mode `watch`: compare the sample against the baseline using the anomaly criteria. Classify the sample as normal, anomalous, error, or stale. Emit a judgment containing the address, timestamp, what changed or why the read failed, and severity if anomalous. Update the baseline to the current sample.
-   - Mode `until`: evaluate the completion predicate against the current observed state. If it holds, stop and report `predicate-holds` with the final state.
-   Done when: a judgment is emitted or the predicate result is known.
-5. Check the terminal condition.
-   - Mode `watch`: if the stop condition is met, end and emit a final summary (total ticks, anomaly count, error count, final surface state). Otherwise repeat from step 3.
-   - Mode `until`: if the deadline or maximum poll count is reached, stop and report `non-converged` with the last observed state and the number of polls performed. If the same two or more distinct states repeat in a cycle of 3 consecutive polls without the predicate holding, stop and report `non-converged` with the oscillation pattern. Otherwise repeat from step 3.
-   Done when: a terminal result is emitted.
+## Judging each tick in watch mode
 
-## Failure and recovery
+Wait the interval and sample the surface. If the sample will not read, emit an error judgment naming the surface and the reason, then wait for the next interval rather than widening scope or inventing data. A sample that arrives but cannot be trusted is marked stale-data, and the tick still counts.
 
-| Failure class | Mode | Behavior |
-|---|---|---|
-| Surface unreadable | watch | Emit an error judgment naming the surface and failure reason. Wait for the next interval. Do not widen scope or invent data. |
-| Stale sample | watch | Mark the judgment as stale-data. Continue watching. Do not suppress the tick. |
-| Scope-widening requested | watch | Refuse. The surface was bounded at step 1. Report the refusal and continue on the declared surface. |
-| Stop condition unreachable | watch | Emit a warning and continue until manual stop. |
-| Target unreadable or disappeared | until | Stop. Report `blocked` with the read failure and the last known state. Do not restart or recreate the target. |
-| Predicate unparseable or ambiguous | until | Stop. Report `blocked` with the ambiguity. Do not infer a different predicate. |
-| Deadline or maximum poll count reached | until | Stop. Report `non-converged` with the last observed state and the number of polls performed. |
-| Target state oscillates | until | Stop. Report `non-converged` with the oscillation pattern, the last observed state, and the oscillation count. |
+Compare each good sample against the baseline with the anomaly criteria. Classify it as normal, anomalous, error, or stale, and emit a judgment carrying the address, the timestamp, what changed or why the read failed, and the severity when anomalous. Then move the baseline forward to the current sample.
 
-No failure class causes the watcher to pretend the done predicate holds. Every poll produces a judgment or an explicit error.
+When the stop condition is met, end with a final summary: total ticks, anomaly count, error count, and final surface state. If someone asks you to look beyond the bounded surface, refuse, report the refusal, and keep watching the declared surface. If the stop condition proves unreachable, say so and keep going until stopped by hand.
 
-## Output
+## Polling to a verdict in until mode
 
-- Mode `watch`: a stream of per-tick judgments (surface address, timestamp, classification: normal/anomalous/error/stale, what changed or why the read failed, severity if anomalous), with a final summary on stop: total ticks, anomaly count, error count, and final surface state.
-- Mode `until`: one terminal classification: `predicate-holds` (with final observed state), `non-converged` (with last observed state, poll count, and the failure class that stopped it), or `blocked` (with the failure reason and last known state).
+On each poll, check the completion predicate against the current observed state. When it holds, stop and report `predicate-holds` with the final state.
+
+Stop and report `blocked`, with the read failure and the last known state, when the target is unreadable or has disappeared (never restart or recreate it) or when the predicate itself is unparseable or ambiguous (never infer a replacement). Stop and report `non-converged`, with the last observed state and the poll count, when the deadline or maximum poll count arrives. Also stop with `non-converged` when the target oscillates, meaning the same two or more distinct states repeat in a cycle of 3 consecutive polls without the predicate holding; include the oscillation pattern and count. Otherwise poll again.
+
+## What you hand back
+
+- In `watch` mode: a stream of per-tick judgments (surface address, timestamp, classification as normal, anomalous, error, or stale, what changed or why the read failed, severity when anomalous), plus the final summary on stop.
+- In `until` mode: one terminal classification. `predicate-holds` carries the final observed state. `non-converged` carries the last observed state, the poll count, and the failure class that stopped it. `blocked` carries the failure reason and the last known state.

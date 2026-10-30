@@ -1,6 +1,6 @@
 # Charter
 
-The two-sided ban list. Side A is the centroid-AI default. Side B is decoration covering thin ideas. Both come from refusing to commit, and `/taste` rejects them equally.
+Two failure modes, one refusal to commit. Side A is the centroid-AI default: hedged, averaged, median-shaped work with no point of view. Side B is decoration covering thin ideas. `/taste` rejects both equally.
 
 ## Side A: slop (centroid-AI default convergence)
 
@@ -34,12 +34,12 @@ Overkill is what an author emits to perform depth they have not delivered. The d
 
 ## Reciprocity
 
-Slop and overkill are not opposites. They are often paired:
+Slop and overkill are not opposites. They often arrive paired:
 
-- Both refuse to commit. Slop refuses by averaging into the default; overkill refuses by piling decoration on top of nothing.
-- The fix in both cases is identical: pick one direction and let it carry the work.
-- An artifact can fail BOTH at once: slop framing wrapped around an overkill core, or vice versa.
+- Both refuse to commit. Slop averages into the default; overkill piles decoration on nothing.
+- The fix is identical in both cases: pick one direction and let it carry the work.
+- An artifact can fail both at once: slop framing around an overkill core, or the reverse.
 
 ## Closing
 
-Centroid-AI != unique taste. Over-decoration != depth. The skill is to commit, not to hedge in either direction.
+Centroid output is not taste. Decoration is not depth. Commit to one direction instead of hedging in either.

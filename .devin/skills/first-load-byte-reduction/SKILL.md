@@ -4,40 +4,31 @@ description: 'Use when a first screen needs lower transfer bytes without visual 
 disable-model-invocation: true
 ---
 
-# First-load byte reduction
+# Shrinking first-load bytes without changing a pixel
 
-## Contract
+The job is narrow on purpose: a named first screen must transfer fewer compressed bytes while looking and behaving exactly as before. Anything that alters the visuals or the behavior belongs elsewhere (a visual redesign or a behavior change is a different engagement, never a side effect of this one). The work is local and reversible through version control, confined to the named screens and their asset pipeline, and you ask before adding or upgrading any dependency.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A first screen needs lower transfer bytes without visual or behavioral change. |
-| Authority | Reversible local: writes only named local artifacts; rollback is version control. No remote mutation. Asks before adding or upgrading a dependency. |
-| Side effect | Pixel-identical first-load byte reduction: local writes to the fixed screens and their asset pipeline. |
-| Done | The fixed first screen transfers fewer compressed bytes with pixel identity and passing tests. |
-| Stop | No safe reduction; blocked; budget exhausted. Bound: fixed screens, target environment, byte budget. |
+You need three things named and frozen before any mutation: the exact pages or routes to reduce, the browser, device, or network condition that defines the measurement context, and the target compressed byte count or percentage reduction. Work stops at success (fewer bytes with pixel identity and passing tests), at any non-success terminal below, or when the declared budget runs out.
 
-## Inputs
+## Baseline first
 
-- Fixed screens (required): the exact pages or routes to reduce, named before any mutation.
-- Target environment (required): the browser, device, or network condition that defines the measurement context.
-- Byte budget (required): the target compressed byte count or percentage reduction, declared before work begins.
+For each named screen, measure the compressed transfer bytes in the target environment from a network waterfall or a build-output size report, and record the per-resource breakdown: HTML, CSS, JavaScript, images, fonts, other. At the same time, capture what identity means here: a full-page screenshot at the target viewport plus the rendered DOM structure. No baseline, no optimization: without both halves recorded, later claims about savings or sameness are ungrounded.
 
-## Procedure
+## Reduce inside the bound
 
-1. Bind the fixed screens, target environment, and byte budget. Freeze all three before any mutation. Done when: the screens, environment, and budget are named and frozen.
-2. Capture the baseline. For each fixed screen, measure the compressed transfer bytes in the target environment using a network waterfall or build-output size report. Record the per-resource byte breakdown: HTML, CSS, JavaScript, images, fonts, other. Simultaneously capture the visual identity rubric: a full-page screenshot at the target viewport and the rendered DOM structure. Done when: baseline bytes and visual identity are recorded.
-3. Execute byte reduction inside the bound. Apply asset and bundle optimizations that preserve visual and behavioral identity: compress and resize images to the display dimensions, subset fonts to the used glyphs, tree-shake unused JavaScript, split bundles by route, inline critical CSS, defer non-critical resources, compress text assets with Brotli or gzip. Ask before adding or upgrading a dependency. Done when: the reduced screen transfers fewer compressed bytes than the baseline.
-4. Prove pixel identity. Render the reduced screen at the same viewport as the baseline. Compare the full-page screenshot pixel-by-pixel against the baseline screenshot. Tolerances: zero pixel difference for static content; animated or lazy-loaded content must reach the same final rendered state. Run the test suite to confirm no behavioral regression. Done when: pixel identity is confirmed and tests pass.
-5. Stop at success (fewer bytes with pixel identity and passing tests), any non-success terminal, or the bound. Done when: a terminal class is reached and named.
-6. Persist the run record to `.outline/loops/first-load-byte-reduction/<run_id>/` when durable. Emit `receipt.json` before return. Done when: the receipt is written with before/after byte counts, pixel-identity confirmation, and test result.
+Apply only optimizations that preserve visual and behavioral identity: compress and resize images to their display dimensions, subset fonts to the used glyphs, tree-shake unused JavaScript, split bundles by route, inline critical CSS, defer non-critical resources, compress text assets with Brotli or gzip. Ask before adding or upgrading a dependency. You are past this stage when the reduced screen transfers fewer compressed bytes than the baseline.
 
-## Failure and recovery
+## Prove sameness, then classify the run
 
-- No safe reduction: no byte reduction preserves pixel identity. Terminal `stalled`; report what was attempted and why identity broke.
-- Blocked: the environment or pipeline cannot be exercised. Terminal `blocked`; report the blocking condition.
-- Budget exhausted: the declared budget is spent before the byte target is met. Terminal `capped`; report the best reduction achieved. Budget exhaustion is never success unless it is the predeclared success predicate.
-- Partial result: emit the best reduction obtained; never present a screen that lost pixel identity or failed tests as done.
+Render the reduced screen at the same viewport as the baseline and compare the full-page screenshots pixel by pixel. Static content must show zero pixel difference; animated or lazy-loaded content must reach the same final rendered state. Run the test suite to confirm no behavioral regression. Only pixel identity plus passing tests counts as success: never present a screen that lost identity or failed tests as done. Emit the best reduction obtained even when the run does not succeed.
 
-## Output
+Every run ends in exactly one terminal class, named honestly:
 
-A terminal classification (`success`, `capped`, `stalled`, `blocked`, or `pending`) plus the before/after compressed byte counts, per-resource breakdown, pixel-identity confirmation, test result, and the run receipt.
+- Success: fewer bytes with pixel identity and passing tests.
+- Stalled: no byte reduction preserves pixel identity. Report what was attempted and why identity broke.
+- Blocked: the environment or pipeline cannot be exercised. Report the blocking condition.
+- Capped: the declared budget ran out before the byte target was met. Report the best reduction achieved. Budget exhaustion is never success unless it was the predeclared success predicate.
+
+## The receipt
+
+When the run is durable, persist the record to `.outline/loops/first-load-byte-reduction/<run_id>/` including `receipt.json`, and return the receipt content in every run. The receipt carries the terminal classification (`success`, `capped`, `stalled`, or `blocked`), the before and after compressed byte counts with per-resource breakdown, the pixel-identity confirmation, and the test result. (`receipt.json` on disk exists only when the run is persisted; the content is returned regardless.)

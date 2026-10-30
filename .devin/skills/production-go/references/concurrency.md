@@ -2,7 +2,7 @@
 
 Go makes concurrency cheap to start and hard to get right. The signal is in lifecycle, not syntax: every goroutine needs a reachable exit on *every* caller path (early return, error, cancellation). A goroutine blocked forever on a channel/lock the program can no longer reach is a leak: the runtime counts it as alive, so it's never collected. Modern stdlib has absorbed most hand-rolled patterns (`WaitGroup.Go` [1.25], `OnceValue` [1.21], typed atomics [1.19], `testing/synctest` [1.25], a `goroutineleak` profile [1.26]); reach for `golang.org/x/sync` only when stdlib runs out.
 
-> Source horizon: verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to. Deepened from multi-source research.
+> Source horizon: verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -28,7 +28,7 @@ Go makes concurrency cheap to start and hard to get right. The signal is in life
 12. [Deterministic testing: testing/synctest](#synctest)
 13. [Library landscape & status](#libraries)
 14. [Version map 1.19→1.27](#versions)
-15. [What models get wrong](#common-bugs)
+15. [Common mistakes](#common-bugs)
 16. [Production Checklist](#production-checklist)
 
 ---
@@ -38,7 +38,7 @@ Go makes concurrency cheap to start and hard to get right. The signal is in life
 Go has **no parent/child goroutine hierarchy**: returning from the spawning function does nothing to the goroutine; the owner must hand it an explicit exit signal (ctx cancellation or channel close). The #1 leak (the canonical example in the Go 1.26 `goroutineleak` docs) is *send-on-unbuffered + early return*: fan out N workers, take the first result, return; the other N−1 block forever sending into a channel no one reads.
 
 ```go
-// WRONG — leaks N-1 goroutines on early return; unbuffered send has no receiver after return.
+// WRONG: leaks N-1 goroutines on early return; the unbuffered send has no receiver after return.
 func first(tasks []func() string) string {
     ch := make(chan string) // unbuffered
     for _, t := range tasks {
@@ -47,8 +47,13 @@ func first(tasks []func() string) string {
     return <-ch
 }
 
-// RIGHT — buffer sized to #sends so every send completes and is GC'd, OR guard with ctx.Done().
+// RIGHT: buffer sized to #sends so every send completes and is collected, or guard with ctx.Done().
+// Empty input returns the zero value at once, and the final receive also watches
+// ctx.Done() so pre-cancellation cannot wedge the caller with no result coming.
 func first(ctx context.Context, tasks []func() string) string {
+    if len(tasks) == 0 {
+        return ""
+    }
     ctx, cancel := context.WithCancel(ctx)
     defer cancel()
     ch := make(chan string, len(tasks)) // sends never block → no leak
@@ -60,14 +65,19 @@ func first(ctx context.Context, tasks []func() string) string {
             }
         }()
     }
-    return <-ch
+    select {
+    case r := <-ch:
+        return r
+    case <-ctx.Done():
+        return ""
+    }
 }
 ```
 
 Closing rule: only the *sender* closes, exactly once. Receiver-closes → `panic: send on closed channel` for any in-flight sender; with multiple senders, close a separate `done` channel (or use `sync.Once`). Closing is **not required for GC**: drop the reference and an idle channel is collected; you close only to broadcast "no more values" to rangers.
 
 Detection, three layers:
-- Runtime [1.26 exp / 1.27 GA]: `goroutineleak` pprof profile. `GOEXPERIMENT=goroutineleakprofile` + `/debug/pprof/goroutineleak` on 1.26; GA in `runtime/pprof` on 1.27. GC-reachability based → zero false positives, but blind to leaks where the blocking primitive is still reachable from a global or a runnable goroutine.
+- Runtime [1.26 exp / 1.27 GA]: `goroutineleak` pprof profile. `GOEXPERIMENT=goroutineleakprofile` + `/debug/pprof/goroutineleak` on 1.26; GA in `runtime/pprof` on 1.27, which deletes the `goroutineleakprofile` experiment setting. GC-reachability based → zero false positives, but blind to leaks where the blocking primitive is still reachable from a global or a runnable goroutine.
 - Tests: `go.uber.org/goleak` (`goleak.VerifyTestMain(m)`, or `defer goleak.VerifyNone(t)` per test). `VerifyNone` is **incompatible with `t.Parallel`** (can't attribute goroutines to one test); use `VerifyTestMain` there. See [testing-advanced.md](testing-advanced.md#goroutine-leaks).
 - Lifecycle hygiene: `runtime.AddCleanup` [1.24] supersedes `runtime.SetFinalizer` (no resurrection/ordering pitfalls; cleanups run concurrently since 1.25). `GODEBUG=checkfinalizers=1` [1.25] flags finalizer/cleanup mistakes.
 
@@ -94,7 +104,7 @@ go func() {
 
 `ctx` is the **first parameter**, never stored in a struct (except a short-lived request struct). Cancellation is **cooperative**: `WithCancel`/`WithTimeout` only close `ctx.Done()`; long operations must poll it. **Always `defer cancel()`** even on success (it frees the timer/child); `go vet`'s `lostcancel` catches the common misses.
 
-Version map models routinely blur:
+Version map:
 
 | API | Version |
 |---|---|
@@ -104,10 +114,10 @@ Version map models routinely blur:
 **`WithoutCancel` [1.21]: detached work that keeps values.** Background tasks that outlive the request (metrics, audit, email) should inherit neither the request ctx (cancelled when the handler returns) nor a bare `context.Background()` (drops trace IDs / logger / values). `WithoutCancel` clones values while severing cancellation+deadline (`Done()==nil`, `Err()==nil`); re-bound it with a fresh timeout or it can hang forever.
 
 ```go
-// WRONG — request ctx dies when the handler returns; Background() loses trace/span context.
+// WRONG: the request ctx dies when the handler returns; Background() loses trace and span context.
 go flushMetrics(r.Context())
 
-// RIGHT — keep values, drop the request's cancellation, impose an independent bound.
+// RIGHT: keep values, drop the request's cancellation, impose an independent bound.
 func handler(w http.ResponseWriter, r *http.Request) {
     bg := context.WithoutCancel(r.Context())
     go func() {
@@ -167,7 +177,7 @@ func orDone[T any](ctx context.Context, in <-chan T) <-chan T {
                 }
                 select {
                 case out <- v:
-                case <-ctx.Done(): // REQUIRED — else leak when out isn't read
+                case <-ctx.Done(): // required: without it, this leaks when out stops being read
                     return
                 }
             }
@@ -186,7 +196,7 @@ func tee[T any](ctx context.Context, in <-chan T) (<-chan T, <-chan T) {
         defer close(o2)
         for v := range orDone(ctx, in) {
             a, b := o1, o2 // local copies; nil each as it completes
-            for range 2 {  // ensure BOTH receive before advancing — no dropped/duplicated value
+            for range 2 {  // both must receive before advancing: no dropped or duplicated value
                 select {
                 case <-ctx.Done():
                     return
@@ -219,7 +229,7 @@ func tee[T any](ctx context.Context, in <-chan T) (<-chan T, <-chan T) {
 - `sync.OnceFunc`/`OnceValue`/`OnceValues` [1.21]: generic wrappers that run `f` exactly once and memoize the result. **Panic semantics:** if `f` panics, the panic is *cached and re-panicked on every subsequent call* (the function is considered "done"), the opposite contract from `WaitGroup.Go`. `go fix` modernizers [1.26] rewrite the hand-rolled form to these.
 
 ```go
-// RIGHT — memoize value+error once, concurrency-safe; replaces sync.Once + package vars.
+// RIGHT: memoize value and error once, concurrency-safe; replaces sync.Once plus package vars.
 var loadConfig = sync.OnceValues(func() (*Config, error) {
     return parse(os.Getenv("CONFIG"))
 })
@@ -307,7 +317,7 @@ for i, url := range urls {
 3. **`x/sync/semaphore.Weighted`**: only for *weighted* permits or ctx-aware `Acquire(ctx, n)` before launching.
 
 ```go
-// RIGHT — acquire the slot BEFORE spawning, so goroutine count is bounded too.
+// RIGHT: acquire the slot before spawning, so the goroutine count stays bounded.
 func fanOut(items []Item, limit int) {
     sem := make(chan struct{}, limit)
     var wg sync.WaitGroup
@@ -321,8 +331,8 @@ func fanOut(items []Item, limit int) {
     wg.Wait()
 }
 
-// WRONG — acquiring INSIDE the goroutine spawns all N immediately (unbounded goroutine memory);
-// it throttles work but not creation, defeating the bound.
+// WRONG: acquiring inside the goroutine spawns all N immediately (unbounded goroutine memory),
+// throttling work but not creation, which defeats the bound.
 for _, it := range items {
     wg.Go(func() { sem <- struct{}{}; defer func() { <-sem }(); work(it) })
 }
@@ -350,7 +360,7 @@ func pool[J, R any](ctx context.Context, n int, jobs <-chan J, do func(context.C
 }
 ```
 
-Pool sizing: CPU-bound ⇒ `n ≈ runtime.GOMAXPROCS(0)`; I/O-bound ⇒ higher (tune to the downstream concurrency limit). **[1.25] `GOMAXPROCS` is now cgroup-aware** on Linux and updates at runtime as limits change, so hardcoding `runtime.NumCPU()` over-provisions in containers; read `GOMAXPROCS(0)` or let it adapt (`runtime.SetDefaultGOMAXPROCS()` re-enables the default after an override; disable via `GODEBUG=containermaxprocs=0`). This largely supersedes `go.uber.org/automaxprocs` for `go 1.25+`. See [cloud-native.md](cloud-native.md#containers).
+Pool sizing: CPU-bound ⇒ `n ≈ runtime.GOMAXPROCS(0)`; I/O-bound ⇒ higher (tune to downstream concurrency limit). **[1.25+] `GOMAXPROCS` is container-aware** on Linux and updates at runtime as limits change, so hardcoding `runtime.NumCPU()` over-provisions in containers; read `GOMAXPROCS(0)` or let it adapt (`runtime.SetDefaultGOMAXPROCS()` re-enables default after an override; disable via `GODEBUG=containermaxprocs=0`). On Go 1.25+, prefer this stdlib runtime support; perform no new `uber-go/automaxprocs` installs (`go.uber.org/automaxprocs` v1.6.0 is historical context for legacy Go < 1.25 only). See [cloud-native.md](cloud-native.md#containers).
 
 **Don't fan out trivial work.** Channel send/recv + scheduler context-switch overhead exceeds the win for cheap, CPU-bound units; fan-out only pays when units are I/O-bound or take more than ~1 ms of CPU. Otherwise a sequential loop is faster.
 
@@ -467,12 +477,12 @@ lim2 := rate.NewLimiter(rate.Every(200*time.Millisecond), 1) // 1 per 200ms, no 
 | `Reserve()` | returns `Reservation` w/ `Delay()`/`OK()`/`Cancel()` | schedule with an explicit delay |
 
 ```go
-// WRONG — Wait() inside the spawned goroutine spawns thousands of blocked goroutines first.
+// WRONG: Wait() inside the spawned goroutine spawns thousands of blocked goroutines first.
 for _, req := range reqs {
     go func() { limiter.Wait(ctx); send(req) }()
 }
 
-// RIGHT — Wait() in the spawner loop applies real backpressure on creation.
+// RIGHT: Wait() in the spawner loop applies real backpressure on creation.
 for _, req := range reqs {
     if err := limiter.Wait(ctx); err != nil {
         break
@@ -494,7 +504,7 @@ v, err, shared := g.Do(key, func() (any, error) { return loadFromDB(key) })
 row := v.(*Row) // type assertion required
 ```
 
-Caveats models miss:
+Caveats:
 - Shared failure: if the leader returns an error *or panics*, that same error/panic is delivered to **all** waiters: one transient blip fails every deduped caller. (singleflight traps a leader panic and re-issues it via `go panic(e)` so the crash carries the original stack; the process still terminates.)
 - No timeout / head-of-line blocking: `Do` has no ctx awareness; a hung leader blocks all followers. Use `DoChan` + `select` for a per-caller timeout (but the leader keeps running; its channel is **never closed**):
 ```go
@@ -523,7 +533,7 @@ The Go memory model defines visibility via **happens-before** edges; atomic oper
 5. **Send/close on closed channel; double close**: panic. Only the sender closes, once.
 6. **`WaitGroup.Add` after the goroutine started / concurrent with `Wait`**: `go vet waitgroup` [1.25] catches the common form; `WaitGroup.Go` makes it unrepresentable.
 
-**`sync.Map` vs `map`+`RWMutex`.** [1.24] reimplemented `sync.Map` over a concurrent hash-trie (lock-free reads via atomic pointer traversal, per-node mutex on writes, lazy growth), *removing the old read-promotion warm-up* and sharply improving disjoint-key and adversarial alloc/delete workloads. The use-case guidance is unchanged (verbatim from the docs): use `sync.Map` **only** when (1) a key is written once and read many (grow-only caches) or (2) goroutines operate on **disjoint key sets**. For everything else (mixed read/write on shared keys, or you need `len()`/consistent iteration), a plain `map`+`RWMutex` is faster, type-safe, and clearer (`sync.Map.Range` is **not** a snapshot). `Clear` exists [1.23]. For a typed high-contention map, `github.com/puzpuzpuz/xsync` `MapOf[K,V]` often beats stdlib.
+**`sync.Map` vs `map`+`RWMutex`.** [1.24] reimplemented `sync.Map` over a concurrent hash-trie (lock-free reads via atomic pointer traversal, per-node mutex on writes, lazy growth), *removing the old read-promotion warm-up* and sharply improving disjoint-key and adversarial alloc/delete workloads. The use-case guidance is unchanged (verbatim from the docs): use `sync.Map` **only** when (1) a key is written once and read many (grow-only caches) or (2) goroutines operate on **disjoint key sets**. For everything else (mixed read/write on shared keys, or you need `len()`/consistent iteration), a plain `map`+`RWMutex` is faster, type-safe, and clearer (`sync.Map.Range` is **not** a snapshot). `Clear` exists [1.23]. For a typed high-contention map, `github.com/puzpuzpuz/xsync/v4` (v4.5.0) `Map[K, V]` via `NewMap[K, V]()` often beats stdlib (`MapOf` is a deprecated alias in v4).
 
 **`-race` detector:** dynamic happens-before: **no false positives** (a reported race is real), **many false negatives** (only sees executed paths and the interleavings that actually occurred). ~5-10× CPU/memory; run in CI (`go test -race ./...`), canary in prod, not default. It detects **neither deadlocks nor leaks** (separate: the runtime all-asleep deadlock detector; `goleak`/`goroutineleak` profile). `synctest`'s `Wait` is a synchronization edge the detector understands; combine `-race` with synctest. Full workflow: [debugging-and-diagnostics.md](debugging-and-diagnostics.md#race-detector).
 
@@ -531,15 +541,16 @@ The Go memory model defines visibility via **happens-before** edges; atomic oper
 
 ## Deterministic testing: testing/synctest {#synctest}
 
-Stable [1.25]; experimental [1.24] (`GOEXPERIMENT=synctest`, only `Run`). `Run` was **deprecated [1.25] and removed [1.26]**: the package is just `Test` + `Wait`.
+Stable [1.25]; experimental [1.24] (`GOEXPERIMENT=synctest`, only `Run`). `Run` was **deprecated [1.25] and removed [1.26]**. `Sleep` added [1.27].
 
 ```go
 func Test(t *testing.T, f func(*testing.T)) // runs f in an isolated "bubble"
-func Wait()                                  // NO args — blocks until every OTHER bubble goroutine is durably blocked
+func Wait()                                  // no args: blocks until every other bubble goroutine is durably blocked
+func Sleep(d time.Duration)                  // [1.27] combines time.Sleep and Wait
 ```
 
 ```go
-// Test a 1-minute timeout in microseconds, deterministically — no changes to the code under test.
+// A 1-minute timeout runs in microseconds, deterministically, with no changes to the code under test.
 func TestTimeout(t *testing.T) {
     synctest.Test(t, func(t *testing.T) {
         start := time.Now() // fake clock starts 2000-01-01 00:00 UTC
@@ -560,7 +571,7 @@ func TestTimeout(t *testing.T) {
 - Contexts in a bubble must derive from `t.Context()` so their deadline timer attaches to the fake clock.
 
 ```go
-// WRONG — Wait takes no arg; Run was removed in 1.26.
+// WRONG: Wait takes no arg, and Run was removed in 1.26.
 synctest.Wait(t)        // compile error
 synctest.Run(func(){})  // removed [1.26]
 ```
@@ -583,7 +594,7 @@ Use for timeouts/retries/backoff, `context.AfterFunc`, tickers, cache expiry: an
 | `golang.org/x/sync/singleflight` | Active | Dedup concurrent cache misses (not a cache) |
 | `golang.org/x/time/rate` | Active | Single-node token-bucket rate limiting |
 | `sync.Map` (HashTrieMap [1.24]) | Specialized | Grow-only or disjoint-key only; else `map`+`RWMutex` |
-| `github.com/puzpuzpuz/xsync` `MapOf` | Active | Typed, very-high-contention concurrent map |
+| `github.com/puzpuzpuz/xsync/v4` `Map` (v4.5.0) | Active | Typed, very-high-contention concurrent map (`MapOf` is deprecated alias) |
 | `testing/synctest` [1.25] | **Default** for time-dep tests | Deterministic timeouts/tickers/cancellation |
 | `go.uber.org/goleak` | Active | Test-time leak gate (`VerifyTestMain` if `t.Parallel`) |
 | `goroutineleak` pprof profile [1.26 exp/1.27 GA] | New, runtime-native | Production/test leak hunt |
@@ -606,11 +617,11 @@ Use for timeouts/retries/backoff, `context.AfterFunc`, tickers, cache expiry: an
 | **1.24** | **`sync.Map` reimplemented on HashTrieMap**; `Mutex` contention improved; `runtime.AddCleanup` (supersedes `SetFinalizer`); `testing/synctest` **experimental** |
 | **1.25** | **`testing/synctest` stable** (`Test`+`Wait`; `Run` deprecated); **`sync.WaitGroup.Go`** (f must not panic); **container-aware `GOMAXPROCS`** + `SetDefaultGOMAXPROCS`; `go vet` `waitgroup` analyzer; `runtime/trace` FlightRecorder |
 | **1.26** | **`goroutineleak` pprof profile: experimental** (`GOEXPERIMENT=goroutineleakprofile`); `synctest.Run` **removed**; `go fix` modernizers (auto-migrate to `WaitGroup.Go`/`OnceValue`); Green Tea GC default |
-| **1.27** | **`goroutineleak` profile GA** (`/debug/pprof/goroutineleak`); **`asynctimerchan` GODEBUG removed**: timer channels always synchronous; generic methods. GA 2026-08-19; row from 2026-06 RC notes, confirmed against the final release notes. |
+| **1.27** | **`goroutineleak` profile GA** (`/debug/pprof/goroutineleak`; the `goroutineleakprofile` experiment setting is deleted); **`asynctimerchan` GODEBUG removed permanently**: time channels always unbuffered; generic methods (interface methods still may not declare type parameters nor be implemented by generic methods); `synctest.Sleep`. GA 2026-08-19; row checked against the final release notes. |
 
 ---
 
-## What models get wrong {#common-bugs}
+## Common mistakes {#common-bugs}
 
 1. **Leak on early return**: N goroutines `ch <- x` on an *unbuffered* channel, then return before draining all N. Fix: buffer to N, `errgroup.WithContext`, or guard sends with `ctx.Done()`.
 2. **Send on unbuffered channel with no receiver** (`go func(){ ch <- v }()` the caller may abandon): needs buffer-of-1 or a `select` with `ctx.Done()`.
@@ -628,7 +639,7 @@ Use for timeouts/retries/backoff, `context.AfterFunc`, tickers, cache expiry: an
 14. **`WithoutCancel` as a magic clone**: it drops cancellation+deadline and keeps parent values reachable; re-bound with a fresh `WithTimeout`.
 15. **Assuming `context.AfterFunc`'s `stop()` waits**: it does not; `f` runs in its own goroutine.
 16. **`synctest` API drift**: `synctest.Run` (removed [1.26]) or `synctest.Wait(t)` (takes no args); assuming mutex blocking advances the fake clock (it doesn't); operating on a bubbled channel from outside (panics).
-17. **Reflexive `sync.Map`** for general mixed read/write: `map`+`RWMutex` (or `xsync.MapOf`) is better and type-safe; not knowing the [1.24] HashTrieMap rewrite removed read-promotion. `Range` is not a snapshot.
+17. **Reflexive `sync.Map`** for general mixed read/write: `map`+`RWMutex` (or `xsync/v4` `Map`) is better and type-safe; not knowing the [1.24] HashTrieMap rewrite removed read-promotion. `Range` is not a snapshot.
 18. **Treating `singleflight` as a cache**: it only dedups in-flight calls; leader error/panic propagates to **all** waiters; `Do` has no timeout (need `DoChan`+`select`, and even then the leader keeps running); mutating the shared returned pointer is a race.
 19. **Hardcoding pool size to `runtime.NumCPU()`**: since [1.25] default `GOMAXPROCS` is cgroup-aware/dynamic; read `GOMAXPROCS(0)`.
 20. **Closing a channel from the receiver / with multiple senders**: only the sender closes, once; otherwise use a `done` channel or `sync.Once`.
@@ -669,4 +680,4 @@ Use for timeouts/retries/backoff, `context.AfterFunc`, tickers, cache expiry: an
 - pkg.go.dev/{sync, sync/atomic, context, testing/synctest, runtime/pprof}; pkg.go.dev/golang.org/x/sync/{errgroup,semaphore,singleflight}; pkg.go.dev/golang.org/x/time/rate
 - go.dev/blog/{pipelines, synctest, loopvar-preview}; go.dev/blog/context
 - Accepted proposals/CLs: `WaitGroup.Go` (#63796); `sync.Map`→HashTrieMap (#70683, CL 608335); synctest (#67434, #73567); loopvar (#60078); errgroup `SetLimit`/`TryGo` (CL 405174); `goroutineleak` profile (1.26/1.27 notes)
-- go.uber.org/goleak; github.com/puzpuzpuz/xsync; sourcegraph/conc
+- go.uber.org/goleak; github.com/puzpuzpuz/xsync/v4 (v4.5.0); sourcegraph/conc

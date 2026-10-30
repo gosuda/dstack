@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Publishing"
+  short_description: "Use when adapting a finished technical draft for Dev.to or Hashnode with correct canonical and metadata handling."

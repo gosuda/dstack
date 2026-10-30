@@ -2,7 +2,7 @@
 
 Generics-era Go: constraints you'd actually design, the iterator ecosystem (`iter.Seq`/`Pull`), compile-time guards, and the patterns the language *resists* (Result/Option). The throughline: **reach for these only when a concrete type or interface won't do.** Most "advanced" generic code is overengineering: the bar is "two or more types with identical logic," not "this could be generic."
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. Baseline assumed: Go 1.22.
+> Verified against the **final** Go 1.27 release notes (GA 2026-08-19; stable pin 1.27.3) plus Go 1.26.4 sources, rechecked 2026-10. Version tags `[1.N]` mark the release a claim applies to. Features are gated by the module's `go` line: current stable is Go 1.27, and a feature newer than the module's ceiling must not be emitted.
 
 ## TL;DR: the deltas that matter (read first)
 
@@ -12,7 +12,7 @@ Generics-era Go: constraints you'd actually design, the iterator ecosystem (`ite
 - `samber/lo` (functional helpers) is mostly unnecessary: stdlib `slices`/`maps`/`cmp`/`iter` cover the common 80%. Reach for `lo` only for `GroupBy`/`Partition`/`Chunk`-style ops with no stdlib equal, and never let it replace a plain loop.
 - Result[T]/Option[T] are anti-idiomatic in Go. `(T, error)` and the comma-ok idiom *are* the language's sum types. A `Result` monad fights `errors.Is`/`As`, defers error handling, and reads foreign. Don't introduce them.
 - `var _ I = (*T)(nil)` is the compile-time interface assertion every exported type implementing an interface should carry: it turns a missing method into a *compile* error at the definition, not a confusing one at a distant call site.
-- Function type inference is generalized in [1.27] (works in all assignment/conversion contexts), removing many explicit `[T]` annotations that 1.21 still required.
+- Function type inference is generalized in [1.27] (fires wherever a generic function is assigned to or converted to a matching function type), removing many explicit `[T]` annotations that 1.21 still required.
 
 ## Table of Contents
 1. [Advanced Generics: constraint design](#generics)
@@ -45,14 +45,13 @@ Generics-era Go: constraints you'd actually design, the iterator ecosystem (`ite
 A constraint is an interface used as a **type set**, not a method set. Design it around *what operations the body needs*, nothing more.
 
 ```go
-// cmp.Ordered [1.21] — the canonical type-set constraint. Prefer over hand-rolled "Ordered".
 func Max[T cmp.Ordered](a, b T) T { if a > b { return a }; return b }
 
-// Method-set constraint — the body calls a method, so generics buy nothing a plain
-// interface wouldn't. Use the interface unless you also need to RETURN T or hold []T typed.
 type Stringer interface{ String() string }
 func Join[T Stringer](xs []T, sep string) string { /* ... */ return "" }
 ```
+
+The second form shows the limit. The body only calls a method, so a plain interface does the same work unless you also return `T` or hold a typed `[]T`.
 
 **`~` (underlying-type) is the high-leverage operator.** `~int64` admits `type UserID int64`; bare `int64` rejects it. Omitting `~` is the #1 constraint bug: it silently excludes every named type.
 
@@ -89,22 +88,21 @@ Inference improved materially in **[1.21]** (it now reasons through untyped cons
 
 ```go
 func Zero[T any]() T { var z T; return z }
-x := Zero[int]()        // REQUIRED — `Zero()` won't compile; T is unconstrained by args
+x := Zero[int]()
 
-// Same trap with parse/decode helpers:
-v, err := Decode[Config](data)   // must spell out [Config]
+v, err := Decode[Config](data)
 ```
 
 2. Generic methods: forbidden before [1.27], partly allowed after.
 
 ```go
-// PRE-1.27: ILLEGAL — a method may not introduce its own type parameter.
+// PRE-1.27: ILLEGAL, a method may not introduce its own type parameter.
 // func (s Set[T]) Map[U any](f func(T) U) Set[U] { ... }   // compile error
 
-// PRE-1.27 workaround — a package-level FUNCTION (this is why lo.Map etc. are functions):
+// PRE-1.27 workaround, a package-level FUNCTION (this is why lo.Map etc. are functions):
 func MapSet[T, U comparable](s Set[T], f func(T) U) Set[U] { /* ... */ return Set[U]{} }
 
-// [1.27]: LEGAL — methods may declare their own type parameters:
+// [1.27]: LEGAL, methods may declare their own type parameters:
 func (s Set[T]) Map[U comparable](f func(T) U) Set[U] { /* ... */ return Set[U]{} }
 ```
 
@@ -181,11 +179,13 @@ An iterator is a function that calls `yield` per element; `yield` returning **fa
 func (n *Node[V]) All() iter.Seq[V] {              // conventional method name: All
     return func(yield func(V) bool) {
         for cur := n; cur != nil; cur = cur.Next {
-            if !yield(cur.Val) { return }          // honor early stop — or you leak/over-run
+            if !yield(cur.Val) { return }
         }
     }
 }
 ```
+
+Return as soon as `yield` reports false. Continuing past a false return over-runs the consumer.
 
 **Single-use iterators** (streams that can't rewind) must say so in the doc (e.g. `strings.Lines` is documented single-use; calling again won't restart).
 
@@ -198,8 +198,8 @@ func (n *Node[V]) All() iter.Seq[V] {              // conventional method name: 
 | `strings` [1.24] | `Lines`, `SplitSeq`, `FieldsSeq` | none |
 
 ```go
-sortedKeys := slices.Sorted(maps.Keys(m))          // idiomatic: sorted map keys, no temp slice
-for line := range strings.Lines(content) { /* ... */ }   // [1.24] lazy lines
+sortedKeys := slices.Sorted(maps.Keys(m))
+for line := range strings.Lines(content) { /* ... */ }
 ```
 
 ### Push ↔ pull: `iter.Pull` / `Pull2`
@@ -216,14 +216,14 @@ func Zip[A, B any](sa iter.Seq[A], sb iter.Seq[B]) iter.Seq2[A, B] {
         for {
             a, oka := na()
             b, okb := nb()
-            if !oka || !okb { return }             // stop at the shorter sequence
+            if !oka || !okb { return }
             if !yield(a, b) { return }
         }
     }
 }
 ```
 
-`Pull` spawns a goroutine under the hood to suspend the push iterator (cheap, but it's why you must `stop`): skipping it leaks that goroutine until GC (and [1.27]'s `goroutineleak` profile will flag it).
+`Pull` spawns a goroutine under the hood to suspend the push iterator (cheap, but it's why you must `stop`): skipping it leaks that goroutine until GC (the [1.27] `goroutineleak` profile, GA after a [1.26] experiment, flags it once nothing can unblock it).
 
 ### Stateful generators
 
@@ -232,7 +232,7 @@ A closure over local state yields an unbounded sequence lazily; pair with `Take`
 ```go
 func Naturals() iter.Seq[int] {
     return func(yield func(int) bool) {
-        for n := 1; ; n++ { if !yield(n) { return } } // infinite; consumer breaks
+        for n := 1; ; n++ { if !yield(n) { return } }
     }
 }
 first10 := slices.Collect(Take(Naturals(), 10))
@@ -272,7 +272,6 @@ func Take[V any](seq iter.Seq[V], n int) iter.Seq[V] {
 ```
 
 ```go
-// Lazy pipeline — one pass, zero intermediate slices, allocation only at Collect:
 result := slices.Collect(Map(Filter(slices.Values(users), isActive), toDTO))
 total := Reduce(Map(Filter(slices.Values(nums), even), square), 0, add) // = sum of squares of evens
 ```
@@ -343,23 +342,23 @@ Phantom types (a type parameter that appears only in the type, never in a field)
 type Unvalidated struct{}
 type Validated struct{}
 
-type Request[State any] struct { raw string }            // State is "phantom": no field uses it
+type Request[State any] struct { raw string }
 
 func Parse(s string) Request[Unvalidated]                { return Request[Unvalidated]{raw: s} }
 func (r Request[Unvalidated]) Validate() (Request[Validated], error) { /* ... */ return Request[Validated]{r.raw}, nil }
-func Execute(r Request[Validated])                       { /* only a Validated Request compiles here */ }
-// Execute(Parse("x")) // COMPILE ERROR — can't skip Validate(). State machine enforced by the type checker.
+func Execute(r Request[Validated])                       { /* ... */ }
+// Execute(Parse("x")) // COMPILE ERROR: can't skip Validate(). State machine enforced by the type checker.
 ```
 
+Only a `Validated` request compiles as the argument to `Execute`. Skipping `Validate` is a compile error.
+
 **Typed context keys**: the canonical fix for `context.WithValue` collisions. Use an **unexported zero-size struct type** as the key so no other package can produce or read it:
-
 ```go
-type ctxKey struct{}                                     // unexported, unique to this package
+type ctxKey struct{}
 var userKey ctxKey
-
 func WithUser(ctx context.Context, u *User) context.Context { return context.WithValue(ctx, userKey, u) }
 func UserFrom(ctx context.Context) (*User, bool) { u, ok := ctx.Value(userKey).(*User); return u, ok }
-// WRONG: context.WithValue(ctx, "user", u) — string keys collide across packages; go vet flags it.
+// WRONG: context.WithValue(ctx, "user", u), string keys collide across packages; go vet flags it.
 ```
 
 A generic typed-key helper removes the per-lookup assertion while keeping collision safety:
@@ -373,13 +372,13 @@ func (k Key[T]) From(ctx context.Context) (T, bool) { v, ok := ctx.Value(k).(T);
 
 ## Compile-time interface assertions {#interface-assertions}
 
-`var _ I = (*T)(nil)` forces the compiler to verify `*T` implements `I` **at the type's definition**, so a missing/mis-typed method is a compile error *here*, not a baffling one where someone tries to use `*T` as an `I`:
+`var _ I = (*T)(nil)` forces the compiler to verify `*T` implements `I` **at the type's definition**, so a missing/mis-typed method is a compile error *here*, not a baffling one where someone tries to use `*T` as an `I`. The check costs nothing at runtime.
 
 ```go
 type Handler struct{}
 func (h *Handler) ServeHTTP(http.ResponseWriter, *http.Request) {}
 
-var _ http.Handler = (*Handler)(nil)   // ← compile-time proof; costs nothing at runtime
+var _ http.Handler = (*Handler)(nil)
 ```
 
 Conventions: use `(*T)(nil)` (a typed nil, no allocation) for pointer-receiver methods; `T{}` (or `*new(T)`) when value receivers suffice. Place it next to the type. The blank identifier means it's a pure check, not a usable variable. This is the single highest-value "advanced" idiom for library authors: it makes interface conformance a *contract checked at build time*. (For unexported sentinel-interface guards, see design-patterns.md#go-specific.)
@@ -504,7 +503,7 @@ OpenAI (`github.com/openai/openai-go`) uses the same options-struct shape (`clie
 
 ## Memory management internals {#memory-internals}
 
-See internals.md for the GMP scheduler, GC (tri-color, phases), and the memory model; performance.md for escape analysis (`go build -gcflags=-m`), `GOMEMLIMIT`, pooling, and allocation reduction. [1.27] adds size-specialized malloc (small allocs up to ~30% cheaper) and a GA `goroutineleak` profile, relevant to the `iter.Pull`/goroutine-spawning patterns above.
+See internals.md for the GMP scheduler, GC (tri-color, phases), and the memory model; performance.md for escape analysis (`go build -gcflags=-m`), `GOMEMLIMIT`, pooling, and allocation reduction. [1.27] adds size-specialized malloc (allocations under 80 bytes up to ~30% cheaper) and a GA `goroutineleak` profile, relevant to the `iter.Pull`/goroutine-spawning patterns above.
 
 ---
 
@@ -516,9 +515,9 @@ Go's I/O is composable like Unix pipes: stack readers/writers, stream without bu
 
 ```go
 f, _ := os.Create("data.gz"); defer f.Close()
-gz := gzip.NewWriter(bufio.NewWriter(f))             // buffer → gzip → file
+gz := gzip.NewWriter(bufio.NewWriter(f))
 defer gz.Close()
-io.Copy(gz, src)                                     // streams; constant memory
+io.Copy(gz, src)
 ```
 
 Key composers: `io.TeeReader` (tap), `io.LimitReader` (cap), `io.MultiReader` (concat), `io.Pipe` (in-process stream). Always `Flush` a `bufio.Writer` (a deferred `Close` on the outermost wrapper that flushes works). Line/chunk scanning and large-line buffer tuning: file-io.md#streaming.
@@ -551,7 +550,7 @@ Key composers: `io.TeeReader` (tap), `io.LimitReader` (cap), `io.MultiReader` (c
 | **1.24** | Generic type aliases; `strings.Lines`/`SplitSeq`/`FieldsSeq`; `os.Root`; `testing/synctest` (experiment) |
 | **1.25** | `sync.WaitGroup.Go`; `testing/synctest` GA; `T.Attr`; flight recorder |
 | **1.26** | `errors.AsType[E]`; `fmt.Errorf` alloc-parity; `slog.NewMultiHandler`; `go fix` modernizers; `goroutineleak` profile (experiment) |
-| **1.27 (RC)** | **Generic methods** (methods may declare type params; interfaces still can't, and generic methods don't satisfy interface methods); **function type inference generalized**; `encoding/json/v2` GA; `asynctimerchan` GODEBUG removed (timer channels always synchronous); `go fix` `slicesbackward`/`atomictypes`/etc.; `waitgroup`→`waitgroupgo`. Draft until GA (~Aug 2026). |
+| **1.27** | **Generic methods** (methods may declare type params; interface methods still can't, and generic methods don't satisfy interface methods); **function type inference generalized** (all assignment-to/conversion-to matching-function-type contexts); struct-literal keys may be any valid field selector; `encoding/json/v2` + `encoding/json/jsontext` stable (v1 now backed by v2, error text may differ; `inline` tag renamed `embed`; `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` removed); `goroutineleak` profile GA; size-specialized malloc (<80B up to 30% cheaper); `asynctimerchan`/`gotypesalias` GODEBUGs removed (timer channels always synchronous); `go test` runs the `stdversion` vet check by default; `go fix` modernizers `atomictypes`/`embedlit`/`slicesbackward`/`unsafefuncs` (`fmtappendf` removed, `waitgroup`→`waitgroupgo`). Final release 2026-08-19. |
 
 ---
 
@@ -586,7 +585,7 @@ Key composers: `io.TeeReader` (tap), `io.LimitReader` (cap), `io.MultiReader` (c
 
 ## Sources {#sources}
 - pkg.go.dev/{iter, cmp, slices, maps, golang.org/x/exp/constraints} @ go1.26.4 (signatures, `Ordered` redundancy note, `Or` added 1.22, yield-after-false panic, single-use iterators, `Pull` goroutine semantics)
-- go.dev/doc/go1.27 (RC): generic methods + interface restriction, function type inference generalized, `encoding/json/v2` GA, `asynctimerchan` removed, `go fix` modernizers, `goroutineleak` GA
+- go.dev/doc/go1.27 (final, 2026-08-19): generic methods + interface-method restriction (#77273), function type inference generalized (#77245), field-selector struct-literal keys (#9859), `encoding/json/v2`/`jsontext` stable (`inline`→`embed`; `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` removed), `asynctimerchan` removed, `go fix` modernizers, `goroutineleak` GA, size-specialized malloc, `stdversion` vet default
 - go.dev/blog/range-functions; go.dev/blog/intro-generics, go.dev/blog/when-generics (constraint design, GC-shape stenciling)
 - go.dev/doc/go1.{21,22,23,24,25,26} release notes (version map)
 - Repos: samber/lo, samber/mo, robfig/cron, riverqueue/river, hibiken/asynq, gocolly/colly, chromedp, go-rod/rod; anthropics/anthropic-sdk-go, openai/openai-go [model constants verify against imported version]

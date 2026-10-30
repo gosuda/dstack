@@ -1,5 +1,7 @@
 # RUSTFLAGS and Cargo profiles reference
 
+RUSTFLAGS pass one-off codegen choices to rustc; Cargo profiles record the repeatable ones in `Cargo.toml`. Keep anything the whole team must share in a profile, and reach for RUSTFLAGS for local experiments and target-specific builds.
+
 ## RUSTFLAGS reference
 
 ### Codegen flags (-C)
@@ -98,9 +100,13 @@ opt-level = 3
 opt-level = 1    # Optimize all deps even in dev mode
 ```
 
+Pick one starting point below and change a single knob at a time; each profile names the situation it fits.
+
 ## Common configurations
 
 ### Maximum performance
+
+Top speed for release binaries; pair with a fixed target CPU for the deployment baseline.
 
 ```toml
 [profile.release]
@@ -118,6 +124,8 @@ rustflags = ["-C", "target-cpu=native"]
 
 ### Minimum binary size
 
+Small distribution artifacts. Pairs with a fixed target CPU for the deployment baseline.
+
 ```toml
 [profile.release]
 opt-level = "z"
@@ -129,6 +137,8 @@ strip = "symbols"
 
 ### Fast CI builds
 
+Compiles your own code fast while still optimizing dependencies once. Use for day-to-day development and CI test runs.
+
 ```toml
 [profile.dev]
 opt-level = 0
@@ -139,6 +149,8 @@ opt-level = 1    # Compiled deps faster than test code
 ```
 
 ## Linker configuration
+
+The chosen linker must be installed. The config shows mold, noted as the fastest linker, and lld.
 
 ```toml
 # .cargo/config.toml
@@ -155,6 +167,8 @@ rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 ```
 
 ## x86-64 microarchitecture levels
+
+Broadwell and newer cover most cloud VMs; Cascade Lake and newer add AVX-512. Prefer named CPUs only when the fleet is known.
 
 ```bash
 # Broadwell and newer (most cloud VMs)

@@ -1,5 +1,0 @@
-interface:
-  display_name: "Issue Intake"
-  short_description: "Use when filing an approved task spec as a GitHub issue with a local archive and optional worktree implementer."
-policy:
-  allow_implicit_invocation: false

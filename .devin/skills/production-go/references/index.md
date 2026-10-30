@@ -238,7 +238,7 @@
 - JSON → encoding-and-serialization.md#json (struct tags, omitempty, custom marshal)
 - JSON API patterns → http-and-apis.md#json-api (request/response handling)
 - JSON streaming → encoding-and-serialization.md#json (json.Decoder for large payloads)
-- JSON v2 → encoding-and-serialization.md#json-v2 (Go 1.25 experimental overhaul)
+- JSON v2 → encoding-and-serialization.md#json-v2 (Go 1.25 experiment → Go 1.27 stable packages)
 - JWT → security.md#jwt (token signing, claims, middleware)
 
 ## K
@@ -279,7 +279,7 @@
 - Migrations (DB) → database.md#migrations (goose, golang-migrate, atlas)
 - Minimum version selection → modules-and-dependencies.md#3-minimum-version-selection-mvs (how Go picks versions)
 - Mocking → testing.md#mocking (interface-based test doubles)
-- Modern Go (1.21-1.26) → modern-go.md (range-over-func, generics, Green Tea GC, go fix)
+- Modern Go (1.21-1.27) → modern-go.md (range-over-func, generics, Green Tea GC, go fix)
 - Modules → modules-and-dependencies.md (go.mod, go.sum, MVS, workspaces, vendoring)
 - MongoDB → database.md#mongodb (official Go driver patterns)
 - mTLS → networking.md#tls (mutual TLS configuration)
@@ -477,7 +477,7 @@
 - Vector databases → ai-ml-beyond-llm.md#vector-dbs (Qdrant, Weaviate, Milvus)
 - Vendoring → modules-and-dependencies.md#7-vendoring (go mod vendor, when to use)
 - Version information → platform-and-build.md#versioning (-ldflags, debug.ReadBuildInfo)
-- Version quick-reference → modern-go.md#quick-ref (Go 1.21-1.26 feature matrix)
+- Version quick-reference → modern-go.md#quick-ref (Go 1.21-1.27 feature matrix)
 - Visitor pattern → design-patterns.md#behavioral (double dispatch, tree walking)
 - Vulnerability scanning → ecosystem-and-tooling.md#vulnerability-scanning (govulncheck in CI)
 

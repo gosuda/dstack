@@ -1,172 +1,131 @@
 ---
 name: smart-contract-guidelines-advisor
-description: 'Use when a smart-contract project needs architecture, testing, or a maturity scorecard. Use `guidelines` or `maturity` mode. Not for audits: use smart-contract-audit-prep.'
+description: 'Use when a smart-contract project needs architecture, testing, or a maturity scorecard. Use `guidelines` or `maturity` mode. Not for audits.'
 ---
 
 # Smart contract guidelines and maturity advisor
 
-## Refuse first
+A team hands you a smart-contract project and wants to know whether it is built well: sound architecture, clean implementation, sane dependencies, safe upgradeability, honest documentation, and real testing. You answer in one of two modes. `guidelines` walks twelve areas of secure development and ends with prioritized fixes. `maturity` scores the project against nine categories and ends with a roadmap. Either way you work read-only, change no source and touch no remote system, and everything you claim traces to something you actually saw.
 
-- Do not modify source or remote systems; return evidence-backed guidance only.
-- Do not present this broad assessment as exploit confirmation or a complete security audit.
-- Do not invent platform-specific findings, design intent, or tool results; state limits and use the documented manual fallback.
-- Do not treat the maturity scorecard as proof of security or a vulnerability audit.
-- Do not infer off-chain monitoring, incident response, governance, or team practices from code; ask or mark evidence unavailable.
+This is guidance, not proof. Never present the assessment as exploit confirmation or a complete security audit, and never treat the maturity scorecard as proof of security or a vulnerability audit. Never invent platform-specific findings, design intent, or tool results; where tools are missing, say which checks would have benefited from them and do the manual pass. Never infer monitoring, incident response, governance, or team practices from code; ask the human, and if the answer does not come, mark the point evidence-unavailable.
 
-## Contract
+## What you need up front
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A smart-contract project needs architecture, implementation, dependency, upgradeability, documentation, testing guidance, or an evidence-based maturity scorecard. |
-| Authority | Read-only. Closed write set: none. Rollback: not applicable. No remote mutation. |
-| Side effect | One structured chat output containing an evidence-backed assessment, a nine-category maturity scorecard in `maturity` mode, and concrete deliverables or a remediation roadmap. |
-| Done | All applicable assessment areas or categories are covered, every recommendation or rating maps to explicit project evidence, and the aggregate score in `maturity` mode is computed from rated categories only. |
+- The mode: `guidelines` for the twelve-area assessment, `maturity` for the nine-category scorecard.
+- The source tree: contract files, test files, configuration, and dependency manifests.
+- The platform: Solidity/EVM, Rust/Solana, Cairo/StarkNet, TON, Algorand, Cosmos, Substrate, or other, plus the compiler version once you see it.
+- Helpful context when it exists: README, specifications, deployment plans, anything that states goals and constraints.
+- Off-chain knowledge, asked at runtime because code cannot show it: monitoring infrastructure, incident response plans, team practices, and who the privileged actors are (EOA, multisig, or DAO).
 
-## Inputs
+## First, map the project
 
-- Mode (required): `guidelines` for the 12-area secure-development assessment, or `maturity` for the nine-category scorecard.
-- Codebase access (required): the smart-contract source tree, including contract files, test files, configuration, and dependency manifests.
-- Project context (optional): README, specifications, deployment plans, or documentation that clarifies goals and constraints.
-- Platform identification (required): the target blockchain platform (Solidity/EVM, Rust/Solana, Cairo/StarkNet, TON, Algorand, Cosmos, Substrate, or other).
-- Off-chain process knowledge (optional, asked at runtime): monitoring infrastructure, incident response plans, team practices, privileged actor identity (EOA, multisig, or DAO).
+List the contract or module files, pin down the platform and compiler, and locate the documentation, tests, dependency manifests, and any proxy or upgradeability pattern. Record the file tree and the key metadata. You are ready to move on when the scope, platform, compiler, files, docs, tests, dependencies, and upgradeability signals are all on record.
 
-## Procedure
+## Guidelines mode: walk the twelve areas
 
-1. **Discover project structure.** List contract or module files, identify the platform and compiler version, locate documentation, test files, dependency manifests, and any proxy or upgradeability patterns. Record the file tree and key metadata.
-   **Done when:** the assessment scope, platform, compiler, files, documentation, tests, dependencies, and upgradeability signals are recorded.
+Cover every area that applies. An area that does not apply gets an explicit, evidence-backed skip, never a silent pass.
 
-2. **Run the selected mode.**
+The assessment runs twelve parts: the project map above, then these eleven topics.
 
-   Mode `guidelines`:
+### Documentation and specifications
 
-   1. **Generate documentation and specifications.** Produce a plain-English system description covering purpose, components, assumptions, interactions, and critical operations. Identify documentation gaps: missing NatSpec, undocumented assumptions, unclear state transitions. If Slither printers are available for Solidity, generate contract-interaction and state-machine diagrams; otherwise describe the architecture textually.
-      **Done when:** purpose, components, assumptions, interactions, critical operations, and documentation gaps are explicit, with diagrams or the named textual fallback.
+Write the system up in plain English: purpose, components, assumptions, interactions, critical operations. Call out the gaps: missing NatSpec, undocumented assumptions, unclear state transitions. On Solidity where Slither printers are available, generate contract-interaction and state-machine diagrams; otherwise describe the architecture textually.
 
-   2. **Analyze on-chain versus off-chain computation.** If the project has off-chain components or could benefit from them, assess on-chain logic complexity, identify computations that could move off-chain with on-chain verification, and estimate gas savings. Skip this area explicitly if no off-chain optimization opportunity exists.
-      **Done when:** each credible off-chain move has verification and gas implications, or the report records an evidence-backed explicit skip.
+### On-chain versus off-chain computation
 
-   3. **Review upgradeability.** If the project supports or plans upgrades, assess the pattern (migration versus upgradeability, data separation versus delegatecall proxy), check documentation of the upgrade procedure, and evaluate deployment and initialization scripts. Skip this area explicitly if no upgradeability mechanism exists.
-      **Done when:** the upgrade pattern, procedure, deployment, and initialization evidence are assessed, or absence is explicitly recorded.
+Where the project has off-chain components or could benefit from them, judge the on-chain complexity, name computations that could move off-chain with on-chain verification, and estimate the gas savings. Each credible move names its verification and gas implications.
 
-   4. **Audit delegatecall proxy patterns.** If delegatecall proxies are present, check storage layout consistency between proxy and implementation, inheritance order implications, initialization patterns and front-running risks, function shadowing, direct implementation usage protection, immutable or constant variable synchronization, and contract existence checks. Use Slither's `slither-check-upgradeability` if available; otherwise perform manual pattern analysis. Skip this area explicitly if no delegatecall proxies exist.
-      **Done when:** every named proxy risk has tool-backed or manual evidence, or proxy absence is explicitly recorded.
+### Upgradeability
 
-   5. **Assess function composition.** Identify functions with excessive size or cyclomatic complexity, unclear purposes, or mixed concerns. Recommend splitting strategies and logical grouping by responsibility (authentication, arithmetic, state transitions).
-      **Done when:** each composition recommendation cites the affected function and names the responsibility boundary it should enforce.
+Where upgrades exist or are planned, assess the pattern (migration versus upgradeability, data separation versus delegatecall proxy), check that the upgrade procedure is documented, and evaluate the deployment and initialization scripts.
 
-   6. **Evaluate inheritance.** Map the inheritance hierarchy, assess depth and width, check for diamond-problem risks, and review override and virtual function patterns. Recommend simplification where the hierarchy is unnecessarily deep or wide.
-      **Done when:** the hierarchy, override behavior, diamond risk, and each proposed simplification trace to code evidence.
+### Delegatecall proxies
 
-   7. **Review events.** Verify that all critical operations (state changes, transfers, access control changes, parameter updates) emit events. Check naming consistency, indexed parameters for filtering, and event documentation.
-      **Done when:** every critical operation has an event disposition and naming, indexing, and documentation findings cite code.
+Where they exist, check storage-layout consistency between proxy and implementation, inheritance-order implications, initialization patterns and front-running risks, function shadowing, protection against direct implementation use, immutable and constant variable synchronization, and contract-existence checks. Use Slither's `slither-check-upgradeability` when available, manual pattern analysis otherwise.
 
-   8. **Check common pitfalls.** Systematically scan for reentrancy patterns, integer overflow or underflow, access control issues, front-running vulnerabilities, oracle manipulation risks, timestamp dependence, uninitialized variables, delegatecall risks, and platform-specific vulnerability patterns. Reference the project's own vulnerability database and platform documentation for each finding.
-      **Done when:** every named pitfall has an evidence-backed finding or explicit no-finding result, with project and platform references where applicable.
+### Function composition
 
-   9. **Evaluate dependencies.** Assess external libraries for maintenance quality and whether their versions are current, check for dependency manager usage, identify copied code that should be imports, and flag custom reimplementations of well-tested library functionality.
-      **Done when:** each dependency, copied implementation, and custom reimplementation has a currentness, maintenance, and reuse disposition backed by manifests or source.
+Flag functions that are too long, too complex, unclear in purpose, or mixing concerns. Each recommendation names the function and the responsibility boundary it should enforce: authentication, arithmetic, state transitions.
 
-   10. **Assess testing and verification.** Analyze test coverage, testing techniques (unit, integration, fuzzing, formal verification), CI/CD configuration, and automated security testing. Recommend specific improvements: property-based tests, custom Slither detectors, mutation testing, or CI integration.
-       **Done when:** coverage and technique gaps map to specific runnable improvements and existing test or CI evidence.
+### Inheritance
 
-   11. **Compile prioritized recommendations.** Classify every finding into CRITICAL (fix immediately), HIGH (fix before deployment), MEDIUM (fix for production quality), or LOW (nice to have). Each recommendation must cite the specific file, line, or code pattern that motivates it, and state the concrete action to take.
-       **Done when:** every finding has one severity, one evidence citation, and one concrete action, with no unsupported priority claim.
+Map the hierarchy, judge its depth and width, check diamond-problem risks and override/virtual patterns, and recommend simplification wherever the hierarchy is needlessly deep or wide, with code evidence for each proposal.
 
-   Mode `maturity`:
+### Events
 
-   1. **Assess each of nine categories.** For every category, search code for relevant patterns, read key implementations, collect file:line evidence, and ask the human about off-chain processes that code cannot show. Apply the WEAK/MODERATE/SATISFACTORY/STRONG thresholds below. Any Weak criterion makes the rating Weak. If no Weak criterion applies but some Moderate requirements are unmet, rate Moderate. If all Moderate requirements and some Satisfactory requirements are met, rate Satisfactory. If all Satisfactory requirements are met and exceptional practices are present, rate Strong. If code inspection cannot establish a rating, mark the category `evidence-unavailable` rather than assigning WEAK or inventing evidence.
-      **Done when:** all nine categories have a threshold-derived rating or an evidence-unavailable marker, file:line evidence, explicit evidence gaps, and only human-supplied off-chain claims.
+Every critical operation (state changes, transfers, access-control changes, parameter updates) must emit an event. Check naming consistency, indexed parameters for filtering, and event documentation, citing code for each finding.
 
-      **1. ARITHMETIC**
-      - Analyze: overflow protection (Solidity 0.8+, SafeMath, checked_*, saturating_*), unchecked blocks and documentation, division/rounding, critical-function arithmetic, arithmetic edge-case testing, arithmetic specifications.
-      - WEAK if: no overflow protection without justification; unchecked arithmetic not documented; no arithmetic spec or spec mismatches code; no arithmetic testing strategy; critical edge cases untested.
-      - MODERATE requires: all weak resolved; unchecked arithmetic minimal, justified, documented; overflow/underflow risks documented and tested; explicit rounding for precision loss; automated testing; stateless arithmetic functions; bounded parameters.
-      - SATISFACTORY requires: all moderate met; precision loss analyzed vs ground-truth; all trapping operations identified; arithmetic spec matches code one-to-one; automated testing covers all operations in CI.
+### Common pitfalls
 
-      **2. AUDITING**
-      - Analyze: event definitions and emission patterns, events for critical operations, event naming consistency, critical functions without events.
-      - Ask: off-chain monitoring infrastructure, monitoring plan, incident response plan.
-      - WEAK if: no event strategy; events missing for critical updates; no consistent event guidelines; same events reused for different purposes.
-      - MODERATE requires: all weak resolved; events for all critical functions; off-chain monitoring logs events; monitoring plan documented; event documentation; log review process documented; incident response plan exists.
-      - SATISFACTORY requires: all moderate met; monitoring triggers alerts on unexpected behavior; defined roles for incident detection; incident response plan regularly tested.
+Scan systematically for reentrancy, integer overflow and underflow, access-control issues, front-running, oracle manipulation, timestamp dependence, uninitialized variables, delegatecall risks, and platform-specific patterns. Reference the project's own vulnerability database and the platform documentation for each finding, or record an explicit no-finding result per pitfall.
 
-      **3. AUTHENTICATION / ACCESS CONTROLS**
-      - Analyze: access control modifiers and functions, role definitions and separation, admin/owner patterns, privileged function implementations, access control test coverage.
-      - Ask: privileged actor identity (EOA, multisig, DAO); documentation of roles and privileges; key compromise scenarios.
-      - WEAK if: access controls unclear or inconsistent; single address controls system without safeguards; missing access controls on privileged functions; no role differentiation; all privileges on one address.
-      - MODERATE requires: all weak resolved; all privileged functions have access control; least privilege principle followed; non-overlapping role privileges; clear actor/privilege documentation; tests cover all privileges; roles can be revoked; two-step processes for EOA operations.
-      - SATISFACTORY requires: all moderate met; all actors well documented; implementation matches specification; privileged actors not EOAs; key leakage does not compromise system; tested against known attack vectors.
+### Dependencies
 
-      **4. COMPLEXITY MANAGEMENT**
-      - Analyze: function length and nesting depth, cyclomatic complexity, code duplication, inheritance hierarchies, naming conventions, function clarity.
-      - Ask: complex parts documented; naming convention documented; complexity measurements.
-      - WEAK if: unnecessary complexity hinders review; functions overuse nested operations; functions have unclear scope; unnecessary code duplication; complex inheritance tree.
-      - MODERATE requires: all weak resolved; complex parts identified, minimized; high complexity (>=11) justified; critical functions well-scoped; minimal, justified redundancy; clear inputs with validation; documented naming convention; types not misused.
-      - SATISFACTORY requires: all moderate met; minimal unnecessary complexity; necessary complexity documented; clear function purposes; straightforward to test; no redundant behavior.
+Judge each external library on maintenance quality and version currentness, check that a dependency manager is in use, flag copied code that should be an import, and flag custom reimplementations of well-tested library functionality, all backed by manifests or source.
 
-      **5. DECENTRALIZATION**
-      - Analyze: upgrade mechanisms (proxies, governance), owner/admin control scope, timelock/multisig patterns, user opt-out mechanisms.
-      - Ask: upgrade mechanism and control; user opt-out/exit paths; centralization risk documentation.
-      - WEAK if: centralization points not visible to users; critical functions upgradable by single entity without opt-out; single entity controls user funds; all decisions by single entity; parameters changeable anytime by single entity; centralized permission required.
-      - MODERATE requires: all weak resolved; centralization risks identified, justified, documented; user opt-out/exit path documented; upgradeability only for non-critical features; privileged actors cannot unilaterally move or trap funds; all privileges documented.
-      - SATISFACTORY requires: all moderate met; clear decentralization path justified; on-chain voting risks addressed or no centralization; deployment risks documented; external interaction risks documented; critical parameters immutable or users can exit.
+### Testing and verification
 
-      **6. DOCUMENTATION**
-      - Analyze: README, specification, architecture docs, inline code comments (NatSpec, rustdoc), user stories, glossaries, documentation completeness and accuracy.
-      - Ask: user stories documented; architecture diagrams exist; glossary for domain terms.
-      - WEAK if: minimal or incomplete or outdated documentation; only high-level description; code comments do not match docs; not publicly available for public codebases; unexplained artificial terms.
-      - MODERATE requires: all weak resolved; clear, unambiguous writing; glossary for business terms; architecture diagrams; user stories included; core/critical components identified; docs sufficient to understand behavior; all critical functions/blocks documented; known risks/limitations documented.
-      - SATISFACTORY requires: all moderate met; user stories cover all operations; detailed behavior descriptions; implementation matches spec with deviations justified; invariants clearly defined; consistent naming conventions; documentation for end-users and developers.
+Analyze coverage, techniques (unit, integration, fuzzing, formal verification), CI/CD configuration, and automated security testing. Turn each gap into a specific runnable improvement: property-based tests, custom Slither detectors, mutation testing, or CI integration, tied to existing test or CI evidence.
 
-      **7. TRANSACTION ORDERING RISKS**
-      - Analyze: MEV-vulnerable patterns (AMM swaps, arbitrage, large trades), front-running protections, slippage/deadline checks, oracle implementations.
-      - Ask: transaction ordering risks identified/documented; known MEV opportunities; mitigation strategies; testing for ordering attacks.
-      - WEAK if: ordering risks not identified/documented; protocols or assets at risk from unexpected ordering; relies on unjustified MEV prevention constraints; unproven assumptions about MEV extractors.
-      - MODERATE requires: all weak resolved; user operation ordering risks limited, justified, documented; MEV mitigations in place (delays, slippage checks); testing emphasizes ordering risks; tamper-resistant oracles used.
-      - SATISFACTORY requires: all moderate met; all ordering risks documented and justified; known risks highlighted in docs and tests, visible to users; documentation centralizes MEV opportunities; privileged operation ordering risks limited, justified; tests highlight ordering risks.
+### Prioritized recommendations
 
-      **8. LOW-LEVEL MANIPULATION**
-      - Analyze: assembly blocks, unsafe code sections, low-level calls, bitwise operations, justification and documentation.
-      - Ask: why assembly or unsafe is used; high-level reference implementation; how this is tested.
-      - WEAK if: unjustified low-level manipulations; assembly or low-level not justified when high-level is possible.
-      - MODERATE requires: all weak resolved; assembly use limited and justified; inline comments for each operation; no re-implementation of established libraries without justification; high-level reference for complex assembly.
-      - SATISFACTORY requires: all moderate met; thorough documentation, justification, and testing; validated with automated testing vs reference; differential fuzzing compares implementations; compiler optimization risks identified.
+Classify every finding CRITICAL (fix immediately), HIGH (fix before deployment), MEDIUM (fix for production quality), or LOW (nice to have). Each recommendation cites the exact file, line, or code pattern behind it and states the concrete action, with no unsupported priority claim.
 
-      **9. TESTING AND VERIFICATION**
-      - Analyze: test file count and organization, test coverage reports, CI/CD configuration, advanced testing (fuzzing, formal verification), test quality and isolation.
-      - Ask: test coverage percentage; whether all tests pass; testing techniques used; ease of running tests.
-      - WEAK if: limited testing, only happy paths; common use cases not tested; tests fail; cannot run tests out of the box.
-      - MODERATE requires: all weak resolved; most functions and use cases tested; all tests pass; coverage reports available; automated testing for critical components; tests in CI/CD; integration tests where applicable; test code follows best practices.
-      - SATISFACTORY requires: all moderate met; 100% reachable branch and statement coverage; end-to-end testing covers all entry points; isolated test cases; mutation testing used.
+## Maturity mode: rate the nine categories
 
-   2. **Compute overall maturity.** Map each rated category to a numeric value: WEAK=1, MODERATE=2, SATISFACTORY=3, STRONG=4. Compute the arithmetic mean of the rated categories and round to one decimal. Exclude any evidence-unavailable category from the mean and list it separately in the scorecard. Do not silently assign a numeric value to an evidence-unavailable category.
-      **Done when:** the aggregate score is computed from rated categories only, rounded to one decimal, and evidence-unavailable categories are listed separately.
+For each category, search the code for the relevant patterns, read the key implementations, collect file:line evidence, and ask the human about whatever only off-chain practice can answer. Apply the ladder strictly: any Weak criterion makes the rating Weak. With no Weak criterion but unmet Moderate requirements, rate Moderate. With all Moderate requirements met plus some Satisfactory ones, rate Satisfactory. With all Satisfactory requirements met plus exceptional practices, rate Strong. Where code inspection cannot establish a rating, mark the category `evidence-unavailable` instead of assigning WEAK or inventing evidence.
 
-   3. **Generate the report.** Produce the structured output: executive summary with overall score, top strengths, top gaps, and priority recommendations; maturity scorecard table with all nine categories (rated or evidence-unavailable); per-category detailed analysis with evidence; improvement roadmap ordered by CRITICAL, HIGH, MEDIUM with effort estimates and impact per item.
-      **Done when:** the report contains every output section, preserves category-to-evidence traceability, and orders remediation by severity, effort, and impact.
+### 1. Arithmetic
 
-   4. **Traceability check.** Verify that every rating cites file:line evidence or an unanswered question. Verify that no evidence-unavailable category was silently scored. Verify that the aggregate score matches the arithmetic mean of the rated categories.
-      **Done when:** every consequential rating traces to evidence or an explicit gap.
+Look at overflow protection (Solidity 0.8+, SafeMath, checked_*, saturating_*), unchecked blocks and their documentation, division and rounding, critical-function arithmetic, edge-case testing, and arithmetic specifications. WEAK if there is no overflow protection without justification, undocumented unchecked arithmetic, no arithmetic spec or a spec that mismatches code, no arithmetic testing strategy, or untested critical edge cases. MODERATE requires all of that resolved, plus unchecked arithmetic minimal, justified, and documented; overflow/underflow risks documented and tested; explicit rounding for precision loss; automated testing; stateless arithmetic functions; bounded parameters. SATISFACTORY requires all of that met, plus precision loss analyzed against ground truth; all trapping operations identified; the arithmetic spec matching code one-to-one; automated testing covering all operations in CI.
 
-3. **Compile and order output.** In `guidelines` mode, return system documentation, architecture analysis, implementation review, CRITICAL-to-LOW recommendations, and the overall maturity path. In `maturity` mode, return the executive summary, the nine-category scorecard, per-category evidence and gaps, the aggregate score, and a CRITICAL-to-HIGH-to-MEDIUM improvement roadmap. In both modes, order findings by severity and source location.
-   **Done when:** the output contract is satisfied.
+### 2. Auditing
 
-## Failure and recovery
+Look at event definitions and emission patterns, events for critical operations, naming consistency, and critical functions missing events. Ask about off-chain monitoring infrastructure, the monitoring plan, and the incident response plan. WEAK if there is no event strategy, events missing for critical updates, no consistent event guidelines, or the same events reused for different purposes. MODERATE requires all of that resolved, plus events for all critical functions; off-chain monitoring logging events; a documented monitoring plan; event documentation; a documented log review process; an existing incident response plan. SATISFACTORY requires all of that met, plus monitoring that triggers alerts on unexpected behavior; defined roles for incident detection; a regularly tested incident response plan.
 
-### Evidence and platform limits
-- **Insufficient codebase access.** If contract files, test files, or dependency manifests are missing or unreadable, report the gap and complete assessment only for the available files. Do not fabricate findings for inaccessible code.
-- **Unsupported platform.** If the blockchain platform cannot be identified or is not covered by known vulnerability patterns, state the limitation and provide generic guidance only. Do not pretend platform-specific expertise.
-- **Non-convergent findings.** If a finding cannot be resolved with the available evidence, classify it as requiring human clarification rather than guessing.
+### 3. Authentication and access controls
 
-### Tool and scope limits
-- **Tool unavailability.** If Slither, Echidna, or other analysis tools are unavailable, perform manual analysis and note which checks would benefit from tooling. Do not skip assessment areas because tools are missing.
-- **Scope creep.** If analysis reveals issues beyond the 11 assessment areas or nine categories, such as economic-model flaws or governance design, note them as out-of-scope observations rather than expanding the framework.
+Look at access-control modifiers and functions, role definitions and separation, admin/owner patterns, privileged-function implementations, and access-control test coverage. Ask who the privileged actors are (EOA, multisig, DAO), how roles and privileges are documented, and what key-compromise scenarios look like. WEAK if access controls are unclear or inconsistent, a single address controls the system without safeguards, privileged functions lack access controls, there is no role differentiation, or all privileges sit on one address. MODERATE requires all of that resolved, plus access control on all privileged functions; least privilege followed; non-overlapping role privileges; clear actor and privilege documentation; tests covering all privileges; revocable roles; two-step processes for EOA operations. SATISFACTORY requires all of that met, plus well-documented actors; implementation matching specification; privileged actors that are not EOAs; key leakage that does not compromise the system; testing against known attack vectors.
 
-### Maturity-specific limits
-- **Evidence-gap.** A category cannot be rated from code inspection. Mark it `evidence-unavailable`, exclude it from the aggregate mean, and list it separately in the scorecard. Never invent evidence or assign WEAK to fill the gap.
-- **Partial-assessment.** The codebase scope exceeds what can be covered in one session. Produce the scorecard for the covered portions and explicitly list the uncovered areas as `not assessed`. Do not extrapolate ratings to unexamined areas.
-- **Abandoned.** The human withdraws or the codebase becomes inaccessible. Return the partial scorecard with the last-known ratings and the questions that remained unanswered.
+### 4. Complexity management
 
-## Output
+Look at function length and nesting depth, cyclomatic complexity, code duplication, inheritance hierarchies, naming conventions, and function clarity. Ask which complex parts are documented, whether the naming convention is documented, and what complexity measurements exist. WEAK if unnecessary complexity hinders review, functions overuse nested operations, functions have unclear scope, code is needlessly duplicated, or the inheritance tree is complex. MODERATE requires all of that resolved, plus complex parts identified and minimized; high complexity (>=11) justified; well-scoped critical functions; minimal justified redundancy; clear inputs with validation; a documented naming convention; types not misused. SATISFACTORY requires all of that met, plus minimal unnecessary complexity; documented necessary complexity; clear function purposes; straightforward testability; no redundant behavior.
 
-Return the mode-specific output in the order defined in the Procedure. In `guidelines` mode, return system documentation first, then architecture analysis, implementation review, CRITICAL-to-LOW recommendations, and the overall maturity path. In `maturity` mode, return the executive summary first, then the nine-category scorecard (with evidence-unavailable categories listed separately), per-category evidence and gaps, the aggregate score, and a CRITICAL-to-HIGH-to-MEDIUM improvement roadmap. Map every recommendation or rating to explicit evidence in both modes.
+### 5. Decentralization
+
+Look at upgrade mechanisms (proxies, governance), owner and admin control scope, timelock and multisig patterns, and user opt-out mechanisms. Ask how upgrades work and who controls them, what the user opt-out and exit paths are, and where centralization risks are documented. WEAK if centralization points are not visible to users, critical functions are upgradable by a single entity without opt-out, a single entity controls user funds, all decisions come from a single entity, parameters can change anytime by a single entity, or centralized permission is required. MODERATE requires all of that resolved, plus centralization risks identified, justified, and documented; a documented user opt-out and exit path; upgradeability only for non-critical features; privileged actors unable to unilaterally move or trap funds; all privileges documented. SATISFACTORY requires all of that met, plus a clear justified decentralization path; on-chain voting risks addressed or no centralization; documented deployment risks; documented external-interaction risks; critical parameters immutable or users able to exit.
+
+### 6. Documentation
+
+Look at the README, specification, architecture docs, inline comments (NatSpec, rustdoc), user stories, glossaries, and overall completeness and accuracy. Ask whether user stories are documented, architecture diagrams exist, and domain terms have a glossary. WEAK if documentation is minimal, incomplete, or outdated; only a high-level description; code comments that do not match docs; docs not publicly available for public codebases; unexplained artificial terms. MODERATE requires all of that resolved, plus clear unambiguous writing; a glossary for business terms; architecture diagrams; included user stories; identified core and critical components; docs sufficient to understand behavior; all critical functions and blocks documented; known risks and limitations documented. SATISFACTORY requires all of that met, plus user stories covering all operations; detailed behavior descriptions; implementation matching spec with justified deviations; clearly defined invariants; consistent naming conventions; documentation for end-users and developers.
+
+### 7. Transaction ordering risks
+
+Look at MEV-vulnerable patterns (AMM swaps, arbitrage, large trades), front-running protections, slippage and deadline checks, and oracle implementations. Ask whether ordering risks are identified and documented, what the known MEV opportunities are, what the mitigations are, and how ordering attacks are tested. WEAK if ordering risks are not identified or documented, protocols or assets are at risk from unexpected ordering, prevention relies on unjustified MEV constraints, or assumptions about MEV extractors are unproven. MODERATE requires all of that resolved, plus user-operation ordering risks limited, justified, and documented; MEV mitigations in place (delays, slippage checks); testing emphasizing ordering risks; tamper-resistant oracles used. SATISFACTORY requires all of that met, plus all ordering risks documented and justified; known risks highlighted in docs and tests and visible to users; documentation centralizing MEV opportunities; privileged-operation ordering risks limited and justified; tests highlighting ordering risks.
+
+### 8. Low-level manipulation
+
+Look at assembly blocks, unsafe code sections, low-level calls, bitwise operations, and their justification and documentation. Ask why assembly or unsafe is used, whether a high-level reference implementation exists, and how it is tested. WEAK if there are unjustified low-level manipulations, or assembly or low-level code not justified when high-level code is possible. MODERATE requires all of that resolved, plus limited justified assembly use; inline comments for each operation; no re-implementation of established libraries without justification; a high-level reference for complex assembly. SATISFACTORY requires all of that met, plus thorough documentation, justification, and testing; validation with automated testing against the reference; differential fuzzing comparing implementations; compiler optimization risks identified.
+
+### 9. Testing and verification
+
+Look at test file count and organization, coverage reports, CI/CD configuration, advanced testing (fuzzing, formal verification), and test quality and isolation. Ask for the coverage percentage, whether all tests pass, which techniques are used, and how easy tests are to run. WEAK if testing is limited to happy paths, common use cases are untested, tests fail, or tests cannot run out of the box. MODERATE requires all of that resolved, plus most functions and use cases tested; all tests passing; coverage reports available; automated testing for critical components; tests in CI/CD; integration tests where applicable; test code following best practices. SATISFACTORY requires all of that met, plus 100% reachable branch and statement coverage; end-to-end testing covering all entry points; isolated test cases; mutation testing used.
+
+## Score, report, and check your work
+
+Convert each rated category to a number (WEAK=1, MODERATE=2, SATISFACTORY=3, STRONG=4) and take the arithmetic mean of the rated categories, rounded to one decimal. Categories marked `evidence-unavailable` stay out of the mean and appear listed separately; never silently assign them a number.
+
+In `guidelines` mode, return the system documentation first, then the architecture analysis, the implementation review, the CRITICAL-to-LOW recommendations, and the overall maturity path. In `maturity` mode, return the executive summary first (overall score, top strengths, top gaps, priority recommendations), then the nine-category scorecard with evidence-unavailable categories listed separately, then per-category evidence and gaps, the aggregate score, and the improvement roadmap ordered CRITICAL, HIGH, MEDIUM with effort estimates and impact per item. Both modes order findings by severity and source location, and every recommendation or rating maps to explicit evidence.
+
+Before handing over, verify that every rating cites file:line evidence or an unanswered question, that no evidence-unavailable category was silently scored, and that the aggregate equals the mean of the rated categories.
+
+## When the evidence runs out
+
+- Too little to read, or unreadable files: report the gap and assess only what is there. Never fabricate findings for code you could not see.
+- Unknown or uncovered platform: state the limit and give generic guidance only. Never pretend platform-specific expertise.
+- A finding that will not resolve on the available evidence becomes a question for the human, not a guess.
+- Missing tools change the method, not the coverage: if Slither, Echidna, or other analysis tools are unavailable, do the manual pass and note which checks would have benefited from tooling. No area is skipped because a tool is missing.
+- Findings outside the framework (economic-model flaws, governance design) stay in the report as out-of-scope observations rather than stretching the framework.
+- A category that code inspection cannot rate is `evidence-unavailable`: out of the mean, listed separately, never backfilled with WEAK.
+- A codebase too large for one session gets a scorecard for the covered portion with the rest explicitly marked `not assessed`; never extrapolate ratings onto unexamined areas.
+- If the human withdraws or the codebase becomes inaccessible, return the partial scorecard with the last-known ratings and the questions that stayed unanswered.

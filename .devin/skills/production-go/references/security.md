@@ -1,10 +1,10 @@
-# Security Patterns in Go
+# Security patterns in Go
 
 Go's stdlib is increasingly *secure by default*: post-quantum TLS, traversal-resistant file APIs, token-less CSRF, and a native FIPS module now ship in the box, capabilities that used to require third-party deps. The job is to **use the modern primitive instead of the legacy hand-roll**, and to stop emitting patterns that were already wrong in 2020. Most AI-generated Go security code is stale, not insecure-by-malice: it reaches for `filepath.Clean`+`HasPrefix`, `math/rand`, `gorilla/csrf`, and `InsecureSkipVerify`. This file is the delta.
 
-> Source horizon: verified against Go **1.26.x** (stable, Feb 2026) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md). Version tags `[1.N]` mark the release a claim landed in. Triangulated from multi-source research and primary sources (go.dev release notes, pkg.go.dev, go.dev/security).
+> Source horizon: verified against Go **1.26.x** (stable, Feb 2026); Go 1.27 claims re-verified against the final release notes (GA 2026-08-19; current stable pin 1.27.3 per SKILL.md), re-checked 2026-10 after 2026-06 RC research. Version tags `[1.N]` mark the release a claim landed in. Triangulated from multi-source research and primary sources (go.dev release notes, pkg.go.dev, go.dev/security).
 
-## TL;DR: the modern deltas (read first)
+## Start here: what is new
 
 - Path traversal: use `os.Root`/`os.OpenInRoot` [1.24], not `filepath.Clean`+`HasPrefix`. The lexical guard is bypassable via symlinks and TOCTOU; `os.Root` uses OS-level directory descriptors (`openat`) so escapes are *refused by the kernel*. Method set **expanded [1.25]** (`WriteFile`, `Rename`, `MkdirAll`, `RemoveAll`, …).
 - CSRF: use `net/http.CrossOriginProtection` [1.25], which is token-less, cookie-less, and Fetch-metadata based. `gorilla/csrf` has **GO-2025-3884 / CVE-2025-24358 with no fix**; migrate. Backport: `filippo.io/csrf`.
@@ -14,30 +14,30 @@ Go's stdlib is increasingly *secure by default*: post-quantum TLS, traversal-res
 - TLS `CipherSuites` does nothing for TLS 1.3 and its order is ignored [1.17]; `PreferServerCipherSuites` is ignored. Control security via `MinVersion`, not a hand-rolled suite list.
 - For pinning, use `VerifyConnection`, not `VerifyPeerCertificate`; the latter is skipped on resumed sessions.
 
-## Table of Contents
-1. [OWASP Top 10 Mapping](#owasp)
-2. [Input Validation](#input-validation)
-3. [SQL Injection Prevention](#sql-injection)
-4. [Command Injection & Path Traversal (os.Root)](#injection-exec)
-5. [Templates & XSS (html vs text/template)](#templates-xss)
-6. [Randomness & crypto/rand](#randomness)
-7. [TLS Configuration](#tls)
-8. [Post-Quantum & Modern Cryptography](#post-quantum)
-9. [Constant-Time & Crypto Hygiene](#crypto-hygiene)
+## Contents
+1. [OWASP top 10 mapping](#owasp)
+2. [Input validation](#input-validation)
+3. [SQL injection prevention](#sql-injection)
+4. [Command injection and path traversal (os.Root)](#injection-exec)
+5. [Templates and XSS (html vs text/template)](#templates-xss)
+6. [Randomness and crypto/rand](#randomness)
+7. [TLS configuration](#tls)
+8. [Post-quantum and modern cryptography](#post-quantum)
+9. [Constant-time code and crypto hygiene](#crypto-hygiene)
 10. [Authentication (JWT)](#jwt)
-11. [Password Hashing](#passwords)
-12. [Sessions & CSRF (CrossOriginProtection)](#csrf)
-13. [Secrets Management & redaction](#secrets)
-14. [HTTP Security Headers](#http-security)
-15. [Runtime Hardening](#runtime-hardening)
-16. [Static Analysis & govulncheck](#static-analysis)
-17. [Library landscape & status](#libraries)
-18. [Version map 1.20→1.27](#versions)
-19. [What models get wrong](#stale)
+11. [Password hashing](#passwords)
+12. [Sessions and CSRF (CrossOriginProtection)](#csrf)
+13. [Secrets management and redaction](#secrets)
+14. [HTTP security headers](#http-security)
+15. [Runtime hardening](#runtime-hardening)
+16. [Static analysis and govulncheck](#static-analysis)
+17. [Library status](#libraries)
+18. [When each change landed (1.20 to 1.27)](#versions)
+19. [Mistakes to avoid](#stale)
 
 ---
 
-## OWASP Top 10 Mapping {#owasp}
+## OWASP top 10 mapping {#owasp}
 
 | OWASP | Go-specific mitigation (2026) | Section |
 |---|---|---|
@@ -72,13 +72,13 @@ func safeDial(ctx context.Context, network, addr string) (net.Conn, error) {
 
 ---
 
-## Input Validation {#input-validation}
+## Input validation {#input-validation}
 
 Validate **at the boundary**, allow-list over deny-list, reject early. Struct-tag validation (`go-playground/validator/v10`, tags `validate:"required,email,max=100"`) is fine for shape but is **not** a substitute for parameterization, contextual escaping, or `os.Root`: those are the actual injection boundaries. Decode defensively: `dec.DisallowUnknownFields()` rejects mass-assignment; `http.MaxBytesReader(w, r.Body, n)` bounds the body *before* decoding. For paths, `filepath.IsLocal`/`filepath.Localize` [1.20] are useful **lexical** checks when the attacker controls only a string, but if they can also touch the filesystem (symlinks, archives, shared workdirs), use `os.Root` ([below](#injection-exec)).
 
 ---
 
-## SQL Injection Prevention {#sql-injection}
+## SQL injection prevention {#sql-injection}
 
 The safety property is **separating SQL text from values**, not escaping. `db.Query`/`Exec` accept a format-*looking* string but **do not format it**: passing a pre-`Sprintf`'d query is the bug.
 
@@ -109,7 +109,7 @@ ORMs/builders (GORM, sqlc, squirrel) parameterize by default, but `.Raw()`/`.Exe
 
 ---
 
-## Command Injection & Path Traversal (os.Root) {#injection-exec}
+## Command injection and path traversal (os.Root) {#injection-exec}
 
 ### Command execution
 
@@ -126,7 +126,7 @@ cmd = exec.Command("sh", "-c", "convert -resize "+size+" "+inPath) // injectable
 
 Traps even *without* a shell: a user-controlled **program name** (first arg) is its own vuln class; allow-list it. Flag injection: input beginning with `-` can become an option (`--output=/etc/...`); terminate flags with `"--"` or validate. `[1.19] exec.ErrDot`: `LookPath`/`Command` no longer resolve a bare name against the *current directory*; models that "fix" this by re-adding `.` to `PATH` reintroduce the vuln, so use an absolute path. (gosec **G204**.)
 
-### Path traversal → `os.Root` [1.24]
+### Path traversal with `os.Root` [1.24]
 
 `filepath.Join`/`Clean` **do not contain traversal**: `filepath.Join("/srv/up", "../../etc/passwd")` → `/etc/passwd`. The common `strings.HasPrefix(filepath.Clean(p), base)` guard catches *lexical* `..` but is **bypassable via symlinks** and racey (TOCTOU). `os.OpenRoot`/`os.Root` [1.24] resolves every op *inside* the root and refuses escaping paths (including symlinks).
 
@@ -148,7 +148,7 @@ Method set: `Open`/`Create`/`OpenFile`/`Mkdir`/`Stat`/`Lstat`/`Remove`/`FS` [1.2
 
 ---
 
-## Templates & XSS (html vs text/template) {#templates-xss}
+## Templates and XSS (html vs text/template) {#templates-xss}
 
 `html/template` does **context-aware** auto-escaping (HTML, attribute, JS, URL, CSS contexts). `text/template` does **none**: using it (or `fmt`/concat) to emit HTML is XSS by construction. Both share the same API surface, so the import line is the whole difference.
 
@@ -176,7 +176,7 @@ The model assumes "trusted template authors, untrusted data": **never `Parse(use
 
 ---
 
-## Randomness & crypto/rand {#randomness}
+## Randomness and crypto/rand {#randomness}
 
 `crypto/rand` is the **only** source for keys, nonces, tokens, salts, IVs, session/reset IDs. `math/rand` and `math/rand/v2` [1.22] are **never** acceptable for security material, regardless of how good the source looks.
 
@@ -198,7 +198,7 @@ Stale beliefs to correct:
 
 ---
 
-## TLS Configuration {#tls}
+## TLS configuration {#tls}
 
 ```go
 // RIGHT — pin a floor explicitly; don't rely on shifting defaults for compliance
@@ -206,7 +206,7 @@ cfg := &tls.Config{MinVersion: tls.VersionTLS13} // or VersionTLS12 for broad-re
 srv := &http.Server{Addr: ":443", TLSConfig: cfg}
 ```
 
-Versions: default `MinVersion` is **TLS 1.2** (clients and servers); `MaxVersion` is 1.3. Server floor can drop to 1.0 only via `GODEBUG=tls10server=1`. **[1.27] removes** the escape hatches `tls10server` (server floor becomes 1.2), `tls3des` (3DES dropped from defaults), `tlsrsakex` (legacy RSA-kex off by default), `tlsunsafeekm`, and `x509keypairleaf`. The new behavior becomes unconditional regardless of `go.mod` version.
+Versions: default `MinVersion` is **TLS 1.2** (clients and servers); `MaxVersion` is 1.3. Server floor could drop to 1.0 via `GODEBUG=tls10server=1`; **[1.27] removes permanently** the escape hatches `tls10server` (server floor becomes 1.2), `tls3des` (3DES dropped from defaults), `tlsrsakex` (legacy RSA-kex off by default), `tlsunsafeekm`, and `x509keypairleaf`, making the new behavior unconditional regardless of `go.mod` version (setting any of them to a pre-1.27 value in `go.mod`/`//go:debug` now fails the build).
 
 Cipher suites (what models get wrong): `Config.CipherSuites` configures **only TLS 1.0-1.2**; **TLS 1.3 suites are not configurable** (all secure). Suite **ordering is owned by crypto/tls since [1.17]**; `CipherSuites` order is ignored and `PreferServerCipherSuites` is ignored (the stack prefers ECDHE and picks AES-GCM vs ChaCha20 by hardware). RSA-kex suites were removed from defaults [1.22]; SHA-1 sig algs are disallowed in TLS 1.2 handshakes [1.25]. **Leave suites at defaults; control security via `MinVersion`.** Hand-rolled "hardened" lists are usually weaker/stale.
 
@@ -229,7 +229,7 @@ For fully custom trust (self-signed, no system roots), use `InsecureSkipVerify: 
 
 ---
 
-## Post-Quantum & Modern Cryptography {#post-quantum}
+## Post-quantum and modern cryptography {#post-quantum}
 
 ### Post-quantum TLS (X25519MLKEM768) [1.24]
 
@@ -240,7 +240,7 @@ To defeat "harvest-now-decrypt-later," Go's TLS stack negotiates **hybrid** key 
 
 It's **default since 1.24 (no code needed).** The only reason to disable is a broken middlebox mishandling the larger (~1.2 KB) ClientHello. Setting `CurvePreferences` to legacy curves silently **drops** PQ.
 
-### HPKE: `crypto/hpke` [1.26]
+### HPKE with `crypto/hpke` [1.26]
 
 RFC 9180 Hybrid Public Key Encryption, **including PQ-hybrid KEMs**, the stdlib answer for "encrypt a message to a public key," replacing ad-hoc ECIES / `nacl/box`. Compile-time KEM+KDF+AEAD selection keeps `govulncheck` reachability precise. Verified API (pkg.go.dev, go1.26.x):
 
@@ -255,7 +255,7 @@ pt, _ := hpke.Open(k, kdf, aead, []byte("info"), ct) // recipient
 
 `Seal`/`Open` are one-shot (no aad). For multiple messages, `NewSender`/`NewRecipient` return **stateful** contexts whose `Seal(aad, pt)`/`Open(aad, ct)` increment a nonce counter and **must be called in matching order**. Out-of-order opens fail. Prefer named constructors over `NewAEAD`/`NewKDF`/`NewKEM` unless you need runtime agility.
 
-### FIPS 140-3 [1.24]: `GOFIPS140` + `fips140` GODEBUG
+### FIPS 140-3 [1.24] with `GOFIPS140` and the `fips140` GODEBUG setting
 
 Native FIPS 140-3 module inside the stdlib (pure Go, no cgo): replaces the unsupported, **incompatible** Go+BoringCrypto path. Public crypto APIs route transparently through the validated module.
 
@@ -270,11 +270,11 @@ import "crypto/fips140"
 if fips140.Enabled() { /* … */ }  // fips140.Version() [1.26] returns the resolved module version
 ```
 
-In FIPS mode: self-tests at init; pairwise key-gen consistency checks (**up to ~2× slower for ephemeral keys**); `crypto/rand.Reader` becomes a SP 800-90A DRBG; `crypto/tls` negotiates only FIPS-approved versions/suites. **`fips140=only` is documented as test/assessment, NOT production.** [1.26] `crypto/fips140.WithoutEnforcement`/`Enforced` selectively relax `only`. Modules: **v1.0.0** (Cert #5247, validated) from 1.24; **v1.26.0** from 1.26 (pending review). **Unsupported on OpenBSD, Wasm, AIX, 32-bit Windows.** [1.27 RC] `tls.Config.Rand` deprecated.
+In FIPS mode: self-tests at init; pairwise key-gen consistency checks (**up to ~2× slower for ephemeral keys**); `crypto/rand.Reader` becomes a SP 800-90A DRBG; `crypto/tls` negotiates only FIPS-approved versions/suites. **`fips140=only` is documented as test/assessment, NOT production.** [1.26] `crypto/fips140.WithoutEnforcement`/`Enforced` selectively relax `only`. Modules: **v1.0.0** (Cert #5247, validated) from 1.24; **v1.26.0** from 1.26 (pending review). **Unsupported on OpenBSD, Wasm, AIX, 32-bit Windows.** [1.27] `tls.Config.Rand` deprecated (for deterministic tests use `testing/cryptotest.SetGlobalRandom`).
 
 ---
 
-## Constant-Time & Crypto Hygiene {#crypto-hygiene}
+## Constant-time code and crypto hygiene {#crypto-hygiene}
 
 Use constant-time comparison for any secret-vs-input (MACs, API keys, reset tokens, signature bytes, TOTP). `==`/`bytes.Equal` short-circuit on the first mismatched byte: a timing oracle that brute-forces the secret byte-by-byte.
 
@@ -321,7 +321,7 @@ Library facts [v5]: with a key set the library **rejects `alg:none` by default**
 
 ---
 
-## Password Hashing {#passwords}
+## Password hashing {#passwords}
 
 No password hash in the stdlib: use `golang.org/x/crypto/bcrypt` (or `argon2id`). **PBKDF2 [1.24 stdlib] is a KDF, not a password hash.**
 
@@ -334,7 +334,7 @@ ok := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil     // cons
 
 ---
 
-## Sessions & CSRF (CrossOriginProtection) {#csrf}
+## Sessions and CSRF (CrossOriginProtection) {#csrf}
 
 ### `net/http.CrossOriginProtection` [1.25]
 
@@ -352,7 +352,7 @@ srv := &http.Server{Addr: ":8443", Handler: cop.Handler(mux)} // also: cop.Check
 
 What it does/doesn't: protects form/`fetch` cross-site POSTs from all current major browsers; fails open only for a vanishing set of ancient browsers (e.g. Firefox 60-69) sending neither header. It is **not** authentication and does nothing for non-browser API abuse. It requires HTTPS (`Sec-Fetch-Site` is sent only to trustworthy origins); pair with HSTS, since a plaintext MitM can strip `Origin`. Footgun [1.25] (CVE-2025-47910 / GO-2025-3955, fixed 1.25.1): `AddInsecureBypassPattern("/x/")` could let `POST /x` bypass via ServeMux trailing-slash redirect; bypass patterns are sharp, so prefer `AddTrustedOrigin`. Pre-1.25: `filippo.io/csrf` (+ `filippo.io/csrf/gorilla` drop-in). `gorilla/csrf` has **GO-2025-3884 / CVE-2025-24358** (TrustedOrigins accepted both HTTP and HTTPS of a host → MitM CSRF) with no fixed release; migrate. `justinas/nosurf` is effectively unmaintained.
 
-### Session lifecycle & cookies
+### Session lifecycle and cookies
 
 Regenerate the session ID on every privilege transition (login, role elevation, re-auth); reusing a pre-auth ID enables session fixation. `alexedwards/scs/v2` exposes `RenewToken` for exactly this. Cookies: `HttpOnly`, `Secure`, `SameSite=Lax` (or `Strict`); `SameSite=None` *must* be paired with `Secure`; use the `__Host-` prefix; set server-side absolute + idle timeouts; invalidate server-side on logout. Never accept a session ID from URL/query.
 
@@ -365,7 +365,7 @@ http.SetCookie(w, &http.Cookie{
 
 ---
 
-## Secrets Management & redaction {#secrets}
+## Secrets management and redaction {#secrets}
 
 ```go
 secret := os.Getenv("JWT_SECRET")
@@ -399,7 +399,7 @@ Caveats: heap erasure is **GC-deferred**, not immediate; any allocation *inside*
 
 ---
 
-## HTTP Security Headers {#http-security}
+## HTTP security headers {#http-security}
 
 No stdlib helper: set in middleware, **before the first `Write`/`WriteHeader`** (headers are immutable once the body starts; setting them after silently no-ops).
 
@@ -421,7 +421,7 @@ Prefer CSP `frame-ancestors 'none'` over `X-Frame-Options` (now obsolete per MDN
 
 ---
 
-## Runtime Hardening {#runtime-hardening}
+## Runtime hardening {#runtime-hardening}
 
 - Heap base randomization [1.26] is automatic on all 64-bit platforms at startup; makes addresses unpredictable, hardening exploitation of memory-safety bugs **especially with cgo**. Opt out (discouraged) via `GOEXPERIMENT=norandomizedheapbase64` (escape hatch, will be removed). May cause false positives in eBPF/stack-pivot telemetry (e.g. Tracee) until updated.
 - `http.Server` timeouts: zero means *no* timeout; always set them in prod (Slowloris/resource exhaustion):
@@ -435,11 +435,11 @@ srv := &http.Server{
 ```
 
 - `httputil.ReverseProxy.Director` is deprecated [1.26]; it is fundamentally unsafe (a malicious client can strip Director-added headers by marking them hop-by-hop), so migrate to `ReverseProxy.Rewrite` (added 1.20), which sees both the inbound and outbound request.
-- Build with `-trimpath` (strip local paths), `-buildmode=pie` where ASLR on the text segment helps; the linker emits a GNU build ID / Mach-O UUID by default [1.24] for SBOM correlation. Run `-race` in CI; data races are a security concern; [1.26] an experimental `goroutineleak` profile (`GOEXPERIMENT=goroutineleakprofile`) surfaces forever-blocked goroutines.
+- Build with `-trimpath` (strip local paths), `-buildmode=pie` where ASLR on the text segment helps; the linker emits a GNU build ID / Mach-O UUID by default [1.24] for SBOM correlation. Run `-race` in CI; data races are a security concern; the `goroutineleak` profile (experiment `GOEXPERIMENT=goroutineleakprofile` [1.26], **GA [1.27]** in `runtime/pprof` and at `/debug/pprof/goroutineleak`; the old GOEXPERIMENT setting is deleted) surfaces forever-blocked goroutines.
 
 ---
 
-## Static Analysis & govulncheck {#static-analysis}
+## Static analysis and govulncheck {#static-analysis}
 
 `govulncheck` (supply chain, reachability-based): the official scanner; it builds a call graph and reports only vulns your code **actually reaches**, far less noise than version-string scanners. Data from the Go vuln DB (`vuln.go.dev`, OSV, IDs `GO-YYYY-NNNN`).
 
@@ -463,7 +463,7 @@ go vet ./... && gosec ./... && go test -race -count=1 ./... && govulncheck ./...
 
 ---
 
-## Library landscape & status {#libraries}
+## Library status {#libraries}
 
 | Area | Use now | Avoid / superseded | Since |
 |---|---|---|---|
@@ -488,7 +488,7 @@ go vet ./... && gosec ./... && go test -race -count=1 ./... && govulncheck ./...
 
 ---
 
-## Version map 1.20→1.27 {#versions}
+## When each change landed (1.20 to 1.27) {#versions}
 
 | Ver | Security-relevant |
 |---|---|
@@ -499,11 +499,11 @@ go vet ./... && gosec ./... && go test -race -count=1 ./... && govulncheck ./...
 | **1.24** | `os.Root`/`os.OpenInRoot`; **`X25519MLKEM768` default**; `crypto/mlkem`; native FIPS (`GOFIPS140`); `crypto/{hkdf,pbkdf2,sha3}`; `rand.Text`; `crypto/rand.Read` no-fail; `cipher.NewGCMWithRandomNonce`; CFB/OFB deprecated; RSA<1024 errors; x509 rejects SHA-1; `subtle.WithDataIndependentTiming`; `math/rand.Seed` no-op |
 | **1.25** | **`net/http.CrossOriginProtection`** (CSRF); `os.Root` method set expanded + `Root.FS` ReadLinkFS; TLS 1.2 SHA-1 sig algs disallowed; `go vet` `hostport`/`waitgroup` |
 | **1.26** | `crypto/hpke`; **SecP*MLKEM* TLS defaults**; **rand `io.Reader` arg ignored** + `testing/cryptotest.SetGlobalRandom`; PKCS#1v1.5 enc deprecated; `EncryptOAEPWithOptions`; heap-base randomization; `runtime/secret` (exp); `httputil.Director` deprecated; `fips140` v1.26.0 + `WithoutEnforcement`/`Enforced`/`Version`; `WithDataIndependentTiming` goroutine/cgo propagation; `ecdsa` `big.Int` fields deprecated; `errors.AsType` |
-| **1.27** | Removes GODEBUGs `tls10server`/`tls3des`/`tlsrsakex`/`tlsunsafeekm`/`x509keypairleaf` (new TLS behavior unconditional) and `asynctimerchan`; `tls.Config.Rand` deprecated; `runtime/secret` goroutines inherit secret mode. GA 2026-08-19; row from 2026-06 RC notes, confirmed against the final release notes. |
+| **1.27** | Removes GODEBUGs `tls10server`/`tls3des`/`tlsrsakex`/`tlsunsafeekm`/`x509keypairleaf` (new TLS behavior unconditional) and `asynctimerchan`; `tls.Config.Rand` deprecated; `runtime/secret` goroutines inherit secret mode; `goroutineleak` profile GA (`goroutineleakprofile` GOEXPERIMENT deleted). GA 2026-08-19, confirmed against the final release notes. |
 
 ---
 
-## What models get wrong {#stale}
+## Mistakes to avoid {#stale}
 
 1. `filepath.Clean`/`Join`+`HasPrefix` as a traversal boundary: symlink- and TOCTOU-bypassable. Use `os.Root`/`os.OpenInRoot` [1.24] (+ [1.25] methods); extract archives through a `Root`.
 2. `math/rand`/`math/rand/v2` for tokens/keys/nonces: "v2 uses ChaCha8 so it's secure" is **false**; use `crypto/rand` (G404). And [1.24] `crypto/rand.Read` never errors; dead error branches, and a `math/rand` fallback "if crypto fails" is a vuln.
@@ -524,7 +524,7 @@ go vet ./... && gosec ./... && go test -race -count=1 ./... && govulncheck ./...
 
 ---
 
-## See Also {#see-also}
+## Where to look next {#see-also}
 - [http-and-apis.md](http-and-apis.md): CSRF middleware, TLS server config, HTTP client timeouts
 - [supply-chain-security.md](supply-chain-security.md): `govulncheck`, SBOM, reproducible builds, GODEBUG
 - [errors-and-resilience.md](errors-and-resilience.md#slog-errors): `LogValuer` redaction, structured errors
@@ -536,4 +536,4 @@ go vet ./... && gosec ./... && go test -race -count=1 ./... && govulncheck ./...
 - pkg.go.dev/crypto/hpke (verified API, go1.26.x); OWASP Top 10; OWASP Session Management
 - Advisories: GO-2025-3884/CVE-2025-24358 (gorilla/csrf), GO-2025-3955/CVE-2025-47910 (CrossOriginProtection bypass, fixed 1.25.1)
 
-`source horizon: verified against Go 1.26.x (stable) + 1.27 RC notes, 2026-06, before general availability. Go 1.27 GA'd 2026-08-19 (current pin: SKILL.md)`
+`source horizon: verified against Go 1.26.x (stable); Go 1.27 claims confirmed against the final release notes (GA 2026-08-19; current stable pin 1.27.3 per SKILL.md), re-checked 2026-10`

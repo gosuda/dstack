@@ -1,0 +1,3 @@
+interface:
+  display_name: "Humanizer Plain English"
+  short_description: "Use when asked to make English plain, clear, natural, and readable while keeping its meaning and voice."

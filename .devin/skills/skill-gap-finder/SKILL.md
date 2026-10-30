@@ -3,41 +3,41 @@ name: skill-gap-finder
 description: 'Use when the user suspects no installed skill covers a task and wants proof. Names the owning skill or writes a missing-skill brief. Never routes or invokes the matched skill.'
 ---
 
-# Skill gap finder
+# Finding whether a skill already owns the task
 
-## Contract
+You settle one question: does an installed skill already cover this task, or is the gap real? You either name the owning skill or prove nobody owns it. You never invoke the matched skill and never route the user onward. Naming the owner, or writing the gap brief, is where you stop.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The user suspects no installed skill covers a task, or wants exhaustive proof that a task is a skill gap before requesting a new skill. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. Consults the installed skill catalog; never invokes or routes to the matched skill. |
-| Side effect | None. Catalog lookup only; no persistent writes. |
-| Done | Either an owning skill is named with its trigger sentence (without invocation), or a missing-skill brief is produced proving no installed skill covers the task. |
+This is a read-only job. You consult the installed skill catalog and write nothing persistent. No file, VCS, credential, paid, published, deployed, or remote changes.
 
-## Inputs
+## What you need before you start
 
-1. The task description or user request that needs gap analysis.
-2. The installed skill catalog, available at runtime through the host harness.
+You need both of these, no exceptions:
 
-Both are required. If the catalog is unavailable, stop and report the blocker.
+- The task description or user request under analysis.
+- The installed skill catalog, available at runtime through the host harness.
 
-## Procedure
+If the task is ambiguous, stop and ask the user to clarify it before you search. If the catalog cannot be read, stop and report that blocker. Do not guess at coverage from memory.
 
-1. Extract the core action and domain from the task description. **Done when:** the core action and domain are identified.
-2. Search the installed skill catalog exhaustively for skills whose trigger predicate could match the extracted action and domain. Test broad and narrow phrasings of the task to avoid false gaps. **Done when:** the matching set is enumerated with the search strategy recorded.
-3. If one or more skills match, name the best-matching skill and quote its trigger sentence. Report the selection rationale. Do not invoke the skill or route the user to it: naming the owner is the terminal output. **Done when:** the owning skill is named with its trigger sentence and rationale, without invocation.
-4. If no skill matches, produce a missing-skill brief containing: the task description, the exhaustive search strategy used and why it found no match, and the trigger predicate a new skill would need. **Done when:** the brief contains all three elements.
-5. Never invent behavior, fork a near-duplicate, or widen scope. **Done when:** no invention, fork, or scope widening occurred.
+## Search the catalog like you want to be proved wrong
 
-## Failure and recovery
-| Failure class | Rule |
-|---|---|
-| Ambiguous task | Stop. Ask the user to clarify the task before searching. |
-| Catalog unavailable | Stop. Report that the catalog could not be read. Do not guess. |
-| Multiple equal matches | Name all matching skills with their trigger sentences. Do not pick one. Report the overlap and let the user decide. |
-| Near-duplicate detected | Produce a missing-skill brief instead of forking. Record the overlap. |
+Pull the core action and the domain out of the task description first. That pair is what you match against, not surface wording.
 
-No partial results. If the search fails, the output is a brief or a user clarification request, never a best-effort invocation.
+Then search the catalog exhaustively. Try broad and narrow phrasings of the task so a gap finding means something. A gap declared after one literal search is a false gap. Record the search strategy you used and enumerate the matching set it produced.
 
-## Output
-Either the owning skill name with its trigger sentence and selection rationale (without invocation), or a missing-skill brief with the task description, exhaustive search strategy, gap proof, and trigger predicate a new skill would need.
+## When a skill already owns it
+
+Name the best-matching skill, quote its trigger sentence, and give the selection rationale. Then stop. Do not invoke it and do not route the user to it.
+
+When several skills match equally well, name all of them with their trigger sentences, report the overlap, and let the user decide. Do not break the tie yourself.
+
+When the closest thing is only a near-duplicate, do not fork it and do not stretch its scope. Write a missing-skill brief instead and record the overlap.
+
+## When nothing owns it
+
+Write a missing-skill brief with all three parts:
+
+- The task description.
+- The exhaustive search strategy you ran and why it found no match.
+- The trigger predicate a new skill would need to cover the task.
+
+Never invent behavior a skill does not have, never fork a near-duplicate, and never widen scope to force a fit. If the search fails, your output is a brief or a clarification request, never a best-effort invocation.

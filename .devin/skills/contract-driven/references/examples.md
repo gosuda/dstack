@@ -24,7 +24,7 @@ pub fn withdraw(&mut self, amount: u64) -> Result<u64, Error> {
     let old_balance = self.balance;
     self.balance -= amount;
     debug_assert!(self.balance == old_balance - amount, "POST: balance delta");
-    debug_assert!(self.balance >= 0, "INV: non-negative balance");
+    // INV: non-negative balance is enforced by the u64 type itself.
     Ok(amount)
 }
 ```

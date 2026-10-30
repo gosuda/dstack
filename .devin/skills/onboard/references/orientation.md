@@ -1,17 +1,15 @@
-# Onboard orientation reference
+# Getting your bearings in a new repo
 
-This self-contained reference defines the checklist and output contract for the onboarding operation. Use it to keep collection bounded, synthesis consistent, and degradation honest.
+This reference defines the checklist and output contract for the onboarding operation. Use it to keep collection bounded, synthesis consistent, and degradation honest.
 
-## Data-collection checklist
-
-### Scope
+## Set the scope first
 
 - Root path resolved and readable.
 - Depth parsed: `quick | normal | deep`.
-- Focus captured if user supplied one.
+- Focus captured if the user supplied one.
 - Exclusion set applied to walks: `node_modules`, `.git`, `dist`, `target`, `out`, `.next`, `.nuxt`, `__pycache__`, `.pytest_cache`, `coverage`, `.cache`, `vendor`, `.idea`, `.vscode`.
 
-### Manifest and project identity
+## Identify the project from its manifests
 
 Collect the first matching primary manifest, then workspace manifests where present.
 
@@ -25,7 +23,8 @@ Collect the first matching primary manifest, then workspace manifests where pres
 | Gradle | `build.gradle(.kts)`, `settings.gradle(.kts)` | root project, subprojects, plugins, application main class, tasks |
 | C/C++/make | `CMakeLists.txt`, `meson.build`, `configure.ac`, `Makefile` | project name, targets, build commands, test targets |
 
-Monorepo detection:
+Treat the repo as a monorepo or workspace when any of these appear:
+
 - `package.json.workspaces`, `pnpm-workspace.yaml`, `lerna.json`, `turbo.json`, `nx.json`.
 - Cargo `[workspace]`.
 - Go `go.work`.
@@ -33,11 +32,9 @@ Monorepo detection:
 - Gradle `include(...)` in `settings.gradle(.kts)`.
 - Python `libs/*/pyproject.toml`, `packages/*/pyproject.toml`, `python/*/pyproject.toml`.
 
-### Structure walk
+## Walk the structure
 
-Required: 3-level directory walk with file counts and key files.
-
-Headless recipes:
+Do a 3-level directory walk with file counts and key files.
 
 ```bash
 fd -d 3 -t d . "$ROOT" \
@@ -45,7 +42,7 @@ fd -d 3 -t d . "$ROOT" \
   -E __pycache__ -E .pytest_cache -E coverage -E .cache -E vendor -E .idea -E .vscode
 ```
 
-Fallback:
+Fallback when `fd` is unavailable:
 
 ```bash
 find "$ROOT" -maxdepth 3 -type d \
@@ -57,37 +54,30 @@ find "$ROOT" -maxdepth 3 -type d \
 
 Annotate, do not paste. Prefer directories with source, tests, configuration, packages/apps, migrations, generated code, and public API surfaces.
 
-### README and local rules
+## Read the readme and local rules
 
-Read, capped near 5KB each:
+Read each file capped near 5KB:
+
 - `README.md`, `README.mdx`, `README.rst`, `README`.
 - `CLAUDE.md`.
 - `AGENTS.md`.
 
-If README contains exactly one line ending in `.md`, read that file as the effective README.
+If the README contains exactly one line ending in `.md`, read that file as the effective README.
 
-Extract:
-- Plain-language purpose.
-- Install/build/test/run commands.
-- Required services, environment variables, database setup.
-- Architecture notes.
-- Project-specific constraints.
+Pull out the plain language purpose, the install/build/test/run commands, required services plus environment variables plus database setup, architecture notes, and project specific constraints.
 
-### CI and runtime services
+## Note CI and runtime services
 
-Inspect:
+Inspect these locations:
+
 - `.github/workflows/*.{yml,yaml}`.
 - `.gitlab-ci.yml`, `azure-pipelines.yml`, `.circleci/config.yml`.
 - `Dockerfile`, `docker-compose*.yml`, `compose.yaml`, `Procfile`.
 - Deployment roots: `k8s/`, `helm/`, `terraform/`, `serverless.yml`, `vercel.json`, `netlify.toml`, `fly.toml`.
 
-Extract:
-- CI provider and workflow names.
-- Build/test/lint commands actually run in CI.
-- Runtime services and prerequisites.
-- Deployment shape only if obvious from files.
+Record the CI provider and workflow names, the build/test/lint commands actually run in CI, the runtime services and prerequisites, and the deployment shape only if it is obvious from the files.
 
-### Git signals
+## Listen to git history
 
 If inside a git repository, collect:
 
@@ -102,19 +92,20 @@ git shortlog -sn --all -- .
 git --no-pager log --since='180 days ago' --format='' --name-only -- .
 ```
 
-Use the name-only log to count recent churn by file. Top hotspots are active-development signals, not automatic risk. Cross-check owners with `git shortlog` or path-scoped history when available:
+Use the name-only log to count recent churn by file. Top hotspots signal active development, not automatic risk. Cross-check owners with `git shortlog` or path-scoped history when available:
 
 ```bash
 git shortlog -sn --all -- path/to/area
 git --no-pager log --since='180 days ago' --format='%an' -- path/to/area
 ```
 
-### Native entry-point and convention signals
+## Find where execution starts
 
 Prefer indexed codegraph where present:
+
 - `codegraph_explore("entry points main binaries commands framework configs tests")`.
 - `codegraph_search` for `main`, CLI symbols, server boot functions, exported package roots.
-- `codegraph_callees` from selected entry point for first-hop flow.
+- `codegraph_callees` from the selected entry point for first-hop flow.
 - `codegraph_files` for package/module inventory.
 
 Fallback recipes:
@@ -139,13 +130,16 @@ git grep -nE 'public static void main|@SpringBootApplication|application.yml|mai
 fd '(test|spec|_test)\.(js|jsx|ts|tsx|rs|go|py|java|kt)$' "$ROOT"
 ```
 
-Conventions to infer only from evidence:
-- Naming style: repeated file/function/class naming in read files.
-- Test pattern: actual test file names and framework imports.
-- Module boundaries: imports/exports or package manifests.
-- Commit style: recent `git log --format=%s -n 30` subjects.
+Infer conventions only from evidence:
 
-### Whole-repo digest
+| Signal | What counts as evidence |
+|---|---|
+| Naming style | Repeated file, function, or class naming in files you read |
+| Test pattern | Actual test file names and framework imports |
+| Module boundaries | Imports, exports, or package manifests |
+| Commit style | Recent `git log --format=%s -n 30` subjects |
+
+## Confirm with a whole repo digest
 
 Use repomix once per onboarding pass:
 
@@ -156,20 +150,24 @@ CLI: npx -y repomix "$ROOT" --compress -o /tmp/onboard-repomix.xml
 
 Use the digest to confirm stack, top-level modules, naming conventions, and suspicious omissions. Do not quote long digest chunks. If repomix fails, continue with local collection and mark the digest gate degraded.
 
-### Deep-read file selection
+## Read two or three files deeply
 
-Pick 2-3 files:
-1. **Entry point**: structural entry point from codegraph/AST, manifest `bin`/`main`, Cargo `[[bin]]`, Go `cmd/*/main.go`, Python console script target, framework config, or app boot.
-2. **Largest module**: directory with highest file count from structure walk, excluding generated/vendor/build directories. Read its central `index`, `mod`, `lib`, `main`, or most-imported file if available.
-3. **Representative test**: first relevant test near the entry/largest module, or a top-level integration test.
+Pick 2 to 3 files:
+
+1. Entry point: structural entry point from codegraph/AST, manifest `bin`/`main`, Cargo `[[bin]]`, Go `cmd/*/main.go`, Python console script target, framework config, or app boot.
+2. Largest module: directory with the highest file count from the structure walk, excluding generated/vendor/build directories. Read its central `index`, `mod`, `lib`, `main`, or most-imported file if available.
+3. Representative test: first relevant test near the entry/largest module, or a top-level integration test.
 
 For each file, record:
-- Path.
-- Why it was chosen.
-- Key imports/calls/exports observed.
-- What it tells a newcomer.
 
-## Seven-section orientation template
+| Aspect | Record |
+|---|---|
+| Location | Path |
+| Reason | Why it was chosen |
+| Contents | Key imports, calls, and exports observed |
+| Lesson | What it tells a newcomer |
+
+## Write the seven section orientation
 
 Use section names exactly. Omit a section only when the required data is absent and the omission is stated locally.
 
@@ -244,7 +242,7 @@ I read:
 
 Then ask the next-step question.
 
-## Depth matrix
+## Match effort to depth
 
 | Depth | Collection | Deep read | Repomix | Intended latency | Use |
 |---|---|---|---|---|---|
@@ -254,7 +252,7 @@ Then ask the next-step question.
 
 Depth does not change the seven-section output shape. It changes confidence and evidence.
 
-## Interaction contract
+## Ask what to do next
 
 Use `ask` with one axis: `next_step`.
 
@@ -275,9 +273,9 @@ What would you like to do next?
 4. Where can I help?
 ```
 
-## Degradation and error table
+## Say what broke instead of guessing
 
-Evaluate top-to-bottom. Report degradation in the affected section, then continue.
+Evaluate top to bottom. Report degradation in the affected section, then continue.
 
 | Situation | Action | Certainty |
 |---|---|---|
@@ -302,13 +300,15 @@ Evaluate top-to-bottom. Report degradation in the affected section, then continu
 | Commands absent from manifest/README/CI | Do not invent install/build/test/run; list only observed commands and mark missing commands | HIGH |
 | User supplied focus but no matching files | Complete general orientation, then ask for a different area/feature name | HIGH |
 
-## Certainty grading
+## Grade how sure you are
 
-- HIGH: directly observed in file content, tool output, manifest fields, CI files, or git history.
-- MEDIUM: supported by two or more weak signals, such as dependency + directory pattern, or repeated naming/import conventions.
-- LOW: plausible inference from limited data. Label inline as `[INFERENCE]` and keep it out of commands.
+| Grade | Meaning |
+|---|---|
+| HIGH | Directly observed in file content, tool output, manifest fields, CI files, or git history. |
+| MEDIUM | Supported by two or more weak signals, such as dependency plus directory pattern, or repeated naming/import conventions. |
+| LOW | Plausible inference from limited data. Label inline as `[INFERENCE]` and keep it out of commands. |
 
-## Output quality rules
+## Keep the output clean
 
 - Prefer exact paths over generic labels.
 - Prefer observed commands over ecosystem defaults.

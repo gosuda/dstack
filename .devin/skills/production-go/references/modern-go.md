@@ -1,8 +1,8 @@
 # Modern Go Features (1.18 → 1.27)
 
-LLM pre-training is dominated by pre-1.22 Go: per-loop variables, `interface{}`, `sort.Slice`, manual `errors.As`, `rand.Seed`. This file is the **freshness anchor** ; what changed, the one idiom to use now, and the trap. It deliberately touches many topics; each entry stays terse and cross-links the deep treatment via **See also**. Every entry answers: *what would an agent get WRONG without this?*
+Most training data is pre-1.22 Go: per-loop variables, `interface{}`, `sort.Slice`, manual `errors.As`, `rand.Seed`. This file lists what changed, the one idiom to use now, and the trap. Each entry stays short and links to the full treatment. Every entry answers: what would you get wrong without this?
 
-> Source horizon: verified against Go **1.26.x** (stable) + **1.27 RC** draft notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 entries were checked against the final notes. Version tags `[1.N]` mark the release a feature became available; `[1.N exp]` = GOEXPERIMENT/experimental. Baseline assumed: **1.22**.
+> Source horizon: verified against Go **1.26.x** (stable) and the **Go 1.27 final release notes** (GA 2026-08-19; current stable patch is pinned in `SKILL.md`). Version tags `[1.N]` mark the release a feature became available; `[1.N exp]` = GOEXPERIMENT/experimental. Compatibility follows the repository's `go` directive.
 
 ## TL;DR: the deltas models miss most {#tldr}
 
@@ -15,17 +15,17 @@ LLM pre-training is dominated by pre-1.22 Go: per-loop variables, `interface{}`,
 
 ## Table of Contents
 1. [Version Quick-Reference Table](#quick-ref)
-2. [Iteration & Collections](#iteration)
+2. [Iteration and collections](#iteration)
 3. [Concurrency Additions](#concurrency)
 4. [Error Handling](#errors)
 5. [Type System & Generics](#type-system)
 6. [Runtime & GC](#runtime)
 7. [Tooling](#tooling)
-8. [Anti-Patterns (Old → Modern)](#deprecated)
-9. [On Hold: Arena Memory](#arena)
+8. [Old patterns and modern replacements](#deprecated)
+9. [On hold: arena memory](#arena)
 10. [Go 1.27](#go127)
-11. [Version map 1.18→1.27](#versions)
-12. [What models get wrong](#stale)
+11. [Version map 1.18 → 1.27](#versions)
+12. [Stale beliefs to drop](#stale)
 13. [See also](#see-also)
 14. [Sources](#sources)
 
@@ -75,7 +75,7 @@ Scan first. Sections below expand only features needing more than a line. `exp` 
 | `reflect.TypeAssert[T]()` | 1.25 | Stable | Alloc-free typed assert from `reflect.Value` |
 | `net/http.CrossOriginProtection` | 1.25 | Stable | Built-in CSRF middleware: see `security.md` |
 | `slog.GroupAttrs` | 1.25 | Stable | Build a group `Attr` from `[]Attr` |
-| `encoding/json/v2` + `jsontext` | 1.25 exp | Experimental | `GOEXPERIMENT=jsonv2`; **GA in 1.27** : see below |
+| `encoding/json/v2` + `jsontext` | 1.25 exp → 1.27 | Stable (GA 1.27) | `encoding/json` is backed by v2; `nojsonv2` opts out; final API removals/renames are listed below |
 | Green Tea GC default | 1.25→1.26 | Stable | exp 1.25, **default 1.26**; 10-40% less GC overhead |
 | `new(expr)` | 1.26 | Stable | `new(computeAge())` → `*int` pointing at the value |
 | Self-referential generic types | 1.26 | Stable | `type Adder[A Adder[A]] interface{ Add(A) A }` |
@@ -87,18 +87,18 @@ Scan first. Sections below expand only features needing more than a line. `exp` 
 | `T.ArtifactDir()` | 1.26 | Stable | Per-test artifact output dir: see `testing.md` |
 | `io.ReadAll` speedup | 1.26 | Stable | ~2× faster, ~½ the allocations (automatic) |
 | `crypto/hpke` | 1.26 | Stable | Hybrid Public Key Encryption (RFC 9180), see `security.md` |
-| Goroutine-leak profile | 1.26 exp | Experimental | `GOEXPERIMENT=goroutineleakprofile`; **GA 1.27** |
-| `simd/archsimd` | 1.26 exp | Experimental | Arch-specific SIMD; `GOEXPERIMENT=simd` |
+| Goroutine-leak profile | 1.26 exp → 1.27 | Stable (GA 1.27) | `runtime/pprof`/`net/http/pprof`; old `GOEXPERIMENT=goroutineleakprofile` removed |
+| `simd/archsimd` | 1.26 exp → 1.27 | Experimental | Remains architecture-specific and unstable; enabled with `GOEXPERIMENT=simd` |
 | `runtime/secret` | 1.26 exp | Experimental | Secure erasure of secrets; `GOEXPERIMENT=runtimesecret` : see `security.md` |
 | Generic methods | 1.27 | Stable | Methods may declare their own type params |
-| `encoding/json/v2` GA | 1.27 | Stable | `encoding/json` now backed by v2; opt out `GOEXPERIMENT=nojsonv2` |
-| Arena memory |; | **On hold** | Infectious API + use-after-free; use `sync.Pool` |
+| `encoding/json/v2` + `jsontext` | 1.27 | Stable | `encoding/json` is backed by v2; opt out with `GOEXPERIMENT=nojsonv2`; `inline`→`embed`, and `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` were removed |
+| Arena memory | n/a | **On hold** | Infectious API + use-after-free; use `sync.Pool` |
 
 ---
 
-## Iteration & Collections {#iteration}
+## Iteration and collections {#iteration}
 
-**Stops agents generating manual index loops, `sort.Slice`, and membership loops.**
+Use these instead of manual index loops, `sort.Slice`, and membership loops.
 
 ### Range-over-func [1.23]
 
@@ -263,7 +263,7 @@ Production tuning advice; stop recommending obsolete approaches. Deep GC interna
 
 ### Green Tea GC [default 1.26]
 
-Default since **1.26** (experiment in 1.25). **10-40% reduction in GC overhead**, biggest on programs with many small objects (better marking locality + CPU scalability); a further ~10% on newer amd64 (Ice Lake / Zen 4) via vector scanning. Works with existing `GOGC`/`GOMEMLIMIT`. Opt out: `GOEXPERIMENT=nogreenteagc` (removal expected in 1.27).
+Default since **1.26** (experiment in 1.25). **10-40% reduction in GC overhead**, biggest on programs with many small objects (better marking locality + CPU scalability); a further ~10% on newer amd64 (Ice Lake / Zen 4) via vector scanning. Works with existing `GOGC`/`GOMEMLIMIT`. Opt out with `GOEXPERIMENT=nogreenteagc`, observed accepted by go1.27.3 (linux/amd64).
 
 ### Other automatic wins
 
@@ -277,7 +277,7 @@ Default since **1.26** (experiment in 1.25). **10-40% reduction in GC overhead**
 
 ## Tooling {#tooling}
 
-**Correct `go.mod` files and modern build workflows.**
+Keep `go.mod` files correct and use modern build workflows.
 
 ### `tool` directive in `go.mod` [1.24]
 
@@ -293,9 +293,9 @@ Replaces the `tools.go` blank-import hack. `go get -tool golang.org/x/tools/cmd/
 
 ---
 
-## Anti-Patterns: Old → Modern {#deprecated}
+## Old patterns and modern replacements {#deprecated}
 
-Highest-value section. Agents emit these from pre-training; each is a concrete rewrite.
+These are the most frequent outdated patterns. Each row shows the rewrite.
 
 | Old Pattern | Modern Replacement | Min Ver | Why old is wrong |
 |---|---|---|---|
@@ -321,11 +321,11 @@ Highest-value section. Agents emit these from pre-training; each is a concrete r
 | `omitempty` for `time.Time` | `omitzero` | 1.24 | `omitempty` never omits a zero `time.Time` |
 | `reflect.TypeOf((*T)(nil)).Elem()` | `reflect.TypeFor[T]()` | 1.22 | Direct |
 | `ioutil.ReadAll`/`ReadFile` | `io.ReadAll` / `os.ReadFile` | 1.16 | `io/ioutil` deprecated |
-| `GOEXPERIMENT=arena` | `sync.Pool` / pre-alloc / `GOMEMLIMIT` |; | Arena on hold (see below) |
+| `GOEXPERIMENT=arena` | `sync.Pool` / pre-alloc / `GOMEMLIMIT` | n/a | Arena on hold (see below) |
 
 ---
 
-## On Hold: Arena Memory {#arena}
+## On hold: arena memory {#arena}
 
 Arena memory (`GOEXPERIMENT=arena`) is **on hold indefinitely** : the API is infectious (every allocating function needs an `arena` param) and it reintroduces use-after-free. **Use instead:** `sync.Pool` for hot-path reuse, `make([]T, 0, cap)` to pre-allocate, `GOMEMLIMIT` for a soft cap, and Green Tea GC [1.26] for free overhead reduction. See `performance.md`.
 
@@ -333,14 +333,14 @@ Arena memory (`GOEXPERIMENT=arena`) is **on hold indefinitely** : the API is inf
 
 ## Go 1.27 {#go127}
 
-> GA 2026-08-19 (current pin: SKILL.md). Entries below were compiled from the 2026-06 RC notes and confirmed against the final release notes.
+> Go 1.27 reached GA on **2026-08-19** (current stable patch is pinned in `SKILL.md`). The entries below are checked against the final release notes; the historical 1.25/1.26 experiment-to-stable transitions remain labeled.
 
-- Generic methods: a method declaration may now declare its own type parameters (long-awaited). Interface methods still may not be generic, nor be implemented by generic methods.
-- `encoding/json/v2` + `encoding/json/jsontext` GA: `encoding/json` is now **backed by v2**; marshal behavior preserved but **error message text differs**, and v2 defaults are stricter (rejects invalid UTF-8 and duplicate object keys). v1 API stays supported; opt out with `GOEXPERIMENT=nojsonv2`. (Was `GOEXPERIMENT=jsonv2` in 1.25/1.26.)
-- Goroutine-leak profile GA: `goroutineleak` in `runtime/pprof` and `/debug/pprof/goroutineleak` (experiment in 1.26).
-- Struct-literal keys may be any field selector, not just a top-level field name; **function type inference generalized** to all assignment/conversion contexts.
-- `asynctimerchan` GODEBUG removed: timer channels are always unbuffered/synchronous.
-- New stdlib: `crypto/mldsa` (post-quantum ML-DSA signatures), top-level `uuid` package, portable `simd` (experiment), `strings.CutLast`/`bytes.CutLast`.
+- Generic methods: a method declaration may now declare its own type parameters (long-awaited). Interface methods still may not declare type parameters, nor can interface methods be implemented by generic methods.
+- `encoding/json/v2` + `encoding/json/jsontext` are stable: `encoding/json` is now **backed by v2**; marshal/unmarshal behavior is preserved but **error message text may differ**, and v2 defaults are stricter (rejects invalid UTF-8 and duplicate object names). The v1 API stays supported; `GOEXPERIMENT=nojsonv2` opts back into the original v1 implementation. Final API changes include removing the `format` and `unknown` tag options, `DiscardUnknownMembers`, and the `SkipFunc` sentinel error; `inline` was renamed to `embed`.
+- Goroutine-leak profile is GA: `goroutineleak` in `runtime/pprof` and `/debug/pprof/goroutineleak`; the old `goroutineleakprofile` experiment was deleted.
+- Struct-literal keys may be any valid field selector, not just a top-level field name; **function type inference is generalized** to all assignment/conversion contexts.
+- `asynctimerchan` GODEBUG was removed: time channels are always unbuffered/synchronous.
+- New standard-library packages include `crypto/mldsa` and top-level `uuid`; `simd` and `simd/archsimd` remain experimental, with `simd/archsimd` enabled by `GOEXPERIMENT=simd`; `strings.CutLast`/`bytes.CutLast` were added.
 - GODEBUG removals: `gotypesalias`, plus TLS `tls10server`/`tlsrsakex`/`tls3des`/`tlsunsafeekm`/`x509keypairleaf` (the new behavior becomes unconditional).
 
 ---
@@ -357,11 +357,11 @@ Arena memory (`GOEXPERIMENT=arena`) is **on hold indefinitely** : the API is inf
 | **1.24** | Generic type aliases; `weak` + `runtime.AddCleanup`; `os.Root`; `tool` directive; `b.Loop`; `encoding` appenders; `omitzero`; `rand.Text`; PQ-TLS default; Swiss-table map; `synctest` (exp) |
 | **1.25** | Container-aware `GOMAXPROCS`; `WaitGroup.Go`; `FlightRecorder`; `synctest` **GA**; `T.Output`/`T.Attr`; `reflect.TypeAssert`; `CrossOriginProtection`; `slog.GroupAttrs`; `json/v2` (exp); Green Tea (exp); DWARF5 |
 | **1.26** | `new(expr)`; self-referential generic types; `errors.AsType`; `slog.NewMultiHandler`; **Green Tea default**; `go fix` modernizers; `NotifyContext` cause; reflect iterators; `T.ArtifactDir`; faster `io.ReadAll`/cgo; `crypto/hpke`; goroutine-leak/`simd`/`runtime/secret` (exp) |
-| **1.27** | Generic methods; `encoding/json/v2` **GA**; goroutine-leak profile **GA**; struct-literal field-selector keys; generalized inference; `asynctimerchan` removed; `crypto/mldsa`, `uuid` |
+| **1.27** | Generic methods (interface methods still cannot declare type parameters or be implemented by generic methods); `encoding/json/v2` + `jsontext` **stable**; goroutine-leak profile **GA** and old experiment deleted; struct-literal field-selector keys; generalized inference; `asynctimerchan` removed; `simd`/`simd/archsimd` remain experimental; `crypto/mldsa`, `uuid` |
 
 ---
 
-## What models get wrong {#stale}
+## Stale beliefs to drop {#stale}
 
 1. `v := v` inside a `for` loop: unnecessary since [1.22] (loop vars are per-iteration). The most common stale pattern.
 2. `rand.Seed(...)` ; obsolete; `math/rand/v2` auto-seeds, top-level `Seed` a no-op since [1.24]. `rand.Intn` → `rand.IntN`/`rand.N[T]`.
@@ -375,7 +375,7 @@ Arena memory (`GOEXPERIMENT=arena`) is **on hold indefinitely** : the API is inf
 10. `tools.go` hack not `go.mod` `tool` [1.24]; `for i:=0;i<b.N;i++` not `for b.Loop()` [1.24]; `ioutil.*`/`pkg/errors` (both superseded).
 11. `omitempty` on a `time.Time` expecting the zero value dropped: use `omitzero` [1.24].
 12. Recommending arena memory; on hold; use `sync.Pool`/`GOMEMLIMIT`.
-13. Mis-tagging `encoding/json/v2`: `GOEXPERIMENT=jsonv2` from [1.25], only **GA in [1.27]** (opt-out `nojsonv2`); *not* a 1.26 default.
+13. Mis-tagging `encoding/json/v2`: `GOEXPERIMENT=jsonv2` was the [1.25]/[1.26] experiment; `encoding/json/v2` and `jsontext` are **stable in [1.27]** (opt-out `nojsonv2`), with `encoding/json` backed by v2. The final API removed `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` and renamed `inline` to `embed`; it is not a 1.26 default.
 14. Assuming `synctest` is 1.26-only: **experiment 1.24**, **GA 1.25** (old `Run` API removed 1.26).
 
 ---
@@ -391,6 +391,6 @@ Arena memory (`GOEXPERIMENT=arena`) is **on hold indefinitely** : the API is inf
 
 ## Sources {#sources}
 - Release notes: go.dev/doc/go1.18 … go.dev/doc/go1.26; **go.dev/doc/go1.27**; go.dev/doc/devel/release
-- Packages: pkg.go.dev/{slices,maps,cmp,iter,unique,weak,errors,log/slog,sync,math/rand/v2,encoding/json/v2,testing/synctest}; pkg.go.dev/os#Root
+- Packages: pkg.go.dev/{slices,maps,cmp,iter,unique,weak,errors,log/slog,sync,math/rand/v2,encoding/json/v2,encoding/json/jsontext,testing/synctest}; pkg.go.dev/os#Root
 - Blogs: loopvar-preview, range-functions, container-aware-gomaxprocs, flight-recorder, greenteagc, jsonv2-exp, gofix; go.dev/blog
 - GODEBUG history: go.dev/doc/godebug (go-122/123/126); arena issue: github.com/golang/go/issues/51317

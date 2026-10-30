@@ -1,6 +1,6 @@
 # Rust, cargo test deletion patterns
 
-Rust checks ownership and lifetimes, requires exhaustive matching, and has no implicit conversions or null. **A test that asserts a struct has the fields the compiler proved it has catches nothing.** The compiler is the test for structure; `cargo test` is for behavior at boundaries.
+Rust checks ownership and lifetimes, requires exhaustive matching, and has no implicit conversions or null. **A test that asserts a plain struct has the fields the compiler proved it has, without validation or fallible work in construction, catches nothing.** The compiler is the test for structure; `cargo test` is for behavior at boundaries.
 
 ## Delete
 
@@ -21,9 +21,9 @@ fn user_constructor_sets_fields() {
 }
 ```
 
-The compiler proves that `User { id: 1, name: "alice".into() }` constructs a `User` with those exact fields. The test is a tautology.
+The compiler proves that `User { id: 1, name: "alice".into() }` constructs a `User` with those exact fields when construction only assigns the given fields without validation, fallible conversion, or logic that can panic or return `Err`. The test is a tautology. When field construction can panic, return `Err`, or run validation, keep the test as a real-bug test.
 
-### Identity / passthrough functions
+### Identity or passthrough functions
 
 ```rust
 fn wrap(n: u64) -> u64 {
@@ -50,18 +50,18 @@ fn http_client_typestate_compiles() {
 
 Delete this kind of test only when the test's *sole* purpose is type-checking AND it has no meaningful runtime behavior, no method calls that could panic, no `unwrap`/`expect`, no I/O, no fallible operations. Such tests should live in `trybuild` UI tests rather than the regular test runner.
 
-**Keep no-assert smoke tests**, a `#[test]` with no `assert!` still fails the suite if any code it executes panics, returns an unhandled `Err`, or aborts. A test like:
+### Bare no-assert or no-panic tests
 
 ```rust
 #[test]
 fn parser_does_not_panic_on_empty_input() {
-    parse(""); // no assert, but a panic in `parse` would fail this test
+    parse(""); // no assert: catches only panics, ignoring wrong outputs or silent failures
 }
 ```
 
-is a real smoke test against the panic-free contract. Keep.
+Delete bare execution tests that lack an independent assertion or invariant oracle. Observing that an execution path completes without panicking does not prove correctness; an empty parser returning an unvalidated dummy tree or swallowing errors passes this check. Reject the smoke test exception. Either delete the test, or upgrade it to assert against an independent invariant or explicit contract outcome (such as `assert_eq!(parse(""), Ok(AST::Empty))` or `assert!(matches!(parse(""), Err(ParseError::UnexpectedEof)))`).
 
-**Important caveat**: a runtime assertion (`assert_eq!(get_id(&item), 7)`) tests the *behavior* of `get_id` / `HasId for Foo`, not just the type. That is a real-bug test (a refactor could swap fields, change the impl, etc.), see the **Keep** section below.
+A runtime assertion (`assert_eq!(get_id(&item), 7)`) tests the *behavior* of `get_id` or `HasId for Foo`, not just the type. That is a real-bug test (a refactor could swap fields, change the implementation, etc.); see the Keep section below.
 
 ### Default::default trivial assertion
 
@@ -84,18 +84,18 @@ fn config_default() {
 
 ## Keep
 
-### `serde::Deserialize` reject path
+### Deserialization rejection path with failure classification
 
 ```rust
 #[test]
 fn deserialize_rejects_missing_required_field() {
     let json = r#"{"name": "alice"}"#;  // missing required "id"
-    let result: Result<User, _> = serde_json::from_str(json);
-    assert!(result.is_err());
+    let err = serde_json::from_str::<User>(json).unwrap_err();
+    assert!(err.is_data(), "expected missing field data error, got {err:?}");
 }
 ```
 
-JSON parsing is a runtime boundary, the type system does not check JSON shape. Real-bug surface. Keep.
+JSON parsing is a runtime boundary, but a bare `assert!(result.is_err())` is weak because unrelated syntax errors, malformed braces, or I/O failures also produce an error. Classify the failure (such as verifying `err.is_data()` or asserting the specific error variant) to prove the contract rejected the input for the expected reason. Keep with failure classification.
 
 ### Error-type variants
 
@@ -144,8 +144,11 @@ Tests the contract of `unsafe` code at its boundary, exactly where the compiler 
 ```rust
 #[test]
 fn channel_drops_remaining_messages_on_close() {
-    // tests the actual concurrency contract, compiler cannot prove this
+    let (tx, rx) = std::sync::mpsc::channel();
+    tx.send(1).unwrap();
+    drop(tx);
+    assert_eq!(rx.recv(), Ok(1));
+    assert!(rx.recv().is_err());
 }
 ```
-
-Type system enforces send/sync; it does not enforce *semantics* of concurrent operations. Keep.
+The type system enforces Send and Sync, but it does not enforce the runtime semantics of concurrent operations. In this case, `assert!(rx.recv().is_err())` is valid because `RecvError` is the sole failure mode of `mpsc::Receiver::recv()`, identifying that the channel was disconnected and drained. Do not blanket-ban syntax when the error type itself proves the invariant. Keep.

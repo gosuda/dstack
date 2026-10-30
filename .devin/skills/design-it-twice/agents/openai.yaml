@@ -1,3 +1,0 @@
-interface:
-  display_name: "Design It Twice"
-  short_description: "Use when asked to design a module interface, seam, or testable boundary."

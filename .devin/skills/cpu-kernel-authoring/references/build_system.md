@@ -1,17 +1,14 @@
 # build.toml multi-target CPU compilation
 
-## Overview
+One `build.toml` compiles each ISA tier of a CPU kernel as its own translation unit with its own flags. The `kernel-builder` CLI reads this file and produces a Python wheel holding every SIMD tier, so the dispatcher can pick the fastest tier the host CPU supports at run time.
 
-Each CPU kernel uses `build.toml` to define multiple compilation targets with different compiler flags. The `kernel-builder` CLI reads this file to produce a Python wheel with all SIMD tiers compiled separately.
+## One section per ISA tier
 
-## Rules
+Every `[kernel.*]` section becomes a separate translation unit with its own flag set. Four things follow from how `kernel-builder` works:
 
-1. Every section needs `include`. kernel-builder does not add the kernel directory to the header search path, so without it headers fail to resolve across source files.
-2. Each ISA tier (generic, AVX2, AVX512) gets its own `[kernel.*]` section and so its own translation unit and flag set.
-3. The base section has no `cxx-flags`. It compiles with default flags and no SIMD intrinsics.
-4. The AVX2 tier is optional. Only rmsnorm has one; GEMM kernels go from generic to AVX512.
+Every section needs its own `include`. The builder does not add the kernel directory to the header search path, so without it headers stop resolving across source files. The base section carries no `cxx-flags`. It compiles with default flags and holds no SIMD intrinsics, so it runs anywhere. Each ISA tier (generic, AVX2, AVX512) gets its own section, which keeps incompatible intrinsics out of each other's translation units. The AVX2 tier is optional. Only rmsnorm ships one; GEMM kernels go straight from generic to AVX512.
 
-## Example: element-wise kernel with AVX2
+## Element-wise build with AVX2
 
 Based on `kernels-community/rmsnorm/build.toml`:
 
@@ -62,9 +59,9 @@ src = [
 ]
 ```
 
-Note: rmsnorm AVX512 only needs `-mavx512f -mavx512bf16 -mavx512vl`. GEMM kernels additionally need `-mavx512dq -mavx512bw -mavx512vbmi` for nibble manipulation.
+rmsnorm's AVX512 tier needs only `-mavx512f -mavx512bf16 -mavx512vl`. GEMM kernels additionally need `-mavx512dq -mavx512bw -mavx512vbmi` for nibble manipulation, as the next example shows.
 
-## Example: GEMM kernel without AVX2
+## GEMM build without AVX2
 
 Based on `kernels-community/quantization-gptq/build.toml`:
 
@@ -103,9 +100,9 @@ src = [
 ]
 ```
 
-Note: for GEMM kernels, always include the `-mamx-tile`, `-mamx-bf16`, and `-mamx-int8` flags. Even if `brgemm` dispatches to AMX internally via oneDNN, these flags are required if the kernel (like flash-attn2 or megablocks) uses custom AMX definitions or `cpuid` based checks that compile conditionally.
+For GEMM kernels, always include the `-mamx-tile`, `-mamx-bf16`, and `-mamx-int8` flags. Even if `brgemm` dispatches to AMX internally via oneDNN, these flags are required if the kernel (like flash-attn2 or megablocks) uses custom AMX definitions or `cpuid` based checks that compile conditionally.
 
-## Section fields
+## What each field means
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -115,24 +112,27 @@ Note: for GEMM kernels, always include the `-mamx-tile`, `-mamx-bf16`, and `-mam
 | `src` | Yes | List of source files (`.cpp` and `.hpp`) |
 | `cxx-flags` | No | Compiler flags. Omit for generic (no-SIMD) sections |
 
-## Compiler flag groups
+## Flag sets used by the kernels tree
 
-### AVX2 (element-wise only)
+Copy the group that matches the kernel. Element-wise and GEMM kernels differ in the AVX512 set.
+
+AVX2, for element-wise kernels only:
+
 ```toml
 cxx-flags = ["-mavx2", "-mfma", "-mf16c", "-fopenmp"]
 ```
 
-### AVX512 (element-wise kernels like rmsnorm)
+AVX512, for element-wise kernels like rmsnorm:
+
 ```toml
 cxx-flags = ["-mfma", "-fopenmp", "-mf16c", "-mavx512f", "-mavx512bf16", "-mavx512vl"]
 ```
 
-### AVX512 (GEMM kernels; vbmi, dq, and bw are needed for nibble manipulation)
+AVX512, for GEMM kernels, where vbmi, dq, and bw handle nibble manipulation:
+
 ```toml
 cxx-flags = ["-mfma", "-fopenmp", "-mf16c", "-mavx512f", "-mavx512bf16", "-mavx512vl", "-mavx512dq", "-mavx512bw", "-mavx512vbmi", "-mamx-tile", "-mamx-bf16", "-mamx-int8"]
 ```
-
-Note: for GEMM kernels, always include the `-mamx-tile`, `-mamx-bf16`, and `-mamx-int8` flags. Even if `brgemm` dispatches to AMX internally via oneDNN, these flags are required if the kernel (like flash-attn2 or megablocks) uses custom AMX definitions or `cpuid` based checks that compile conditionally.
 
 ### `at::vec::Vectorized` needs a `CPU_CAPABILITY` macro; `-mavx512f` is not enough
 
@@ -173,7 +173,7 @@ cxx-flags = [..., "-DCPU_CAPABILITY_AVX512"]
 `-DCPU_CAPABILITY=AVX512` (the inline-namespace name) is what upstream PyTorch also
 passes; it is optional for correctness and harmless to add alongside.
 
-### Verify that the build vectorized
+### Confirm the build actually vectorized
 
 After building, confirm that the `.so` emitted AVX512 and, if it uses `at::vec`
 transcendentals, linked Sleef. A scalar fallback is otherwise invisible:
@@ -186,7 +186,7 @@ nm -C *.so | grep -i sleef           # at::vec exp and friends: expect U Sleef_e
 If `%zmm` count is 0 or you see `U expf@GLIBC` (scalar libm) where you expected
 vectorized math, the `CPU_CAPABILITY_AVX512` macro above is missing.
 
-## File naming conventions
+## Where each file lives
 
 | File | Purpose |
 |------|---------|
@@ -199,7 +199,7 @@ vectorized math, the `CPU_CAPABILITY_AVX512` macro above is missing.
 | `<kernel>_cpu/cpu_types_avx512.hpp` | Vector type abstractions (optional) |
 | `torch-ext/torch_binding.cpp` | Op registration with registration.h macros |
 
-## torch_binding.cpp pattern
+## How torch_binding.cpp registers the op
 
 Located at `torch-ext/torch_binding.cpp`, referenced by the `[torch]` section in build.toml:
 

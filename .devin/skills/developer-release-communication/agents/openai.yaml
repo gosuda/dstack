@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Release Communication"
+  short_description: "Use when writing factual release notes or upgrade notices from a release diff or changelog."

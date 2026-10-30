@@ -1,6 +1,6 @@
-[submodule "odin-claude-plugin"]
-	path = odin-claude-plugin
-	url = https://github.com/OutlineDriven/odin-claude-plugin
+[submodule "dalcom-skills"]
+	path = dalcom-skills
+	url = https://github.com/gosuda/dalcom-skills.git
 [submodule "odin-reflector"]
 	path = odin-reflector
 	url = https://github.com/OutlineDriven/odin-reflector

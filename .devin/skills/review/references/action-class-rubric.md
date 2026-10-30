@@ -9,7 +9,7 @@ Action class describes the **intrinsic shape** of follow-up work; it is routing 
 | **manual** | Needs a human design decision; no single correct fix. | Surface as a question; no auto-route. |
 | **advisory** | Opinion or nit; recording it is the whole action. | None. |
 
-## Persona guidance
+## Choosing the class
 
 - Prefer **safe** when you can write a defensible `suggested-route` for a localized, behavior-preserving change.
 - Use **gated** when the fix touches an API contract, spans multiple files, or needs verified batches.

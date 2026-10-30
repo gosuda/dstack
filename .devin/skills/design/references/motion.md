@@ -2,9 +2,9 @@
 
 How motion behaves across web, React, TUI, and desktop runtimes. Each runtime has a different cost model for motion (frame budget, GPU offload, retained vs immediate mode); the timing bands and easing curves are constants because they map to perception, not implementation.
 
-**Grounded: 2026-08-31**
+**Grounded: 2026-10-30**
 
-This file is loaded only via the SKILL.md surface-routing table, surface references (web.md, react.md, tui.md, desktop.md) do not backlink here. A reader needing cross-runtime motion guidance re-enters via SKILL.md.
+Cross-runtime companion to the surface references (web.md, react.md, tui.md, desktop.md), which do not backlink here. Load this file when the motion decision spans runtimes; when only one runtime is in play, its surface reference alone is enough.
 
 ## 1. Motion-budget doctrine
 
@@ -19,9 +19,9 @@ The middle path is one animated transition per state change, with everything els
 
 ## 2. Timing bands
 
-Time scales are perceptual, not arbitrary. Five bands cover production motion needs across runtimes:
+Time scales are perceptual, not arbitrary. Five bands cover production motion needs across runtimes. Treat the millisecond values as tuned defaults, not physical law.
 
-- ~80ms: perceptual "instant" threshold. Below this, the user does not register a transition; above, motion becomes communication.
+- ~80ms: perceptual "instant" heuristic. Below this, most users barely register a transition; above, motion starts reading as communication.
 - 100-150ms: instant feedback (button press, hover state, focus ring).
 - 200-300ms: state changes (panel open, input focus, tab switch).
 - 300-500ms: layout changes (modal entrance, card flip, drawer slide).
@@ -95,7 +95,7 @@ Animate `transform` and `opacity` by default, they composite on the GPU without 
 
 View Transitions API (same-document: Chromium 111+, Safari 18.0+, Firefox 144+) handles cross-state morphs without manual paired keyframes, declare which elements share identity across states; the browser interpolates the rest.
 
-`animation-timeline: scroll()` for scroll-driven progress without a JS scroll listener (Chromium stable, Safari 26+, Firefox flag-gated). Falls back gracefully, scroll-driven becomes "animation runs once" on engines that do not yet implement it.
+`animation-timeline: scroll()` for scroll-driven progress without a JS scroll listener (Chromium 115+, Safari 26+, Firefox 159+). Falls back gracefully, scroll-driven becomes "animation runs once" on engines that do not yet implement it.
 
 SVG transforms quirk: `transform-origin` on SVG elements inside a parent `<svg>` is interpreted in user-coordinate space by default. Set `transform-box: fill-box; transform-origin: center;` on a wrapping `<g>` to scale or rotate around the element's own center rather than the SVG's origin.
 
@@ -103,7 +103,7 @@ SVG transforms quirk: `transform-origin` on SVG elements inside a parent `<svg>`
 
 ## 5. React
 
-`<ViewTransition>` and `addTransitionType()` ship in React's Experimental / Canary channel as of 19.2 (not stable). Treat as preview APIs. The browser primitive (View Transitions API) is the stable foundation; React's wrapper layers on top.
+`<ViewTransition>` and `addTransitionType()` ship in React's Experimental / Canary channel as of 19.3.1 (not stable). Treat as preview APIs. The browser primitive (View Transitions API) is the stable foundation; React's wrapper layers on top.
 
 Reserve `name` for shared-element transitions only; non-shared enter / exit omits `name` and React picks per-render IDs.
 
@@ -185,7 +185,7 @@ The pattern is "honor the preference for motions that risk a vestibular trigger;
 
 Nobody cares how fast a surface is, only how fast it *feels*. Perception is often as effective as raw performance.
 
-**The 80ms threshold.** Human sensory perception buffers input for ~80ms to synchronize across modalities. Anything under 80ms feels instant. This is the target for micro-interactions (button press feedback, hover affordances, toggle states).
+**The 80ms heuristic.** Human sensory perception buffers input for roughly ~80ms to synchronize across modalities, so anything under ~80ms tends to feel instant. Treat it as a default, not a guarantee. This is the target for micro-interactions (button press feedback, hover affordances, toggle states).
 
 **Active vs. passive time.** Passive waiting (staring at a spinner) feels longer than active engagement. Three strategies shift the balance:
 

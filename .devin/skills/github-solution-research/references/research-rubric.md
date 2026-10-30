@@ -22,7 +22,7 @@ Use this rubric when ranking GitHub evidence for a concrete engineering problem 
 
 High Stars can put a repository near the top of the inspection list and break ties among similarly fitting projects. Stars must not override a clearly better problem match, official maintainer guidance, or exact same-version evidence.
 
-## Search surface handling
+## Where to search first
 
 - Use GitHub CLI first. Prefer `gh search repos`, `gh search issues`, `gh search prs`, `gh search code`, `gh repo view`, `gh issue view`, `gh pr view`, and `gh api` before browser scraping or custom scripts.
 - Search issues and PRs first for errors, regressions, dependency upgrades, framework behavior, and integration failures.
@@ -31,13 +31,13 @@ High Stars can put a repository near the top of the inspection list and break ti
 - For repository candidates, start with high-Star active projects, then lower the Star threshold when high-Star projects are too broad or miss the exact need.
 - Use Stars and forks as maturity context and tie-breakers. They should not outweigh exact problem evidence.
 
-## Subagent handling
+## When to split work across subagents
 
 Subagents are conditional. Use them when the problem spans independent ecosystems, query families, repositories, versions, or evidence surfaces. Skip them when the task has one obvious repository or API surface, when local context must be understood first, or when authorization, private repositories, secrets, sensitive logs, or production data would make delegation risky.
 
 When subagents are used, rank only after merging and deduplicating repeated reports of the same repo, issue, PR, discussion, code path, or release. The controller must directly verify the strongest claims before presenting them as evidence.
 
-## Output fields
+## What to record for each candidate
 
 For each shortlisted repository candidate, capture:
 

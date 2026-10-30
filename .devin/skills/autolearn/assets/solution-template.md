@@ -1,94 +1,91 @@
 # Solution doc templates
 
-Pick the template for the `problem_type` track (see the solution-schema section in `../SKILL.md`). Replace every bracketed placeholder. Delete sections with no real content instead of leaving placeholders.
-
----
+Pick the template for the `problem_type` track (see `references/schema.md`). Each doc records one generalized, well-abstracted invariant: a reusable mechanism (never an incident, project name, command, version, or path) with stated supported scope, actual enforcement or proof, and a material consequence (prevents a plausible significant failure or improves a recurring decision). Incident details may inform extraction but never ship as session diary. Durable bodies carry only invariant, supported scope, material consequence, enforcement or independent proof, and necessary counterexample or limits. Tiny one-off fixes, trivia, and session history never qualify; no non-trivial-fix shortcut; no speculative universal truths. Replace every bracketed placeholder. Delete sections with no real content instead of leaving placeholders. Never add, rename, or drop frontmatter fields: the stored `odin-learning/v1` shape is fixed. The template itself is not a record: run the validator only after all placeholders are replaced.
 
 ## Bug track
 
 For: `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error`
 
-<!-- YAML safety: array items (symptoms, applies_when, tags, related_components) that start with ` [ ] { } , * & ! | > % @ ? or contain ": " must be double-quoted. See `../SKILL.md#solution-schema`. -->
-
 ```markdown
 ---
-title: [Clear problem title]
+schema: odin-learning/v1
+record_kind: solution
 date: [YYYY-MM-DD]
-category: [docs/solutions subdirectory]
+title: [Clear invariant title]
+category: [directory basename from the schema category map]
 module: [Module or area]
 problem_type: [schema enum]
 component: [component or subsystem]
+severity: [critical | high | medium | low]
 symptoms:
   - [Observable symptom 1]
 root_cause: [schema enum]
 resolution_type: [schema enum]
-severity: [schema enum]
-tags: [keyword-one, keyword-two]
+tags:
+  - [keyword-one]
 ---
 
-# [Clear problem title]
+# [Clear invariant title: reusable mechanism that must hold, never an incident retelling]
 
-## Problem
-[1-2 sentences: the issue and its user-visible impact]
+## Invariant
+[The reusable mechanism: what must always or never hold, never an incident retelling, project name, command, version, or path.]
 
-## Symptoms
-- [Observable symptom or error]
+## Scope
+[Supported scope: where the invariant holds and where it does not, grounded in evidence without overgeneralizing.]
 
-## What Didn't Work
-- [Attempted fix and why it failed]
+## Material Consequence
+[What breaks when the invariant is ignored: the plausible significant failure prevented or recurring decision improved.]
 
-## Solution
-[The fix that worked, with code snippets when they carry weight]
+## Enforcement
+[Concrete guardrail, check, or independent proof that exercises the invariant and fails on violation; never a mock echo, fixture snapshot, or weak test.]
 
-## Why This Works
-[Root cause, and why the fix addresses it, the WHY, not a restatement of the diff]
-
-## Prevention
-- [Concrete practice, test, or guardrail that stops a recurrence]
-
-## Related
-- [Related docs or issues, if any]
+## Counterexample
+[Necessary counterexample or limits: concrete violation conditions, boundary cases, or known limits where the invariant does not apply.]
 ```
-
----
 
 ## Knowledge track
 
 For: `best_practice`, `documentation_gap`, `workflow_issue`, `developer_experience`, `architecture_pattern`, `design_pattern`, `tooling_decision`, `convention`
 
-<!-- YAML safety: array items (symptoms, applies_when, tags, related_components) that start with ` [ ] { } , * & ! | > % @ ? or contain ": " must be double-quoted. See `../SKILL.md#solution-schema`. -->
-
 ```markdown
 ---
-title: [Clear, descriptive title]
+schema: odin-learning/v1
+record_kind: solution
 date: [YYYY-MM-DD]
-category: [docs/solutions subdirectory]
+title: [Clear invariant title]
+category: [directory basename from the schema category map]
 module: [Module or area]
 problem_type: [schema enum]
 component: [component or subsystem]
-severity: [schema enum]
+severity: [critical | high | medium | low]
 applies_when:
   - [Condition where this applies]
-tags: [keyword-one, keyword-two]
+tags:
+  - [keyword-one]
 ---
 
-# [Clear, descriptive title]
+# [Clear invariant title: reusable practice that must hold, never an incident retelling]
 
-## Context
-[What situation, gap, or friction prompted this guidance]
+## Invariant
+[The reusable invariant mechanism: what must always or never hold, never an incident retelling, project name, command, version, or path.]
 
-## Guidance
-[The practice or recommendation, with code examples when useful]
+## Scope
+[Supported scope: where this invariant applies and where it does not, grounded in evidence without overgeneralizing.]
 
-## Why This Matters
-[Rationale and impact of following, or not following, this]
+## Material Consequence
+[What breaks or degrades when ignored: the plausible significant failure prevented or recurring decision improved.]
 
-## When to Apply
-- [Conditions or situations where this applies]
+## Enforcement
+[Concrete guardrail, check, or independent proof that exercises the invariant and fails on violation; never an unverified claim or weak test.]
 
-## Examples
-[Concrete before/after or usage example showing the practice in action]
-
-## Related
-- [Related docs or issues, if any]
+## Counterexample
+[Necessary counterexample or limits: concrete violation conditions, boundary cases, or known limits where the invariant does not apply.]
 ```
+
+After assembling, run from the skill directory:
+
+```bash
+python3 scripts/validate-record.py docs/solutions/<category>/<slug>.md
+```
+
+A non-zero exit blocks publication. Quote any value containing `: ` or starting with a reserved indicator, then re-run until exit 0.

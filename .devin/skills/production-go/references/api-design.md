@@ -2,9 +2,9 @@
 
 API design is the discipline of choosing your **exported surface** so it stays small, stays compatible, and reads well at the call site. The Go 1 backward-compatibility promise is the model to copy for your own packages: once published, **you cannot break callers**. Every exported name is a liability you maintain forever: design for the *zero value*, accept interfaces sparingly, return concrete types, and add (never change) when you evolve.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. No research corpus; claims are checked against go.dev primary sources; `[verify]` marks anything I could not confirm.
+> Verified against Go **1.26.4** (stable) and the **final** Go 1.27 release notes (GA 2026-08-19), rechecked 2026-10. Version tags `[1.N]` mark the release a claim applies to. No research corpus; claims are checked against go.dev primary sources; `[verify]` marks anything I could not confirm.
 
-## TL;DR: the judgment calls (read first)
+## The judgment calls that matter most
 
 - The Go 1 promise is your contract too. Adding an exported field/method is *usually* safe; removing/renaming/retyping one is *always* breaking. Unkeyed struct literals break on field addition, which is why the stdlib uses *keyed* literals and why config structs are safe to grow.
 - `context.Context` is the first parameter, named `ctx`, never a struct field: storing it outlives the request and defeats cancellation (narrow exception: short-lived request structs).
@@ -48,13 +48,14 @@ Go's own promise ("programs written to the Go 1 spec continue to compile and run
 - Keyed struct literals survive field additions. The Go 1 doc is explicit: adding a field to an exported struct breaks code that used an *unkeyed* literal (`pkg.T{3, "x"}`) but not a *keyed* one (`pkg.T{A: 3}`). Therefore: in your own code use keyed literals for any struct from another package, and design config structs knowing callers must key them.
 - GODEBUG + the `go` line gate behavioral changes [1.21]. When the stdlib must change a runtime default, it keys the old-vs-new behavior off the `go` line in `go.mod`. You get the same lever for free, but the lesson for *your* API is: a behavior change is a breaking change even when the *signature* is identical.
 
-```go
-// WRONG — unkeyed literal of a foreign struct: breaks the moment the author adds a field.
-cfg := pkg.Config{8080, "0.0.0.0", true}
+Unkeyed literals break when the author adds a field, while keyed literals keep working:
 
-// RIGHT — keyed; immune to additive growth, and self-documenting.
-cfg := pkg.Config{Port: 8080, Host: "0.0.0.0", TLS: true}
+```go
+bad := pkg.Config{8080, "0.0.0.0", true}
+good := pkg.Config{Port: 8080, Host: "0.0.0.0", TLS: true}
 ```
+
+Prefer the keyed form for any struct from another package; it is immune to additive growth and reads as documentation.
 
 What this buys the API designer: a struct of options grows safely *forever* as long as new fields are optional with a sensible zero value, because every well-behaved caller keys their literal. That single fact underwrites the whole "config struct" pattern below.
 
@@ -330,7 +331,7 @@ Design rules:
 - Don't add a type parameter you can't infer: if callers must always write `F[SomeType](...)`, the generic is friction; consider an interface or a concrete API instead.
 - Constrain to the smallest set of methods/operations the body uses; over-broad constraints (`any` when you need ordering) push failures to odd places.
 - Return type parameters are inferred from arguments, not results: `func New[T any]() *Box[T]` forces `New[int]()`. Prefer taking a value (`New(0)`) or accept the explicit instantiation only when it reads clearly.
-- A method cannot add its own type parameter before [1.27]: parametric behavior lives on the *type*. **[1.27 RC] adds generic methods**, which will enable type-parametric assertion/visitor methods; treat as draft until GA (~Aug 2026). [verify exact 1.27 generic-method scope at GA]
+- A method cannot add its own type parameter before [1.27]: parametric behavior lives on the *type*. **[1.27] ships generic methods**, enabling type-parametric assertion/visitor methods on concrete types. Limits that matter for API design: interface methods still cannot declare type parameters, and a generic method cannot satisfy an interface method, so generic methods widen a concrete type's namespace, not interface polymorphism.
 - Generics don't replace interfaces. Use an interface for *runtime* polymorphism (heterogeneous values, plugins); use generics to *avoid `any` + assertions* in homogeneous code. (Patterns: [design-patterns.md](design-patterns.md#go-specific).)
 
 ---
@@ -354,7 +355,7 @@ In Go, the doc *is* `godoc` rendered from your comments, so designing the API an
 
 - **Every exported symbol gets a doc comment starting with its name** (`// Parse parses ...`). The package gets a `// Package foo ...` comment. Reference other symbols with `[Name]` for links [1.19 doc-comment links].
 - **Document the contract, not the implementation:** preconditions, what's returned on each error, goroutine-safety, whether a returned slice/map is owned by the caller or must not be mutated, and which errors are matchable (see [error contracts](#error-contracts)).
-- **Examples are tests.** A function `ExampleParse` in `_test.go` with an `// Output:` comment is *compiled and run* by `go test` and rendered in godoc. This keeps examples correct forever and is the best pressure-test of call-site ergonomics: if the example is awkward, redesign.
+- **Examples are tests.** A function `ExampleParse` in `_test.go` with an `// Output:` comment is *compiled and run* by `go test` and rendered in godoc. This keeps the documented call shape compiling and is a good ergonomic check: if the example is awkward, redesign. Keep `// Output:` for that documentation accuracy; prove behavior separately in unit tests that assert parsed values or semantic predicates, since exact-output matching alone breaks on formatting refactors without a consumer-visible fault.
 
 ```go
 func ExampleParse() {
@@ -497,17 +498,14 @@ type ItemResult[T any] struct {
 
 The real decision is **direction**, and you must pick one as the single source of truth:
 
-- Spec-first: the OpenAPI doc is authoritative; you *generate* Go server interfaces/types from it. Best when the contract is negotiated across teams/clients or you publish SDKs. Tool: **`oapi-codegen`**: current module path **`github.com/oapi-codegen/oapi-codegen/v2`** (verified on pkg.go.dev; the older `deepmap/oapi-codegen` path is its predecessor); emits `net/http`/chi/echo server stubs plus typed models.
-- Code-first: Go handlers are authoritative; you *generate* the spec from annotations (`swaggo/swag`) or hand-maintain it. Simpler for a single team but the spec can silently drift.
+- Spec-first: the OpenAPI document is authoritative; generate Go server interfaces and types from it. Use this when teams negotiate the interface or publish SDKs. The current generator is [`github.com/oapi-codegen/oapi-codegen/v2` v2.8.1](https://github.com/oapi-codegen/oapi-codegen/releases/tag/v2.8.1), released 2026-10-24, with OpenAPI 3.0 and 3.1 support. It emits server interfaces and typed models; application code owns the implementation.
+- Code-first: handlers define the interface and a generator derives its schema. Do not confuse the formats: stable `swaggo/swag` v1 generates Swagger 2.0, not OpenAPI 3. Its v2 release candidates are not stable replacements.
 
 ```go
-// Spec-first: pin the generator via the go.mod `tool` directive [1.24], not a tools.go shim.
 //go:generate go tool oapi-codegen -config cfg.yaml openapi.yaml
-// Implement the generated ServerInterface; the compiler now enforces the contract.
 ```
 
-Judgment:
-- Either direction is fine; drift is the failure. Whichever you pick, **enforce sync in CI**: regenerate and `git diff --exit-code` (spec-first), or lint code against the spec / run contract tests (code-first). A spec that doesn't match the running server is worse than no spec.
+- Either direction is fine; drift is the failure. Whichever you pick, **prove sync in CI from the spec as input**: regenerate into a temporary directory and prove round-trip equivalence of the operation set (paths, methods, and schema names) instead of relying on byte equality alone, then fuzz the running server against the spec with schema-conformance checks that fail on any out-of-shape response. The property is that every documented operation stays reachable and every response validates against its schema; the consumer-visible fault is a removed field or changed status breaking clients built against the spec. Keep `git diff` output as a debugging aid when that check fails, not as the proof itself. A spec that does not match the running server is worse than no spec.
 - Generate types, own the logic. Let codegen produce request/response structs and the routing interface; keep validation and business rules in your code (see [#validation]).
 - Pin the generator version in `go.mod` (`go tool`, [1.24]) so every dev and CI run emits identical code. ConnectRPC/gRPC users get the `.proto` as the contract instead: different toolchain, same "spec is the source of truth" discipline. Codegen mechanics and the `swaggo` vs `oapi-codegen` split: [http-and-apis.md](http-and-apis.md#api-versioning).
 
@@ -526,7 +524,7 @@ Judgment:
 | **1.24** | Generic type aliases; `os.Root`; tool dependencies in `go.mod` (`go tool`) |
 | **1.25** | `sync.WaitGroup.Go`; `testing/synctest` GA |
 | **1.26** | **`errors.AsType[E]`**; `fmt.Errorf("x")` alloc-parity with `errors.New`; **`go fix` modernizers + `//go:fix inline`** API-migration directives; `new(expr)` enhanced builtin; `reflect.Type.Fields/Methods` return iterators; `slog.NewMultiHandler`; `NotifyContext` cancels with a cause |
-| **1.27 (RC)** | **Generic methods** (enables type-parametric methods); self-referential generic constraints; `asynctimerchan`/`gotypesalias` GODEBUGs removed. Draft until GA (~Aug 2026). [verify encoding/json/v2 stabilization status, not listed in the 1.26 release notes] |
+| **1.27** | **Generic methods** (concrete types only: interface methods can't declare type params, and generic methods don't satisfy interface methods); **function type inference generalized** (assignment to or conversion of a generic function to a matching function type); struct-literal keys may be any valid field selector; **`encoding/json/v2` + `encoding/json/jsontext` stable** (v1 now backed by v2, error text may differ; `inline` tag renamed `embed`; `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` removed); `asynctimerchan`/`gotypesalias` GODEBUGs removed; `stdversion` vet check runs by default in `go test`. Final release 2026-08-19. |
 
 ---
 
@@ -560,6 +558,6 @@ Judgment:
 ## Sources {#sources}
 - go.dev/doc/go1compat (keyed literals, added methods/fields, struct caveats); go.dev/blog/compat + go.dev/doc/godebug (GODEBUG + `go`-line compat machinery [1.21])
 - pkg.go.dev/iter (`Seq`/`Seq2`, `All`/`Backward` naming, single-use iterators, `Pull`); pkg.go.dev/context (no context in structs); pkg.go.dev/errors (`AsType` [1.26])
-- go.dev/doc/go1.26 (`errors.AsType`, `fmt.Errorf` alloc-parity, `go fix` modernizers + `//go:fix inline`, `new(expr)`, reflect iterators); go.dev/doc/go1.27 (generic methods, self-referential constraints, RC)
+- go.dev/doc/go1.26 (`errors.AsType`, `fmt.Errorf` alloc-parity, `go fix` modernizers + `//go:fix inline`, `new(expr)`, reflect iterators); go.dev/doc/go1.27 (final 2026-08-19: generic methods + interface-method restrictions #77273, inference generalized #77245, field-selector struct-literal keys #9859, `encoding/json/v2`/`jsontext` stable, `asynctimerchan`/`gotypesalias` removed, `stdversion` vet default)
 - go.dev/ref/mod (`/v2` module paths, SemVer, `go` directive floor); go.dev/doc/comment (doc-comment syntax, `[Name]` links); go.dev/blog/examples (examples as tests)
 - go.dev/wiki/CodeReviewComments (accept interfaces/return concrete, doc comments); cloud.google.com/apis/design; RFC 9457/9745/8594

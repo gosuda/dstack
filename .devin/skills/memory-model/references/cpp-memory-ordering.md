@@ -12,8 +12,10 @@ A happens-before edge between operations A and B means the effects of A are visi
 Thread 1                 Thread 2
 x = 42;
 flag.store(true, release)  ──sync──▶  flag.load(acquire)
-                                      assert(x == 42);   // holds
+                                      assert(x == 42);
 ```
+
+The assert holds. The release store synchronizes with the acquire load, so the write to `x` is visible.
 
 ## Legal orderings per operation
 
@@ -45,20 +47,20 @@ void read_y_then_x() {
     while (!y.load(std::memory_order_seq_cst)) {}
     if (x.load(std::memory_order_seq_cst)) ++z;
 }
-// with SeqCst on all four, z is at least 1 after both readers run;
-// with Acquire and Release pairs, z can be 0
 ```
+
+With SeqCst on all four operations, `z` is at least 1 after both readers run. With acquire and release pairs, `z` can be 0.
 
 ## CAS variants
 
+Strong never fails spuriously. Weak can fail spuriously, so use it in a retry loop.
+
 ```cpp
-// strong: no spurious failure
 int expected = 0;
 bool ok = val.compare_exchange_strong(expected, 42,
-          std::memory_order_acq_rel,   // success ordering
-          std::memory_order_acquire);  // failure ordering, a load
+          std::memory_order_acq_rel,
+          std::memory_order_acquire);
 
-// weak: may fail spuriously, intended for retry loops
 while (!val.compare_exchange_weak(expected, 42,
                                   std::memory_order_acq_rel,
                                   std::memory_order_acquire)) {
@@ -92,7 +94,7 @@ public:
                                                    std::memory_order_acquire)) {}
         if (!node) return std::nullopt;
         T v = std::move(node->data);
-        delete node;          // unsafe under concurrency: readers may still hold node
+        delete node;
         return v;
     }
 };
@@ -112,13 +114,13 @@ The `delete` marks the real problem: safe memory reclamation, for example hazard
 ## atomic_flag
 
 ```cpp
-std::atomic_flag flag;             // starts clear since C++20
+std::atomic_flag flag;
 bool was = flag.test_and_set(std::memory_order_acquire);
 flag.clear(std::memory_order_release);
-bool now = flag.test(std::memory_order_acquire);   // C++20
+bool now = flag.test(std::memory_order_acquire);
 ```
 
-It is the only atomic type guaranteed lock-free. Before C++20, initialize with `ATOMIC_FLAG_INIT`.
+It is the only atomic type guaranteed lock-free. It starts clear; this default holds since C++20. `test()` exists since C++20. Before C++20, initialize with `ATOMIC_FLAG_INIT`.
 
 ## Rust equivalents
 

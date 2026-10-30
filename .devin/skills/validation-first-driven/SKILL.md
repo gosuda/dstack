@@ -5,34 +5,31 @@ description: 'Use when protocols, workflows, concurrency, or lifecycle state nee
 
 # Validation-first development
 
-## Contract
+You prove a stateful design correct before it gets built. Reach for this when the work involves explicit states, transitions, temporal properties, or lifecycle-heavy state: protocols, workflows, concurrent systems, anything where the wrong state at the wrong time is the failure mode.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The work builds protocols, workflows, concurrent systems, or lifecycle-heavy state, or needs temporal properties or a state machine. |
-| Authority | Reversible local: writes only within the stated target; rollback is version control. No remote mutation. No file or VCS mutation outside the stated target. |
-| Side effect | Writes the model and spec plus implementation assertions and tests; creates a TLA+ or Alloy spec for high-risk designs. |
-| Done | The state space is explicit, transitions are total, invariants are checked, and each temporal property maps to an assertion, test, or model-checker run. |
+Stay out when the work is stateless. A stateless endpoint, a pure data transformation, simple CRUD without lifecycle, a configuration parse, or a stateless batch process comes back unaltered, with no state machine modeling applied. Domain modeling without temporal behavior belongs to type-driven; obligation and permission contracts belong to contract-driven.
 
-## Inputs
+You work reversibly and locally: you write only inside the stated target, rollback is version control, and you never mutate a remote or touch files or version control outside the target. What you produce is the model and the spec plus implementation assertions and tests, with a TLA+ or Alloy spec and a model-checker run for high-risk designs.
 
-- Requirements or design document. Required.
-- Current codebase. Optional.
-- Support files: approaches, examples, formal-tools, event-sourcing reference notes. Optional; the skill is self-contained without them.
+What you need before starting: the requirements or design document, which is required. The current codebase helps when one exists. Four support notes are available and optional, since the skill stands alone without them: `references/approaches.md`, `references/examples.md`, `references/formal-tools.md`, and `references/event-sourcing.md`.
 
-## Procedure
+## The specification pass
 
-1. Identify scope. Confirm the work involves explicit states, transitions, temporal properties, or lifecycle-heavy state. If it is a stateless endpoint, pure data transformation, simple CRUD without lifecycle, configuration parse, or stateless batch process, stop and return the work unaltered. Done when: the work is confirmed as state-heavy or returned unaltered.
-2. Capture states and transitions. Extract all named states, state variables, actions, guards, and side effects from the requirements. Identify every temporal property: "always eventually", "never", "until", "leads-to". Done when: all states, transitions, and temporal properties are extracted.
-3. Choose mechanism level.
-   | Level | Mechanism | Use when |
-   |-------|-----------|----------|
+Work the steps in order:
+
+1. Confirm the work is state-heavy. If it turns out stateless, return it unaltered and stop.
+2. Extract every named state, state variable, action, guard, and side effect from the requirements. Catch each temporal property in its own terms: "always eventually", "never", "until", "leads-to".
+3. Choose one mechanism level, with a reason, defaulting to the strongest the language supports:
+
+   | Level | Mechanism | Use for |
+   |---|---|---|
    | Typestate | Generic type params, phantom data | Protocol APIs, builder patterns, Rust FFI |
    | Statecharts | Nested states, parallel regions | Game state, multi-modal UI, XState |
-   | Flat FSM | Enum + match/switch | Order lifecycle, connection management |
+   | Flat FSM | Enum plus match/switch | Order lifecycle, connection management |
    | Actor model | Independent entities, message passing | Distributed systems, Erlang/Elixir |
-   Default: use the strongest mechanism the language supports. Done when: one mechanism level is chosen with rationale.
-4. Write state machine specification. Use this template:
+
+4. Write the state machine specification in this shape:
+
    ```
    STATE MACHINE: <Name>
      STATES: S1 | S2 | S3
@@ -41,23 +38,22 @@ description: 'Use when protocols, workflows, concurrency, or lifecycle state nee
      ACTION name(args): PRE: guard -> POST: new_state, effects
      INVARIANT: condition_that_always_holds
    ```
-   Done when: the specification is written with all states, variables, actions, and invariants.
-5. Define validation level. Rank each invariant by enforcement strength: Type system (strongest) > State machine > Contract > Runtime check (weakest). Done when: every invariant has a validation level.
-6. Encode compile-time properties in types. Use typestate, sealed classes, or discriminated unions to make invalid states unrepresentable. Encode every invariant the type system can express. Done when: every type-expressible invariant is encoded.
-7. Layer state machine modeling. For properties types cannot express, define a state machine with explicit states and transitions. For high-risk designs, write a TLA+ or Alloy spec and run the model checker. High-risk threshold: the design involves distributed consensus, lock-free concurrency, a protocol with liveness or safety guarantees, or multi-party state coordination. Designs below this threshold use the state machine spec and tests without a model checker. Done when: every non-type-expressible property has a state machine or model-checker spec.
-8. Check every transition. Verify invariants hold after each action. Confirm exhaustive matching on all states. Block on any invariant violation. Done when: every transition is checked and invariants hold.
-9. Write assertions and tests. Map each temporal property to an assertion, a test, or a model-checker run. Every transition must have a test. Every invariant must have a verification point. Done when: every temporal property, transition, and invariant has a verification point.
-10. Implement. Mirror the specification exactly: one state type, one transition function, one invariant check per concern. Keep state and behavior together. Done when: the implementation mirrors the specification.
 
-## Failure and recovery
-- Wrong-scope work: Return the work unaltered. Do not apply state machine modeling to stateless work.
-- Checker unavailable (high-risk branch only): The design met the high-risk threshold but the TLA+ or Alloy model checker could not be installed or run. Return exit code 11 and a blocked verdict. Do not proceed without verification. Designs below the high-risk threshold do not require a model checker and are not blocked by its absence.
-- Specification syntax or type error: Return exit code 12 and the first error location. Block implementation.
-- Invariant violation: Return exit code 13 and the violating state or transition. Block implementation. Do not mask or suppress.
-- Test failure: Return exit code 14 and the failing test. Block if tests are required.
-- Implementation not matching spec: Return exit code 15 and the mismatched function or type. Block finalization.
-- Partial result: Return the highest verification gate that passed with its exit code and evidence. Do not claim the done predicate holds if any blocking gate failed.
-- Non-converged: If the state space is undecidable or the model checker does not terminate, stop and report the open temporal properties with no coverage.
+5. Rank every invariant by enforcement strength, strongest first: type system, then state machine, then contract, then runtime check last.
+6. Push every invariant the type system can express into types: typestate, sealed classes, or discriminated unions that make invalid states unrepresentable.
+7. Model what types cannot express as an explicit state machine with states and transitions. High-risk designs also get a TLA+ or Alloy spec plus a model-checker run. High-risk means the design involves distributed consensus, lock-free concurrency, a protocol with liveness or safety guarantees, or multi-party state coordination. Anything below that threshold is served by the state machine spec and tests, with no model checker involved.
+8. Check every transition: invariants hold after each action, matching over states is exhaustive. Block on any violation.
+9. Write assertions and tests that map each temporal property to an assertion, a test, or a model-checker run, with every transition tested and every invariant carrying a verification point. Retryable state-changing operations carry an idempotency key derived from the intent, never from a fresh UUID, a timestamp, or a regenerated value: claim the key atomically, since a check followed by an act is a race; fail loudly when the same key arrives with a different payload; record intent before calling out; retain the key longer than the longest retry path including replays; and document the operation as unsafe to retry when no key can be honored.
+10. Implement against the spec: one authoritative definition per state and transition, one invariant check per concern, state kept beside the behavior it governs.
 
-## Output
-A state machine specification, verified implementation with assertions for every transition and invariant, test suite covering all states and transitions, optional TLA+/Alloy model, and exit code (0 or the blocking gate code).
+## When the work blocks
+
+A design that meets the high-risk threshold but whose TLA+ or Alloy checker cannot be installed or run comes back as exit 11 with a blocked verdict. Never proceed past that point without verification. Below the threshold no checker is needed, so its absence blocks nothing.
+
+A specification syntax or type error returns exit 12 with the first error location, and implementation waits. A violated invariant returns exit 13 with the violating state or transition; never mask or suppress it. A test failure returns exit 14 with the failing test, and required tests gate the work. An implementation that no longer matches the spec returns exit 15 with the mismatched function or type, and finalization waits.
+
+When any gate fails, report the highest verification gate that passed with its exit code and evidence. Never claim the work is done while a blocking gate is red. If the state space proves undecidable or the checker never terminates, stop and report the open temporal properties with no coverage.
+
+## What you hand back
+
+The state machine specification, the implementation with assertions for every transition and invariant, the test suite covering all states and transitions, the TLA+ or Alloy model for high-risk designs (omitted below threshold), and the exit code: 0, or the blocking gate's code.

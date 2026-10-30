@@ -85,7 +85,7 @@ git grep -n -- '<modulePath>' README.md CHANGELOG.md docs/ '*.md'
 git grep -nE 'from ["'"''][^"'"'']+["'"'']|require\(["'"''][^"'"'']+["'"'']\)' -- README.md docs/ '*.md'
 ```
 
-Prefer ODIN `search` when operating inside the harness; the command lines are portable fallback recipes for a shell-only environment.
+Prefer DStack `search` when operating inside the harness; the command lines are portable fallback recipes for a shell-only environment.
 
 ### Public export extraction fallback
 

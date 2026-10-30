@@ -6,54 +6,49 @@ disable-model-invocation: true
 
 # Token integration analyzer
 
-## Contract
+A team ships a token or builds on someone else's, and wants to know where the bodies are buried: does it follow the standard, who holds power over it, which nonstandard behaviors it exhibits, and what an integrating protocol must do to survive them. You read the code, work every applicable category in `references/assessment-categories.md`, optionally check the live chain, and hand back a structured security report ending in prioritized remediation. Each recommendation ties one unsafe assumption to one concrete defensive change. You change nothing: no file writes, no credential use, no remote mutation, so there is nothing to roll back.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A token implementation or integration needs standards, privilege, nonstandard-behavior, and defensive-integration analysis. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat output: token conformity, privilege, weird-behavior, integration-safety, and prioritized remediation report. |
-| Done | Every applicable token category is evaluated and unsafe assumptions are tied to concrete defensive changes. |
+## What you hand it
 
-## Inputs
+- A codebase or contract source the session can read.
+- The context: token implementation, token integration, or both.
+- The token type: ERC20, ERC721, or both.
+- Optionally, the deployed contract address together with an RPC endpoint URL. The address is required for on-chain scarcity and holder analysis, and the endpoint is required whenever the address is supplied.
 
-Must be supplied:
-- A codebase or contract source accessible to the session.
-- Context: token implementation, token integration, or both.
-- Token type: ERC20, ERC721, or both.
+## Honesty limits
 
-Optional:
-- Deployed contract address (required for on-chain scarcity and holder analysis).
-- RPC endpoint URL (required when address is supplied).
+- Never fabricate on-chain facts when the address or RPC endpoint is absent.
+- Never invent evidence or call external tools outside this procedure.
+- Never label a behavior confirmed when static code alone cannot establish it; label it unverified.
 
-## Refusals
+## How the analysis runs
 
-- Will not fabricate on-chain facts when address or RPC is absent.
-- Will not invent evidence or call external tools not covered by this procedure.
-- Will not label a behavior as confirmed when it cannot be inferred from static code alone; label it unverified.
+### Name the context
 
-## Procedure
+Classify the work as implementation, integration, or both. Identify the platform (Ethereum, another EVM chain, or non-EVM) and confirm which token types are under analysis.
 
-1. **Determine analysis context.** Classify as token implementation, token integration, or both. Identify the platform (Ethereum, other EVM, or non-EVM). Confirm the token type(s) under analysis. **Done when:** the context, platform, and token type(s) are confirmed.
-2. **Run static analysis (Solidity).** If the codebase is Solidity and Slither is available, run `slither-check-erc` for ERC20 or ERC721 conformity, `slither --print human-summary` for complexity and upgrade analysis, and `slither --print contract-summary` for function inventory. Capture all output verbatim. If Slither is unavailable, manually verify all ERC conformity criteria from step 3 and document the gap. **Done when:** static analysis output is captured or manual verification is documented.
-3. **Analyze all 10 assessment categories.** For each applicable category, evaluate every checklist item against the codebase and produce a compliance finding (pass, warning, or fail) with file and line references. The per-category checklist items are in `references/assessment-categories.md`. **Done when:** every applicable category is evaluated with findings.
-4. **Query on-chain data** if address and RPC are supplied. Retrieve name, symbol, decimals, totalSupply, owner/admin address, and pause status. Identify holder distribution and concentration. Do not hallucinate on-chain facts when address or RPC is absent. **Done when:** on-chain data is retrieved or the exclusion is noted.
-5. **Produce the prioritized remediation report.** Structure: executive summary with overall risk level and critical/high count; per-category findings with pass/warn/fail status and evidence; weird-token-pattern table listing each applicable pattern, presence, risk level, evidence, and mitigation; on-chain analysis section (when address supplied); integration-safety assessment (when analyzing protocol); prioritized recommendations grouped CRITICAL (fix before deployment), HIGH (fix soon), MEDIUM (improve), LOW (best practice). Each recommendation must cite the specific unsafe assumption and the concrete defensive change that addresses it. **Done when:** the report is produced with every recommendation tying one unsafe assumption to one defensive change.
+### Run the Solidity tooling
 
-## Failure and recovery
+On Solidity with Slither available, run `slither-check-erc` for ERC20 or ERC721 conformity, `slither --print human-summary` for complexity and upgrade analysis, and `slither --print contract-summary` for the function inventory, capturing all output verbatim. Without Slither, verify every ERC conformity criterion by hand and document each manual check so the gap is visible.
 
-| Failure class | Condition | Result |
-|---|---|---|
-| no-token-code | Codebase contains no token-related source | Report that no token implementation or integration was found; stop. |
-| slither-unavailable | Slither not installed or not in PATH | Continue with manual ERC conformity verification; document each manual check performed. |
-| on-chain-unavailable | No contract address or no RPC endpoint | Omit on-chain scarcity and holder analysis; note the exclusion in the report. |
-| behavior-undetermined | Cannot infer token behavior from static code alone | Label the assumption as unverified; do not fabricate a finding. |
-| scope-widening | Any analysis step would require expanding scope beyond token safety | Stop at the boundary; do not invent evidence or call external tools not covered by this procedure. |
+### Work every applicable category
 
-Partial-result rule: return findings for all categories successfully evaluated; mark each blocked category as unevaluated with the specific failure class and reason.
+Evaluate each checklist item in `references/assessment-categories.md` against the codebase and produce a compliance finding of pass, warning, or fail with file and line references. The categories cover general considerations (audit history, team transparency, security contact), contract composition (complexity, arithmetic guards, non-token functions, single entry point), owner privileges (upgradeability, minting caps, pausability, blacklisting, accountability), ERC20 conformity and extension risks, the 24 weird ERC20 patterns, token integration safety (SafeERC20 transfer patterns, balance verification, allowlists, wrappers, reentrancy guards), and the ERC721 conformity and risk checklists.
 
-Non-mutation rule: this skill performs no file writes, no credential use, and no remote mutations. No rollback required.
+### Read the chain when you can
 
-## Output
+When address and RPC endpoint are both supplied, retrieve the name, symbol, decimals, totalSupply, owner or admin address, and pause status, then map holder distribution and concentration. When either is missing, omit the on-chain scarcity and holder analysis and note the exclusion in the report.
 
-A structured token security report with executive summary (risk level and counts per severity), per-category compliance checklist (all 10 categories with pass/warn/fail), weird-token-pattern table (each of the 24 applicable patterns with presence, risk, evidence, mitigation), on-chain analysis section (when address and RPC supplied), integration-safety assessment (when protocol integration analyzed), and prioritized recommendations (CRITICAL/HIGH/MEDIUM/LOW, each tying one unsafe assumption to one defensive change): ordering: summary, categories, patterns, on-chain, integration, recommendations.
+### Write the remediation report
+
+Order the report as executive summary (overall risk level with critical and high counts), per-category findings (pass, warning, or fail with evidence), the weird-token-pattern table (each applicable pattern with presence, risk level, evidence, and mitigation), the on-chain analysis (when an address was supplied), the integration-safety assessment (when a protocol integration was analyzed), and the prioritized recommendations grouped CRITICAL (fix before deployment), HIGH (fix soon), MEDIUM (improve), LOW (best practice). Every recommendation ties one unsafe assumption to one concrete defensive change.
+
+## When something gives
+
+- `no-token-code`: the codebase holds no token-related source. Say so and stop.
+- `slither-unavailable`: Slither is not installed or not on PATH. Continue with manual ERC conformity verification and document each manual check.
+- `on-chain-unavailable`: no contract address or no RPC endpoint. Omit the on-chain scarcity and holder analysis and note the exclusion.
+- `behavior-undetermined`: the behavior cannot be inferred from static code alone. Label the assumption unverified rather than fabricating a finding.
+- `scope-widening`: the next step would reach past token safety. Stop at the boundary instead of inventing evidence or calling outside tools.
+
+Return findings for every category that succeeded; mark each blocked category unevaluated with its failure class and reason.

@@ -1,3 +1,0 @@
-interface:
-  display_name: "Keep Why Schema Migration"
-  short_description: "Use when a project context store is read or written, or when its context-schema differs from the installed entry format."

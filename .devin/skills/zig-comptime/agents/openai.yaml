@@ -1,3 +1,0 @@
-interface:
-  display_name: "Zig Comptime"
-  short_description: "Use when Zig code needs compile-time evaluation: comptime parameters, generic types, anytype, @typeInfo reflection, comptime tables, or a ported C++ template pattern."

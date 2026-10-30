@@ -1,12 +1,12 @@
 # Go Internals
 
-You don't need the scheduler's source to write good Go, until requests drop under load, GC CPU spikes, a hot path allocates where you swore it wouldn't, or you reach for `unsafe`. This file is the mental models, the exact version deltas, and the handful of internals facts that actually change how you write code. The rest is trivia.
+You do not need the scheduler source to write good Go, until requests drop under load, GC CPU spikes, a hot path allocates where you swore it would not, or you reach for `unsafe`. These are the mental models, the exact version deltas, and the few internals facts that change how you write code. Leave the rest until a profiler points at it.
 
-> Verified against Go **1.26.x** (stable, released 10 Feb 2026) + **1.27 RC** draft notes, 2026-06. Baseline **1.22**. Version tags `[1.N]` mark the release a claim applies to. `[verify]` flags a claim not pinned to a primary go.dev source. Deepened from multi-source research, corroborated against go.dev release notes + the GC/runtime guides.
+> Verified against Go **1.26.x** (stable, released 10 Feb 2026) and the **Go 1.27 final release notes** (GA August 2026; current patch pin in `SKILL.md`). Compatibility follows the repository's `go` directive. Version tags `[1.N]` mark the release a claim applies to. `[verify]` flags a claim not pinned to a primary go.dev source. Deepened from multi-source research, corroborated against go.dev release notes + the GC/runtime guides.
 
 ## TL;DR: the modern deltas (read first)
 
-- Green Tea GC is the default collector [1.26]: span-based, memory-locality-aware *marking* (10-40% GC-overhead reduction; ~modal 10%). It's still **non-moving, non-generational, concurrent tri-color mark-sweep**. Green Tea changes *how marking is scheduled* (per-span, not per-object), not the fundamentals. There is **no compaction and no generational GC**, and won't be. Opt out `GOEXPERIMENT=nogreenteagc` (removal slated for 1.27).
+- Green Tea GC is the default collector [1.26]: span-based, memory-locality-aware *marking* (10-40% GC-overhead reduction; ~modal 10%). It is still **non-moving, non-generational, concurrent tri-color mark-sweep**. Green Tea changes *how marking is scheduled* (per-span, not per-object), not those properties. The `GOEXPERIMENT=nogreenteagc` opt-out remains available in Go 1.27.3 on linux/amd64.
 - GOMAXPROCS is container/cgroup-aware by default [1.25]: reads the cgroup CPU *limit* (not requests) on Linux and re-checks live. `go.uber.org/automaxprocs` is now redundant. The single most-missed change.
 - Goroutine initial stack is 2 KB, not 8 KB (2 KB since 1.4; 8 KB was 1.2-1.3). Stacks are **contiguous and copied**, not segmented; any "segmented stack" claim is a decade stale.
 - Typed atomics [1.19] (`atomic.Int64`, `atomic.Pointer[T]`) auto-align and kill the "first struct field must be 64-bit-aligned" footgun. Go atomics are **sequentially consistent only**: no acquire/release/relaxed.
@@ -26,9 +26,9 @@ You don't need the scheduler's source to write good Go, until requests drop unde
 9. [unsafe Package](#unsafe)
 10. [Reflection](#reflection)
 11. [Compiler Directives](#directives)
-12. [Which internals knowledge changes how you write Go](#what-matters)
+12. [Which internals facts change your code](#what-matters)
 13. [Version map 1.20→1.27](#versions)
-14. [What models get wrong](#stale)
+14. [Stale beliefs to drop](#stale)
 15. [Anti-Patterns](#anti-patterns)
 16. [See Also](#see-also)
 17. [Sources](#sources)
@@ -77,12 +77,12 @@ A redesigned **parallel marking** algorithm that is *memory-aware*. The classic 
 - Scope: small objects (≤512 B `[verify — from issue #73581, not the release notes]`). Larger objects still use the object-centric path.
 - Metadata: inline mark/scan bits at the span's end (objects-to-scan = marked minus scanned); spans queue FIFO with per-worker local queues + work-stealing, mirroring the goroutine scheduler. A span may be revisited multiple times per mark phase.
 - SIMD [1.26, amd64]: on Intel Ice Lake / AMD Zen 4 and newer, uses AVX-512 to scan a page's metadata in vector registers; the release notes expect *"an additional 10% GC CPU reduction"* on those CPUs.
-- Numbers: *"between 10% and 40% reduction... A 10% reduction... is roughly the modal improvement."* Experimental in 1.25 (`GOEXPERIMENT=greenteagc`), default in 1.26, opt-out `GOEXPERIMENT=nogreenteagc` *expected* removed in 1.27 (the 1.27 draft does **not yet** confirm that removal `[verify]`).
-- Not universal: workloads with poor heap locality, low fan-out, or single/dual-core may see neutral results. If you regress, set the opt-out **and file an issue**; it's going away.
+- Numbers: *"between 10% and 40% reduction... A 10% reduction... is roughly the modal improvement."* Experimental in 1.25 (`GOEXPERIMENT=greenteagc`), default in 1.26. The `GOEXPERIMENT=nogreenteagc` opt-out remains available in Go 1.27.3 on linux/amd64.
+- Not universal: workloads with poor heap locality, low fan-out, or single/dual-core execution may see neutral results. If a measured regression occurs, compare with the opt-out and report the evidence. No future removal schedule is established here.
 
-### Fundamentals that stay true (and models get wrong)
+### Fundamentals that still hold
 
-- Hybrid write barrier [1.8]: a Yuasa-style deletion barrier (shade the overwritten referent) + a Dijkstra-style insertion barrier (shade the new referent). This **eliminated STW stack re-scanning**. Barriers are active **only during the mark phase**; they are not free, which is why allocation-during-mark has cost.
+- Hybrid write barrier [1.8]: a Yuasa-style deletion barrier (shade the overwritten referent) + an insertion barrier (shade the new referent). This **eliminated STW stack re-scanning**. Barriers are active **only during the mark phase**; they are not free, which is why allocation-during-mark has cost.
 - GC pacing / `GOGC` (default 100): target heap ≈ live heap + (live heap + GC roots) × GOGC/100. Since **[1.18]** the formula includes the **root set** (stacks + globals), not just live heap. `GOGC=off` disables pacing.
 - `GOMEMLIMIT` [1.19]: a **soft** limit over the Go heap + runtime-managed memory (excludes binary mappings, C/cgo memory). GC picks the lower of the GOGC trigger and the limit-derived trigger; pairs with `GOGC=off` for "GC only near the limit." A 50% GC-CPU cap (excluding idle) mitigates death spirals. The pre-1.19 GOGC-only + virtual-memory "ballast" hack is **obsolete**.
 - Mutator assist: an allocating goroutine that outruns background GC must do proportional mark work, preventing heap overshoot.
@@ -212,7 +212,7 @@ A static data-flow analysis: a variable whose address may outlive its frame is h
 
 Common escape triggers: returning a pointer to a local; storing a pointer into a heap object/slice/map/channel; capturing a variable by reference in a closure that escapes; passing a pointer-bearing value to `interface{}` that escapes (`fmt.Println(x)` forces `x` to escape through `...any`); a `make`/slice whose size isn't provably bounded; an object too large for the stack.
 
-Model misconceptions to forbid in your reasoning:
+Do not assume these:
 
 ```go
 // WRONG belief: "passing &x always escapes." Reality:
@@ -371,9 +371,9 @@ func runtime_nanotime() int64
 
 ---
 
-## Which internals knowledge changes how you write Go {#what-matters}
+## Which internals facts change your code {#what-matters}
 
-The 20% that pays rent (everything else is trivia until a profiler says otherwise):
+Use this list first. Leave the rest until a profiler points at it.
 
 1. **scan/noscan** → prefer pointer-free layouts (`[]byte`, indices, value types) in hot, large, or long-lived data; they're free for the GC to skip. (§5)
 2. **Escape analysis is compile-time, not `new` vs `&`** → don't "pass pointers to avoid copies" reflexively; that can *force* a heap escape. Confirm with `-gcflags=-m` before restructuring. (§7)
@@ -399,11 +399,11 @@ The 20% that pays rent (everything else is trivia until a profiler says otherwis
 | **1.24** | **Swiss Tables `map`** (`noswissmap`); reworked `sync.Map` (hash-trie); spinbit runtime mutex; more efficient small-object alloc; `weak` pkg; `runtime.AddCleanup`; generic type aliases; `tool` directives |
 | **1.25** | **Container-aware GOMAXPROCS** (`containermaxprocs`/`updatemaxprocs`; `SetDefaultGOMAXPROCS`); **Green Tea experimental** (`GOEXPERIMENT=greenteagc`); slice-on-stack in more cases; trace **FlightRecorder**; `testing/synctest` GA; `reflect.TypeAssert`; `checkfinalizers` |
 | **1.26** | **Green Tea GC default** (`nogreenteagc`; AVX-512 scan); cgo overhead −~30%; **heap base randomization** (`norandomizedheapbase64`); `goroutineleak` profile (experiment); reflect iterators; `new(expr)`; self-referential generic constraints; slice-on-stack widened; new `/sched/*` metrics |
-| **1.27 (RC)** | **Size-specialized malloc** (<80 B, `nosizespecializedmalloc`, removed ~1.28); **generic methods**; **goroutine leak profile GA**; `asynctimerchan` GODEBUG removed (timer channels always synchronous); `encoding/json/v2` GA (error text differs); portable `simd` (experiment); tracebacks include pprof goroutine labels. Draft until GA (~Aug 2026); `nogreenteagc` removal not yet confirmed in the draft. |
+| **1.27** | **Size-specialized malloc** (<80 B; `nosizespecializedmalloc` opt-out, expected removal in 1.28); **generic methods** (interface methods still cannot declare type parameters or be implemented by generic methods); field-selector composite-literal keys + generalized function type inference; **goroutineleak profile GA** (the old `goroutineleakprofile` experiment is deleted); `asynctimerchan` GODEBUG removed; **`encoding/json/v2` and `encoding/json/jsontext` stable** (`encoding/json` is backed by v2, `nojsonv2` opt-out; `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` removed and `inline` renamed `embed`); `simd`/`archsimd` remain experimental under `GOEXPERIMENT=simd`; tracebacks include pprof goroutine labels. The `nogreenteagc` opt-out remains available in Go 1.27.3 on linux/amd64. |
 
 ---
 
-## What models get wrong {#stale}
+## Stale beliefs to drop {#stale}
 
 | # | Stale/wrong belief | Current reality |
 |---|---|---|
@@ -457,7 +457,7 @@ The 20% that pays rent (everything else is trivia until a profiler says otherwis
 
 ## Sources {#sources}
 
-- Release notes: go.dev/doc/go1.{14,17,18,19,20,21,22,23,24,25,26,27} (Green Tea default + cgo + heap-randomization + reflect iterators + slice-on-stack [1.26]; container GOMAXPROCS + Green Tea experiment + FlightRecorder [1.25]; Swiss Tables + small-object alloc + spinbit + weak + AddCleanup [1.24]; linkname lockdown [1.23]; size-specialized malloc + generic methods + goroutineleak GA + json/v2 [1.27 draft])
+- Release notes: go.dev/doc/go1.{14,17,18,19,20,21,22,23,24,25,26,27} (Green Tea default + cgo + heap-randomization + reflect iterators + slice-on-stack [1.26]; container GOMAXPROCS + Green Tea experiment + FlightRecorder [1.25]; Swiss Tables + small-object alloc + spinbit + weak + AddCleanup [1.24]; linkname lockdown [1.23]; size-specialized malloc + generic methods + goroutineleak GA + `encoding/json/v2`/`jsontext` + experimental SIMD [1.27 final])
 - go.dev/ref/mem (2022 memory model); pkg.go.dev/sync/atomic; research.swtch.com/gomm
 - go.dev/doc/gc-guide; go.dev/blog "The Green Tea Garbage Collector" (29 Oct 2025); GitHub issue #73581 (Green Tea design); proposal #17503 (hybrid write barrier)
 - pkg.go.dev/unsafe (the 6 patterns); pkg.go.dev/cmd/compile (directives, `-gcflags=-m`); cmd/compile/internal/ssa

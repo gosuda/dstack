@@ -2,7 +2,7 @@
 
 Half the GoF catalog dissolves into a language feature in Go: singleton → `sync.OnceValue`, strategy/command/template-method → first-class funcs, iterator → `iter.Seq`, observer → channels or `slog.Handler`, flyweight → `unique`. The Go-idiomatic question is never "which pattern is more OO" but "does a func, closure, interface, embedding, or generic already do this?" If a pattern adds a layer but not a *semantic boundary*, it's the anti-pattern.
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. The `go` directive in `go.mod` gates which features compile (a mandatory minimum since 1.21). Tag generated code with the floor it needs. Deepened from multi-source research.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes). Version tags `[1.N]` mark the release a claim applies to. The `go` directive in `go.mod` gates which features compile (a mandatory minimum since 1.21). Tag generated code with the floor it needs. Deepened from multi-source research.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -413,7 +413,7 @@ func (s *Set[T]) Contains(v T) bool { _, ok := s.m[v]; return ok }
 // func Copy[T io.Reader](r T) ...   →   just  func Copy(r io.Reader) ...
 ```
 
-**Where generics hurt readability / don't pay off:** wrapping an interface in a type parameter (above); micro-optimizing: Go compiles generics by GCShape monomorphization + dictionaries, so a type-param value often behaves like an interface value at runtime, i.e. generics are **not automatically faster** (benchmark before claiming a win). **Constraints:** `comparable` for map keys/equality; `cmp.Ordered` [1.21] for `<`/`>`; an interface with a **type set** (`~int | ~int64`) to permit operators on the underlying types; method-set constraints for behavior. **Type-set relaxation [1.25]:** "core types" were removed from the spec: operations on a type-param operand (e.g. slicing something constrained by `~[]byte | ~string`) are now validated by type-set checks; no behavior change, but more operations are allowed. Generic type aliases [1.24] (`type Set[T comparable] = map[T]struct{}`) ease refactors across packages. **Generic methods are [1.27 RC]**, not 1.26, and interface methods still may not declare type parameters, and generic methods can't satisfy interface methods; in 1.26 a generic helper stays a package-level function or a method on a generic receiver.
+**Where generics hurt readability / don't pay off:** wrapping an interface in a type parameter (above); micro-optimizing: Go compiles generics by GCShape monomorphization + dictionaries, so a type-param value often behaves like an interface value at runtime, i.e. generics are **not automatically faster** (benchmark before claiming a win). **Constraints:** `comparable` for map keys/equality; `cmp.Ordered` [1.21] for `<`/`>`; an interface with a **type set** (`~int | ~int64`) to permit operators on the underlying types; method-set constraints for behavior. **Type-set relaxation [1.25]:** "core types" were removed from the spec: operations on a type-param operand (e.g. slicing something constrained by `~[]byte | ~string`) are now validated by type-set checks; no behavior change, but more operations are allowed. Generic type aliases [1.24] (`type Set[T comparable] = map[T]struct{}`) ease refactors across packages. **Generic methods shipped [1.27]**: a method declaration may declare its own type parameters (`math/rand/v2` gained the generic method `(*Rand).N[Int intType](Int) Int` alongside the package-level function). The hard limits stand: interface methods still may not declare type parameters, and an interface method cannot be implemented by a generic method, so interface-based polymorphism is unchanged; on a module `go` line below 1.27 a generic helper stays a package-level function or a method on a generic receiver.
 
 ---
 
@@ -537,7 +537,7 @@ Functional options & DI: [project-patterns.md](project-patterns.md). Error-as-va
 | **1.24** | `weak.Pointer` + `runtime.AddCleanup` (cache/flyweight; replaces `SetFinalizer`); generic type aliases; Swiss-table maps; `tool` directives in `go.mod` |
 | **1.25** | `sync.WaitGroup.Go` (f must not panic); `go vet` flags misplaced `WaitGroup.Add`; "core types" removed from spec (type-set-validated operations) |
 | **1.26** | `new(expr)`; `slog.NewMultiHandler`; `errors.AsType[E]`; `httputil.ReverseProxy.Director` **deprecated**; `go fix` modernizers (`newexpr`, `forvar`, `AsType`); self-referential generic types |
-| **1.27 (RC)** | Generic methods (interface methods still can't be generic; generic methods can't satisfy interface methods); `encoding/json/v2` (stricter); stdlib `uuid`. GA ~Aug 2026; treat all [1.27] tags as provisional. |
+| **1.27** | Generic methods shipped (interface methods still can't declare type params or be implemented by generic methods); field-selector composite literals; generalized function-type inference; `encoding/json/v2` + `encoding/json/jsontext` stable (stricter defaults; v1 now backed by the v2 implementation); stdlib `uuid`. GA 2026-08-19. |
 
 ---
 
@@ -579,7 +579,7 @@ Functional options & DI: [project-patterns.md](project-patterns.md). Error-as-va
 11. Deep GoF class hierarchies (AbstractFactory, full Decorator/Visitor UML) where a func, closure, embedding, or type switch is idiomatic.
 12. Optional-pointer helpers (`func Int(v int) *int`) despite `new(expr)` [1.26].
 13. `httputil.ReverseProxy.Director` in new proxies: deprecated [1.26]; use `Rewrite`.
-14. Claiming generics are faster than interfaces (GCShape + dictionaries, benchmark first); emitting generic methods while claiming 1.26 compat (they're [1.27 RC]).
+14. Claiming generics are faster than interfaces (GCShape + dictionaries, benchmark first); emitting generic methods on a module whose `go` line is below 1.27 (they shipped [1.27] and don't compile on older lines).
 15. Using `golang.org/x/exp/slices|maps` when the stdlib versions [1.21] exist; `tools.go` blank imports instead of `go.mod` `tool` directives [1.24].
 
 ---

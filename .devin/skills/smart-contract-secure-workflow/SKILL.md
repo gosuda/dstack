@@ -1,65 +1,40 @@
 ---
 name: smart-contract-secure-workflow
-description: 'Use when a smart-contract team invokes this before check-in or deployment. Not for audit prep: use smart-contract-audit-prep. Not for guidelines: use smart-contract-guidelines-advisor.'
+description: 'Use when a smart-contract team invokes this before check-in or deployment. Not for audit prep. Not for guidelines: use smart-contract-guidelines-advisor.'
 ---
 
 # Smart contract secure workflow
 
-## Refuse first
+A team is about to check in or deploy and wants the same safety pass run the same way every time. You walk their contract source through five stages (properties, tests, manual review, fuzzing, deployment preparation) and hand back one consolidated report. You write only named local artifacts under the working directory: tool outputs, visualizations, documented properties, review notes, the workflow report. Deleting the generated report, tool outputs, and review notes reverses the run. You never deploy, publish, change credentials, or touch a remote system.
 
-- Do not deploy, publish, change credentials, or mutate remote systems.
-- Do not mark an unavailable or skipped stage complete; compensate within scope or report it blocked.
-- Do not widen a no-finding stage or hide unresolved risks to obtain a passing status.
+## What you need up front
 
-## Contract
+- The contract source directory, holding at least one Solidity, Vyper, or other smart-contract file. If the directory is missing or empty, stop before writing anything and report `blocked: no contract source`.
+- The deployment target (network name or configuration) when the team has one. Without it, judge deployment readiness against generic mainnet assumptions and say so.
+- The existing test suite when there is one, so new properties can be measured against current coverage gaps.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A smart-contract team needs to execute a repeatable end-to-end secure development check before a check-in or deployment. |
-| Authority | Reversible local: writes only named local artifacts under the working directory; rollback is deleting the generated report, tool outputs, and review notes. No remote mutation. |
-| Side effect | Tool outputs, visualizations, documented properties, manual-review notes, and a consolidated workflow report. All artifacts written to local paths only. |
-| Done | All five workflow stages are executed or explicitly marked unavailable with compensating analysis and unresolved risks documented. |
+## Stage 1: name the properties
 
-## Inputs
+Read the contract source and pull out the public and external functions, state variables, access-control modifiers, and invariant candidates. Write each one down as a named assertion tied to the function or state it constrains. When the codebase is bigger than the tooling can cover, say exactly which subset you analyzed and list the skipped files.
 
-- Contract source directory (required): path to the Solidity, Vyper, or other smart-contract source tree under audit.
-- Deployment target (optional): network name or deployment configuration. If absent, deployment-preparation analysis covers generic mainnet assumptions.
-- Existing test suite (optional): path to current test files. Used to assess coverage gaps before generating new properties.
+## Stage 2: turn properties into tests
 
-## Procedure
+For every Stage 1 property, generate a runnable test asserting it holds. Build on the project's existing test framework when you find one; otherwise produce standalone assertion tests, written to a local output directory. A property whose test cannot be generated is marked `test-generation-failed` with the reason recorded.
 
-1. **Validate inputs.** Confirm the contract source directory exists and contains at least one contract file. If the directory is missing or empty, stop and report `blocked: no contract source`.
-   Done when: a non-empty contract source directory is confirmed, or the workflow stops before writing artifacts with the exact blocked status.
+## Stage 3: review by hand
 
-2. **Stage 1: Property identification.** Read the contract source. Extract public and external functions, state variables, access-control modifiers, and invariant candidates. Document each identified property as a named assertion with the function or state it constrains. If the codebase exceeds tool capacity, document the subset analyzed and list skipped files.
-   Done when: every covered public surface, state variable, access control, and invariant candidate maps to a named assertion, and skipped files are explicit.
+Work through the code looking for reentrancy entry points, unchecked external calls, integer overflow and underflow in arithmetic, access-control gaps, front-running vectors, and oracle manipulation surfaces. For each finding record the severity (critical, high, medium, low, informational), the affected function, and a recommended fix. A review area that genuinely does not apply to the codebase is marked `not-applicable` with its justification.
 
-3. **Stage 2: Test generation.** For each property from Stage 1, generate a runnable test that asserts the property holds. Use the project's existing test framework if detected; otherwise produce standalone assertion tests. Write generated tests to a local output directory. If test generation fails for a property, mark it `test-generation-failed` and record the reason.
-   Done when: every Stage 1 property has a runnable local test or a recorded `test-generation-failed` reason.
+## Stage 4: fuzz the properties
 
-4. **Stage 3: Manual review.** Perform a structured manual review covering: reentrancy entry points, unchecked external calls, integer overflow and underflow in arithmetic, access-control gaps, front-running vectors, and oracle manipulation surfaces. For each finding, record severity (critical, high, medium, low, informational), affected function, and a recommended fix. If a review area is not applicable to the codebase, mark it `not-applicable` with justification.
-   Done when: each required review area has severity-tagged findings with locations and fixes, or a justified `not-applicable` result.
+When a fuzzer is available in the environment (Echidna, Foundry fuzz, Medusa), run property-based fuzzing against the Stage 1 properties and record the tool, campaign duration, corpus size, and every violation found. With no fuzzer available, mark the stage `unavailable: no fuzzer in environment` and compensate inside the stage's scope: stress-test the edge cases by hand against the identified properties, and document what the manual pass cannot cover.
 
-5. **Stage 4: Fuzzing.** If a fuzzing tool (Echidna, Foundry fuzz, Medusa) is available in the environment, run property-based fuzzing against the properties from Stage 1. Record campaign duration, corpus size, and any violations found. If no fuzzing tool is available, mark this stage `unavailable: no fuzzer in environment` and perform compensating analysis by stress-testing edge cases manually against the identified properties.
-   Done when: fuzzing records tool, duration, corpus size, and violations, or the unavailable status and bounded manual edge-case evidence are recorded with their coverage limit.
+## Stage 5: prepare the deployment
 
-6. **Stage 5: Deployment preparation.** Review deployment scripts and configuration for: hardcoded addresses, missing constructor arguments, upgradeable-proxy initialization gaps, gas-limit assumptions, and network-specific parameters. If no deployment target was supplied, analyze against generic mainnet assumptions and note the limitation.
-   Done when: every named deployment risk has an evidence-backed disposition and the target network or generic-mainnet limitation is explicit.
+Read the deployment scripts and configuration for hardcoded addresses, missing constructor arguments, upgradeable-proxy initialization gaps, gas-limit assumptions, and network-specific parameters. Every named risk gets an evidence-backed disposition, and the report states whether it judged a real target or fell back to generic mainnet assumptions.
 
-7. **Consolidate report.** Aggregate all stage outputs into a single workflow report. For each stage, record: status (completed, unavailable-with-compensating-analysis, blocked), artifact count, and unresolved risk count. Compute the overall workflow status: `passed` if all stages completed or compensated, `passed-with-unresolved` if any stage has unresolved risks, `blocked` if any stage could not proceed or compensate.
-   Done when: all five stages have truthful status, artifact count, and unresolved-risk count, and the overall status follows the stated precedence exactly.
+## Call the run honestly
 
-## Failure and recovery
+Give each stage a truthful status (completed, unavailable-with-compensating-analysis, or blocked) along with its artifact count and unresolved-risk count. The overall status follows one precedence: `blocked` if any stage could neither proceed nor compensate, `passed-with-unresolved` if any stage carries unresolved risks, `passed` otherwise. A stage with zero findings is a valid completed result recorded as zero; never re-run it with a widened scope to hunt for more. Never mark a skipped or blocked stage completed. Keep every completed stage's artifacts even when later stages fail. A stage that loops without settling, such as fuzzing finding and fixing the same property repeatedly, stops after three iterations: record the oscillation and mark the stage `non-converged`. A stage whose tool is missing is marked `unavailable`, compensated within its own scope with its coverage limit documented, and the workflow continues.
 
-### Input and stage availability
-- Input validation failure: report `blocked: no contract source` and halt. No artifacts written.
-- Stage tool unavailable: mark the stage `unavailable`, perform compensating analysis within the stage scope, and document what it cannot cover. Continue to the next stage.
-
-### Result integrity
-- Stage produces no findings: record zero findings as a valid result. Do not re-run with widened scope.
-- Partial completion: preserve all completed stage artifacts. The consolidated report reflects actual stage statuses. Never mark a stage completed if it was skipped or blocked.
-- Non-convergence: if a stage loops without stable output, such as fuzzing finding and fixing the same property repeatedly, stop after three iterations, record the oscillation, and mark the stage `non-converged`.
-
-## Output
-
-Output contract: Return the consolidated Markdown status report first, then documented properties, generated tests and raw tool outputs, manual-review notes, deployment checks, and visualizations; order stages 1–5 and findings by severity.
+Return the consolidated Markdown status report first, then the documented properties, generated tests and raw tool outputs, manual-review notes, deployment checks, and visualizations; keep stages 1 to 5 in order and findings ordered by severity.

@@ -39,23 +39,16 @@ Go 1.22 made third-party routers optional for most APIs: `net/http.ServeMux` now
 
 Pattern grammar [1.22]: `[METHOD ][HOST]/[PATH]` (brackets optional). Method routing, path params, subtree/catch-all matching, and automatic 405-with-`Allow` are now stdlib; previously the job of gorilla/mux, httprouter, or chi.
 
+Register method, path, and wildcards in the pattern [1.22+]. The pre-1.22 idiom of manual `Method` checks plus `TrimPrefix` throws away method dispatch, automatic 405 handling, conflict checking, wildcard capture, and precedence. Treat a captured value as untrusted input: validate and parse it before use.
+
 ```go
-// CORRECT [1.22+]
 mux := http.NewServeMux()
 mux.HandleFunc("GET /api/v1/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-    id := r.PathValue("id")        // untrusted: validate/parse
-    // ...
+    id := r.PathValue("id")
 })
 mux.HandleFunc("POST /api/v1/users", createUser)
-mux.HandleFunc("GET /files/{path...}", serveStatic) // {path...} must be last
-mux.HandleFunc("GET /api/v1/{$}", apiRoot)          // exact "/api/v1/" only
-
-// WRONG — pre-1.22 idiom models still emit (throws away method dispatch,
-// conflict checking, wildcard capture, and specificity):
-mux.HandleFunc("/api/v1/users/", func(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodGet { http.Error(w, "", 405); return }
-    id := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
-})
+mux.HandleFunc("GET /files/{path...}", serveStatic)
+mux.HandleFunc("GET /api/v1/{$}", apiRoot)
 ```
 
 `r.PathValue("id")` returns `""` if absent; `r.SetPathValue(name, val)` lets third-party routers populate the same stdlib API (so router-agnostic handlers read params one way). **`(*ServeMux).Handler(r)` does NOT populate `PathValue`**. It doesn't mutate `r`; values appear only when the matched handler actually runs.
@@ -162,9 +155,17 @@ if _, ok := errors.AsType[*http.MaxBytesError](err); ok { /* 413 */ }
 
 Read-before-write (HTTP/1): by default the server consumes any unread request body before starting the response, so true interleaved read/write needs `ResponseController.EnableFullDuplex()` [1.21]. Read what you need from `r.Body` **before** writing on HTTP/1; HTTP/2 permits concurrent reads/writes but the docs still recommend read-before-write for compatibility.
 
+On HTTP/1, writing before reading the request body needs `EnableFullDuplex()` first:
+
 ```go
-// WRONG on HTTP/1 unless you call EnableFullDuplex:
-func echo(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200); io.Copy(w, r.Body) }
+func echo(w http.ResponseWriter, r *http.Request) {
+    if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
+        http.Error(w, "no full duplex", http.StatusInternalServerError)
+        return
+    }
+    w.WriteHeader(200)
+    io.Copy(w, r.Body)
+}
 ```
 
 HTTP/2 & h2c [1.24]: configure protocols declaratively instead of hand-wiring `x/net/http2`:
@@ -178,7 +179,7 @@ srv := &http.Server{Addr: ":8080", Handler: mux, Protocols: p}
 
 `Server.HTTP2`/`Transport.HTTP2` take `*http.HTTP2Config` (`MaxConcurrentStreams`, and `StrictMaxConcurrentRequests` [field new in 1.26], open a new conn when an H2 conn hits its stream limit). `HTTP2Config` the type is [1.24]. `GODEBUG=http2server=0` disables H2; the `omithttp2` build tag removes it.
 
-Body drain on the client side [1.27]: historically you drained `resp.Body` (`io.Copy(io.Discard, resp.Body)`) before `Close()` for HTTP/1 keep-alive reuse; it never helped HTTP/2 (new stream regardless). The server already reads up to 256 KiB of an unread *request* body after a handler returns for reuse. **Go 1.27 makes HTTP/1 `Response.Body.Close()` auto-drain to EOF up to a bounded limit**, so "just close the body" becomes correct best practice on 1.27+; for ≤1.26 manual draining still aids HTTP/1 reuse. `[verify]` exact 1.27 wording until GA.
+Body drain on the client side [1.27]: historically you drained `resp.Body` (`io.Copy(io.Discard, resp.Body)`) before `Close()` for HTTP/1 keep-alive reuse; it never helped HTTP/2 (new stream regardless). The server already reads up to 256 KiB of an unread *request* body after a handler returns for reuse. Auto-draining on `Response.Body.Close()` ships in Go 1.27+ for HTTP/1 connections, up to a conservative limit, so "just close the body" becomes standard practice on 1.27+; for ≤1.26 manual draining still aids HTTP/1 reuse.
 
 ---
 
@@ -259,15 +260,11 @@ func (r *statusRecorder) Unwrap() http.ResponseWriter  { return r.ResponseWriter
 
 ## ResponseController & streaming control {#response-controller}
 
-```go
-// CORRECT [1.20] — no type assertion, survives wrapping:
-rc := http.NewResponseController(w)
-if err := rc.Flush(); err != nil { /* unsupported or client gone */ }
+Reach the real writer through `ResponseController` [1.20] instead of a type assertion, which fails as soon as middleware wraps `w`:
 
-// WRONG — fails the moment any middleware wraps w:
-flusher, ok := w.(http.Flusher)
-if !ok { http.Error(w, "no flush", 500); return }
-flusher.Flush()
+```go
+rc := http.NewResponseController(w)
+if err := rc.Flush(); err != nil { return err }
 ```
 
 `http.NewResponseController(w)` [1.20] exposes exactly five methods: `Flush() error`, `SetReadDeadline`, `SetWriteDeadline`, `Hijack`, and `EnableFullDuplex()` [1.21]. It walks the `Unwrap() http.ResponseWriter` chain to the real writer and returns an error matching `http.ErrNotSupported` when unsupported. Internally `Flush` prefers an underlying optional `FlushError() error` over `Flush()`, but there is **no public `ResponseController.FlushError` method**; the public surface already returns an error.
@@ -319,14 +316,14 @@ type Event struct {
 
 v2 API shape differs from v1; options are **function arguments**, not `Decoder` methods:
 ```go
-// Requires GOEXPERIMENT=jsonv2 on 1.25/1.26; default on 1.27.
 import jsonv2 "encoding/json/v2"
 data, err := jsonv2.Marshal(v, jsonv2.Deterministic(true), jsonv2.OmitZeroStructFields(true))
 err = jsonv2.Unmarshal(b, &dst, jsonv2.RejectUnknownMembers(true))
-// streaming lives in jsontext (Encoder/Decoder); MarshalWrite/UnmarshalRead take io.Writer/io.Reader.
 ```
 
-Migration hazards (v2 defaults flip behavior): field matching is **case-sensitive** (v1 was insensitive; a documented auth-bypass surface; restore via `MatchCaseInsensitiveNames(true)`); **duplicate object keys are rejected** (v1 took last-wins); **nil slices/maps marshal as `[]`/`{}`** not `null` (restore via `FormatNilSliceAsNull(true)`/`FormatNilMapAsNull(true)`); invalid UTF-8 rejected; errors carry path context. Run `GOEXPERIMENT=jsonv2 go test ./...` on a pre-1.27 toolchain to surface breakage before the 1.27 flip; `jsonv2.DefaultOptionsV1()` reproduces v1 semantics on the v2 engine. Performance: ~parity-to-faster marshal, up to ~10× faster unmarshal; but benchmark your payloads (a marshal-allocation regression was reported for some `map[string]string` workloads).
+Importing `encoding/json/v2` changes the defaults; upgrading Go while keeping the v1 API does not. V2 uses case-sensitive field matching, rejects duplicate names and invalid UTF-8, and encodes nil slices and maps as `[]` and `{}`. Preserve these stricter defaults unless an explicit consumer contract requires different behavior.
+
+When v1 behavior is required, import `encoding/json` as `jsonv1` and pass `jsonv1.DefaultOptionsV1()` to the v2 operation. `DefaultOptionsV1` does not belong to the v2 package. Streaming syntax uses `jsontext.Encoder` and `jsontext.Decoder`; `MarshalWrite` and `UnmarshalRead` accept `io.Writer` and `io.Reader`. Benchmark the actual payloads rather than assuming a performance gain.
 
 For struct tags, custom marshalers, and streaming large payloads: [encoding-and-serialization.md](encoding-and-serialization.md#json).
 
@@ -503,28 +500,53 @@ The two invariants: **flush after every event** (via `ResponseController`, not `
 
 ## gRPC with ConnectRPC {#grpc}
 
-ConnectRPC generates one Go service surface that is **plain `net/http`** and speaks Connect + gRPC + gRPC-Web; browser-friendly, debuggable with curl, composes with normal middleware. Generated constructors return `(path string, http.Handler)` registered on a stdlib mux.
+ConnectRPC v2 generates Go service surfaces that are **plain `net/http`** and speak Connect + gRPC + gRPC-Web; browser-friendly, debuggable with curl, and composable with standard middleware. Connect v2 (`connectrpc.com/connect/v2` v2.0.2) requires Go ≥1.26. By default, `protoc-gen-connect-go` in v2 generates unwrapped protobuf message signatures (`*Request` → `*Response`) instead of v1 `*connect.Request[T]` / `*connect.Response[T]` wrappers. Server handlers register onto a `connect.Server` and mount onto any `http.ServeMux` via `connecthttp.Mount`.
 
 ```go
 import (
-    "connectrpc.com/connect" // NOT github.com/bufbuild/connect-go (frozen since 2023)
+    "context"
+    "net/http"
+
+    "connectrpc.com/connect/v2"
+    "connectrpc.com/connect/v2/connecthttp"
     userv1 "example/gen/user/v1"
     "example/gen/user/v1/userv1connect"
 )
 
-func (s *UserServer) GetUser(ctx context.Context, req *connect.Request[userv1.GetUserRequest],
-) (*connect.Response[userv1.GetUserResponse], error) {
-    user, err := findUser(ctx, req.Msg.Id)
-    if err != nil { return nil, connect.NewError(connect.CodeNotFound, err) }
-    return connect.NewResponse(&userv1.GetUserResponse{User: user}), nil
+type UserServer struct{}
+
+func (s *UserServer) GetUser(ctx context.Context, req *userv1.GetUserRequest) (*userv1.GetUserResponse, error) {
+    user, err := findUser(ctx, req.Id)
+    if err != nil {
+        return nil, connect.NewError(connect.CodeNotFound, err)
+    }
+    return &userv1.GetUserResponse{User: user}, nil
 }
 
+// Server registration and HTTP mount:
+server := connect.NewServer()
+userv1connect.RegisterUserServiceHandler(server, &UserServer{})
 mux := http.NewServeMux()
-path, handler := userv1connect.NewUserServiceHandler(&UserServer{})
-mux.Handle(path, handler) // serve over http.Protocols (1.24) for h2c — no x/net/http2
+connecthttp.Mount(mux, server) // serve over http.Protocols (1.24+) for h2c (no x/net/http2)
+
+// Client construction:
+client := connect.NewClient(connecthttp.NewTransport(http.DefaultClient, "http://localhost:8080"))
+userClient := userv1connect.NewUserServiceClient(client)
 ```
 
-connect-go on **1.24+** uses `http.Protocols` for h2c, dropping the `x/net/http2` dependency. OTel helper: `connectrpc.com/otelconnect` (old `bufbuild/connect-opentelemetry-go` is stale). Validation: `connectrpc.com/validate` (Protovalidate).
+Context metadata: header and trailer metadata travel on context via `connect.CallInfoForServerContext(ctx)`. For in-process integration testing without network sockets, use `connectinprocess`: `client := connect.NewClient(connectinprocess.New(server))` with `userClient := userv1connect.NewUserServiceClient(client)`.
+
+Subpackage separation (`connectrpc.com/connect/v2`):
+- `connecthttp`: HTTP transport and mount functions (`connecthttp.Mount`, `connecthttp.NewTransport`).
+- `connectproto`: Protobuf codec and options.
+- `connectgzip`: Gzip compression.
+- `connectinprocess`: In-process transport for socket-less integration tests.
+
+Companion packages and ecosystem status:
+- gRPC health and reflection companion modules are `/v2`: `connectrpc.com/grpchealth/v2` (v2.0.0) and `connectrpc.com/grpcreflect/v2` (v2.0.0).
+- Validation and telemetry packages remain at unversioned module paths with v2 compatibility: `connectrpc.com/validate` (v0.9.0, Protovalidate) and `connectrpc.com/otelconnect` (v0.12.0). There are no `/v2` modules for validate or otelconnect on proxy.golang.org.
+- REST and RPC transcoding is provided by `connectrpc.com/vanguard` (v0.5.0, unversioned module path).
+- The v1 maintenance branch `connectrpc.com/connect` (v1.21.1) is supported indefinitely for security and bug fixes. In v1, handlers took `*connect.Request[T]` and returned `*connect.Response[T]`, and generated constructors returned `(path string, http.Handler)` registered via `mux.Handle(path, handler)`. No aliases or shims exist between v1 and v2; new services should target `connectrpc.com/connect/v2`. The archived `github.com/bufbuild/connect-go` path is obsolete.
 
 grpc-go [v1.63+] (stale patterns models still emit):
 ```go
@@ -544,7 +566,7 @@ Decision: browser/gRPC-Web/pure-net/http → **connect-go**; deep gRPC ecosystem
 
 - URL-path versioning (`/api/v1/...`) is the dominant Go convention, explicit, cache-friendly, trivial with `ServeMux` subtrees; register `v1`/`v2` as sibling prefixes and mount per-version sub-muxes. Header/`Accept`-based versioning is harder to route and debug.
 - OpenAPI: generate the spec from code (annotations) or generate code from the spec; pick one direction. `oapi-codegen` (spec→Go types + `ServeMux`/chi server stubs, `net/http`-native) is the common choice; `swaggo/swag` reads handler comments. ConnectRPC/gRPC users get the proto as the contract for free.
-- Breaking-change discipline: add fields (never remove/retype) within a version; new required fields or changed semantics → new version. Validate request/response against the spec in contract tests: [testing-advanced.md](testing-advanced.md#contract-testing).
+- Breaking-change discipline: add fields (never remove/retype) within a version; new required fields or changed semantics → new version. Prove the spec matches the server with a live round trip between generated code and a real counterpart, plus schema-conformance checks on every change: [testing-advanced.md](testing-advanced.md#contract-testing).
 
 ---
 
@@ -559,8 +581,8 @@ Decision: browser/gRPC-Web/pure-net/http → **connect-go**; deep gRPC ecosystem
 | gRPC client ctor | `grpc.NewClient` [v1.63+] | `grpc.Dial`/`DialContext`, `WithBlock`/`WithTimeout` |
 | gRPC insecure creds | `insecure.NewCredentials()` | `grpc.WithInsecure()` |
 | gRPC telemetry | `otelgrpc.New{Client,Server}Handler` (StatsHandler) | `otelgrpc.*Interceptor`, OpenCensus `ocgrpc` |
-| Connect | `connectrpc.com/connect` | `github.com/bufbuild/connect-go` |
-| Connect OTel | `connectrpc.com/otelconnect` | `bufbuild/connect-opentelemetry-go` |
+| Connect | `connectrpc.com/connect/v2` (v2.0.2); `connectrpc.com/connect` (v1.21.1) | `github.com/bufbuild/connect-go` |
+| Connect OTel | `connectrpc.com/otelconnect` (v0.12.0) | `bufbuild/connect-opentelemetry-go` |
 | REST↔gRPC | `grpc-ecosystem/grpc-gateway/v2`, `connectrpc.com/vanguard` | dummy `tools.go` install (use `go.mod` `tool` directive [1.24]) |
 | CSRF | `http.CrossOriginProtection` [1.25, patch ≥1.25.1] | gorilla/csrf, hand-rolled tokens; `filippo.io/csrf` for <1.25 |
 | WebSocket | `github.com/coder/websocket`; `gorilla/websocket` (re-maintained) | `nhooyr.io/websocket` import path (moved to coder) |
@@ -599,12 +621,12 @@ CVE note: `CrossOriginProtection` bypass **CVE-2025-47910 / GO-2025-3955** fixed
 7. `http.DefaultClient` (no timeout) or a fresh `Client`/`Transport` per request (kills keep-alive). Leaving `MaxIdleConnsPerHost` at the default **2** for a single hot upstream.
 8. `TimeoutHandler` around SSE/streaming: it doesn't support `Flusher`.
 9. Writing the response before reading the request body on HTTP/1 without `EnableFullDuplex()` [1.21]; the server consumes the unread body first.
-10. JSON v2 staleness both ways: claiming it's GA/default in 1.25/1.26 (it is NOT; `GOEXPERIMENT=jsonv2`, off, no 1.26 note; baseline only in 1.27 draft), OR being unaware of it and of the case-sensitivity / nil-slice→`[]` / duplicate-key-rejection flips. Also unaware that v2 options are function args, not `Decoder` methods.
+10. JSON v2 staleness both ways: claiming it's GA/default in 1.25/1.26 (it is NOT; `GOEXPERIMENT=jsonv2`, off, no 1.26 note; standard only since 1.27), OR being unaware of it and of the case-sensitivity / nil-slice→`[]` / duplicate-key-rejection flips. Also unaware that v2 options are function args, not `Decoder` methods.
 11. `omitempty` on `time.Time` expecting omission: use `omitzero` [1.24] (`IsZero()`); a zero time is non-empty.
 12. CSRF: recommending gorilla/csrf or hand-rolled tokens when `http.CrossOriginProtection` [1.25] exists; unaware of the 1.25.1 bypass fix (CVE-2025-47910).
 13. h2c via `x/net/http2/h2c` as the first answer: use `Server.Protocols.SetUnencryptedHTTP2(true)` [1.24]. The `Upgrade: h2c` path is unsupported (prior-knowledge only).
 14. `grpc.Dial` + `WithInsecure()` + `WithBlock()`: all deprecated; `grpc.NewClient` + `insecure.NewCredentials()`, no `WithBlock` (ignored). Missing that `NewClient` defaults to `dns`, not `passthrough`.
-15. connect-go old import `github.com/bufbuild/connect-go` (→ `connectrpc.com/connect`); otelgrpc `*Interceptor` instead of the `StatsHandler`.
+15. connect-go old import `github.com/bufbuild/connect-go` (→ `connectrpc.com/connect/v2`); emitting deprecated v1 `*connect.Request[T]` wrappers for new Connect v2 services; otelgrpc `*Interceptor` instead of the `StatsHandler`.
 16. String context keys instead of a private key type; assuming `PathValue` is populated in **outer** middleware (it isn't; wrap the inner handler).
 17. `Access-Control-Allow-Origin: *` in production / WebSocket `OriginPatterns: ["*"]`; allows any site to drive authenticated/cross-origin requests.
 18. Logging AND returning errors in handlers: duplicate log lines as the error bubbles; log once at the boundary (see errors-and-resilience).
@@ -644,4 +666,4 @@ CVE note: `CrossOriginProtection` bypass **CVE-2025-47910 / GO-2025-3955** fixed
 - go.dev/doc/go1.20-go1.27 release notes
 - go.dev/blog/routing-enhancements (1.22 ServeMux); go.dev/doc/godebug (httpmuxgo121, http2server)
 - pkg.go.dev/vuln/GO-2025-3955 (CVE-2025-47910, `AddInsecureBypassPattern` bypass, fixed 1.25.1)
-- connectrpc.com/docs/go; google.golang.org/grpc (`NewClient`, deprecation history v1.63/1.64); github.com/coder/websocket, go-chi/chi/v5, grpc-ecosystem/grpc-gateway
+- connectrpc.com/docs/go; connectrpc.com/connect/v2; google.golang.org/grpc (`NewClient`, deprecation history v1.63/1.64); github.com/coder/websocket, go-chi/chi/v5, grpc-ecosystem/grpc-gateway

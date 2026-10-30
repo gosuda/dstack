@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+# Maps a PR review comment node ID to its parent thread.
+# Read-only. Fetches all review threads (paginated) and their comments,
+# then returns the thread whose comments contain the target ID.
+# Per-thread comments are capped at 100 with totalCount retained; when the
+# target is not found and any thread reports truncation, the result is
+# incomplete input, never proof of absence.
+
+set -e
+
+if [ $# -lt 2 ]; then
+    echo "Usage: get-thread-for-comment PR_NUMBER COMMENT_NODE_ID [OWNER/REPO]"
+    echo "Example: get-thread-for-comment 378 PRRC_kwDOP_gZVc6ySv89"
+    exit 1
+fi
+
+PR_NUMBER=$1
+COMMENT_NODE_ID=$2
+
+if [ -n "$3" ]; then
+    OWNER=$(echo "$3" | cut -d/ -f1)
+    REPO=$(echo "$3" | cut -d/ -f2)
+else
+    OWNER=$(gh repo view --json owner -q .owner.login 2>/dev/null || true)
+    REPO=$(gh repo view --json name -q .name 2>/dev/null || true)
+fi
+
+if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
+    echo "Error: could not resolve owner/repo. Run get-thread-for-comment from inside the target git repository, or pass OWNER/REPO as the third argument (e.g., get-thread-for-comment $PR_NUMBER $COMMENT_NODE_ID OWNER/REPO)." >&2
+    exit 1
+fi
+
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-get-thread-for-comment.XXXXXX")
+trap 'rm -rf "$tmp_dir"' EXIT
+threads_file="$tmp_dir/threads.json"
+
+gh api graphql --paginate --slurp \
+  -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
+  -f query='
+query Threads($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviewThreads(first: 100, after: $endCursor) {
+        nodes {
+          id
+          isResolved
+          isOutdated
+          path
+          line
+          originalLine
+          startLine
+          originalStartLine
+          comments(first: 100) {
+            totalCount
+            nodes {
+              id
+              author { login }
+              body
+              createdAt
+              url
+            }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}' > "$threads_file"
+
+jq -e --arg cid "$COMMENT_NODE_ID" '
+  (. // []) as $pages |
+  if (($pages | length) == 0) then error("incomplete: no pages fetched; fetch is incomplete, not absent")
+  elif ([$pages[] | select(type != "object")] | length > 0) then error("incomplete: non-object page present; fetch is incomplete, not absent")
+  elif ([$pages[] | select(((.errors // []) | length) > 0)] | length > 0) then error("incomplete: GraphQL errors present; fetch is incomplete, not absent")
+  elif ([$pages[] | select(.data == null or .data.repository == null or .data.repository.pullRequest == null)] | length > 0) then error("incomplete: missing pullRequest data; fetch is incomplete, not absent")
+  elif ([$pages[] | select(.data.repository.pullRequest.reviewThreads == null)] | length > 0) then error("incomplete: missing reviewThreads connection; fetch is incomplete, not absent")
+  elif (($pages[-1].data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage) != false) then error("incomplete: final page still hasNextPage; fetch is incomplete, not absent")
+  else
+    ([$pages[].data.repository.pullRequest.reviewThreads.nodes[]]) as $threads |
+    ([$threads[] | select(.comments.nodes | map(.id) | index($cid))] | .[0]) as $hit |
+    if $hit != null then $hit
+    elif ([$threads[] | select((.comments.totalCount // (.comments.nodes | length)) > (.comments.nodes | length))] | length > 0)
+    then error("incomplete: comment \($cid) not found in first 100 per thread and truncated threads exist; fetch is incomplete, not absent")
+    else error("No thread found for comment \($cid)") end
+  end
+' "$threads_file"

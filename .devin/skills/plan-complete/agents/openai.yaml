@@ -1,0 +1,3 @@
+interface:
+  display_name: "Plan Complete"
+  short_description: "Use when a plan must be proven complete before implementation begins."

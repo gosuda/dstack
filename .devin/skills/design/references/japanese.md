@@ -32,7 +32,7 @@ Kinsoku characters worth knowing: `line-break: strict` adds 、 。 ー ぁぃ�
 | Yu Gothic UI | Windows 11 system | Light / Semilight / Regular / Semibold / Bold | Windows JP system default; bundled with Windows 11. |
 | Noto Sans JP | webfont (Adobe / Google) + Windows-shipped Apr 2025 | 9 weights | First viable cross-platform default. ~1.6MB per cut → subsetting mandatory. |
 | LINE Seed JP | webfont (open) | 5 weights | SIL OFL 1.1; kana + kanji + Latin. (seed.line.me) |
-| IBM Plex Sans JP v1.4 | webfont (Adobe Fonts + Google Fonts) | 7 styles | Sep 2025; 6,355 kanji + kana; OFL. Shares metrics with Plex Sans for mixed JP/Latin runs. |
+| IBM Plex Sans JP 3.0.0 | webfont (Adobe Fonts + Google Fonts + npm `@ibm/plex-sans-jp`) | 7 styles | 2025-09-10; 6,355 kanji + kana; OFL. Shares metrics with Plex Sans for mixed JP/Latin runs. |
 
 Klim Söhne JP and Geist JP do NOT exist as of 2026, flag any claim otherwise as slop. Söhne is Latin-only (klim.co.nz/fonts/soehne). Vercel's Geist family ships Latin + Cyrillic + Greek only.
 
@@ -61,7 +61,7 @@ Shueisha "Jump TOON" (2025) launched as Webtoon-style vertical-scroll horizontal
 
 ## 4. BudouX line-break library
 
-Google project, ~15KB ML model, v0.9.x, Python / JS / Java bindings. Inserts zero-width-space breakpoints based on phrase-level segmentation, replaces brittle `<br>` placement and over-eager `word-break: break-all`.
+Google project, ~15KB ML model, 0.10.2, Python / JS / Java bindings. Inserts zero-width-space breakpoints based on phrase-level segmentation, replaces brittle `<br>` placement and over-eager `word-break: break-all`.
 
 Adobe.com is a confirmed BudouX production user, replaced AEM's JP line-breaking pipeline. Chrome 119+ ships BudouX-style segmentation natively via `<wbr>`-equivalent break opportunities, reducing the need to ship the JS for Chromium audiences.
 

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review Fix Loop"
+  short_description: "Use when review and repair must repeat to an evidenced end state, locally or across one or more GitHub PRs or GitLab MRs."

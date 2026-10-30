@@ -10,7 +10,7 @@ Use Bun exactly `1.4.0`. The runtime files below use no package dependency.
 
 1. **Bind the runtime and process authority.** Require `bun --version` to print exactly `1.4.0`. Require the host managed-process primitive to support launch, output/readiness, exit status, and stop by the same name. A shell background job, `nohup`, PID file, `/proc` inspection, or ad hoc signal is not a substitute. On either prerequisite failure, return `runtime-unavailable` without creating a session.
 
-2. **Create the session directory.** Validate the idle timeout, then use one embedded Bun helper to create a never-reused project-local session. The helper canonicalizes the existing project root before its first write, creates `.odin` and `brainstorm` one component at a time, rejects symlinks and non-directories, verifies each canonical direct-parent relationship, creates the random session exclusively, and returns its canonical path. Any failure aborts before runtime files are written.
+2. **Create the session directory.** Validate the idle timeout, then use one embedded Bun helper to create a never-reused project-local session. The helper canonicalizes the existing project root before its first write, creates `.dstack` and `brainstorm` one component at a time, rejects symlinks and non-directories, verifies each canonical direct-parent relationship, creates the random session exclusively, and returns its canonical path. Any failure aborts before runtime files are written.
 
    ```sh
    IDLE_TIMEOUT_MINUTES="${IDLE_TIMEOUT_MINUTES:-240}"
@@ -53,8 +53,8 @@ Use Bun exactly `1.4.0`. The runtime files below use no package dependency.
        return canonical;
      }
 
-    const odinDir = await secureContainer(projectDir, ".odin");
-    const brainstormDir = await secureContainer(odinDir, "brainstorm");
+    const dstackDir = await secureContainer(projectDir, ".dstack");
+    const brainstormDir = await secureContainer(dstackDir, "brainstorm");
      const sessionName = `session-${sessionId}`;
      const sessionDir = join(brainstormDir, sessionName);
      await mkdir(sessionDir, { mode: 0o700 });

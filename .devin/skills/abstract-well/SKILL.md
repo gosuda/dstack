@@ -5,39 +5,33 @@ description: 'Use when the user wants to classify abstractions as useful, bad, o
 
 # Abstract well
 
-## Contract
+Good abstractions earn their keep; the rest is ceremony. This review sorts every abstraction in scope into useful, bad, or busy, then keeps a single shallow level, the one whose payoff over writing the code inline is largest. Nothing here touches the disk. The result is a judgment delivered in chat.
 
-| Field | Bound contract |
+## What you need before judging
+
+Ask for an explicit list of abstractions (wrappers, helpers, interfaces, layers, adapters) or a scope (file, module, function set) you can enumerate yourself. If the input gives you neither, stop and ask for one rather than guessing which wrappers count.
+
+For each abstraction you also need two things: whose code uses it (the immediate consumer when nobody says otherwise), and what the wrapped operation actually is. When the underlying operation is unknowable, do not invent a raw form. That abstraction leaves the review marked unclassified and carries no recommendation.
+
+## Judge cooked against raw, same caller, same task
+
+For every abstraction in scope, write both forms at the same caller task: the raw form, what the caller writes without the abstraction, and the cooked form, what the caller writes with it. Both forms must serve the identical task for the identical caller, or the comparison is meaningless.
+
+Then classify by asking whether the cooked form is genuinely easier (fewer concepts, less ceremony, fewer places to get wrong):
+
+| Class | Meaning |
 |---|---|
-| Trigger | The user wants to classify a set of abstractions as useful, bad, or busy and keep one shallow level. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | A chat-output classification and one-shallow-level recommendation. Nothing is written or changed. |
-| Done | Every abstraction in scope is classified as useful, bad, busy, or unclassified, and a single shallow level is selected whose cooked form is easier than its raw form, or an explicit statement is returned that no useful level exists. |
+| useful | The cooked form is easier than the raw form. |
+| bad | The cooked form is harder: more indirection, more concepts, or more ceremony than going inline. |
+| busy | The cooked form is neither easier nor harder. It relocates complexity without reducing what the caller must get right. |
+| unclassified | No concrete raw form could be written because the operation is unknown. |
 
-## Inputs
+## Keep one level, never a stack
 
-- The abstractions to review. Supply either an explicit list of named abstractions (wrappers, helpers, interfaces, layers, adapters) or a scope (file, module, or function set) from which they are enumerated.
-- The caller perspective: whose code uses each abstraction. If omitted, the caller is the immediate consumer of the abstraction.
-- The underlying operation each abstraction wraps must be knowable so a raw form can be written. If it is not, the abstraction is marked unclassified.
+From the useful pile, keep exactly one: the abstraction whose cooked-form advantage over its raw form is largest. If nothing is useful, say so plainly and select nothing. That is a valid result, not a failure.
 
-## Procedure
+Where two abstractions sit between the same caller and the same raw operation, keep only the stronger of the two. Stacked layers that share a caller and an operation never both survive.
 
-1. Enumerate the abstractions in scope. If the user named them, use that list. If the user gave a scope, list every named wrapper, helper, interface, layer, or adapter inside it. Do not invent abstractions that the input does not name or contain. Done when: every abstraction in scope is listed.
-2. For each abstraction, write two concrete forms at the same caller task: the raw form, the code the caller writes without the abstraction, and the cooked form, the code the caller writes with it. Keep both at the same task and the same caller. Done when: raw and cooked forms exist for every abstraction.
-3. Classify each abstraction by comparing cooked form to raw form for that caller:
-   - useful: the cooked form is easier than the raw form: fewer concepts, less ceremony, fewer places to get wrong.
-   - bad: the cooked form is harder than the raw form: more indirection, more concepts, or more ceremony than the inline path.
-   - busy: the cooked form is neither easier nor harder: it relocates complexity to another place without reducing total difficulty for the caller.
-   - unclassified: the raw form cannot be written concretely because the underlying operation is unknown.
-   Done when: every abstraction is classified as useful, bad, busy, or unclassified.
-4. Select one shallow level to keep: the single useful abstraction whose cooked-form advantage over its raw form is largest. If no abstraction is useful, select none and state that explicitly. Done when: one useful abstraction is selected or an explicit statement that none exists.
-5. Reject stacking: when two abstractions both sit between the same caller and the same raw operation, keep only the one with the larger cooked-form advantage; do not recommend keeping both layers. Done when: no two stacked abstractions both remain between the same caller and raw operation.
+## What you hand back
 
-## Failure and recovery
-- Ambiguous scope: if the abstractions cannot be enumerated from the input, stop and ask for an explicit list or a narrower scope. Do not guess which wrappers count.
-- Unobservable raw form: if the underlying operation is unknown, mark the abstraction unclassified rather than inventing a raw form. An unclassified row carries no recommendation.
-- No useful abstraction: a valid result, not a failure. Return the full classification with zero useful entries and no selected level.
-- Non-mutation: the review changes nothing on disk. Re-running with different input produces an independent classification; there is no state to roll back.
-
-## Output
-A classification table with one row per abstraction: name, raw-form summary, cooked-form summary, and class (useful, bad, busy, or unclassified). Followed by the one selected shallow level with its cooked-versus-raw justification, or an explicit statement that no shallow level was selected because no abstraction is useful.
+A table with one row per abstraction (its name, a raw-form summary, a cooked-form summary, and its class), followed by the single level you kept with its cooked-versus-raw justification, or the explicit statement that no level was selected because nothing was useful.

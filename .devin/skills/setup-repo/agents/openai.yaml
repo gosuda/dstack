@@ -1,0 +1,3 @@
+interface:
+  display_name: "Setup Repo"
+  short_description: "Use when the user asks to set up a repository: deterministic gitignore, repository-native pre-commit hooks, or REVIEW.md and CONTRIBUTE.md rules that enforce anti-slop, anti-spaghetti, and offensive-minimalism defaults."

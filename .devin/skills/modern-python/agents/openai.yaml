@@ -1,3 +1,0 @@
-interface:
-  display_name: "Modern Python"
-  short_description: "Use when creating or migrating a Python project or script to uv, Ruff, ty, and pytest."

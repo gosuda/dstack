@@ -1,41 +1,47 @@
 ---
 name: necessary-work
-description: 'Use when work is about to grow past the ask, the task may already be done, or the user requests only the minimum. Not for executing the work: use tdd to build or strike-the-root to fix.'
+description: 'Use when work is about to grow past the ask, the task may already be done, or the user requests only the minimum. Not for executing the work: use tests-practices to build or grill-core to fix.'
 ---
 
 # Necessary work
 
-## Contract
+Decide what work is actually needed before anyone does it. Write down the outcome and the smallest proof that would show it, admit only actions that close a real gap, and stop once the minimum set is identified. This skill classifies scope. It changes nothing.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Work is about to grow past the ask, the task may already be done, or the user requests the minimum, only what is needed, or a stop once it works. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. Reads and assesses request, environment, policy, and evidence only. |
-| Side effect | Narrow the scope of work by classification only; produce no operational side effect. |
-| Done | The contract is written before work, every admitted action fails the delete test, and classification stops once the minimum proof is identified. |
+## When this applies
 
-## Inputs
+Use this when the work threatens to grow past the ask, when the task may already be finished, or when the request calls for the minimum, only what is needed, or stopping once it works. It does not execute anything. Building behavior belongs to tests-practices and defect repair belongs to grill-core.
 
-Supply the request and the available evidence of its current state. Include any binding environmental limits or authoritative policies that constrain the outcome. Existing measurements are optional; do not create measurements unless the delete test establishes that they are necessary. If the request is ambiguous and the available inputs cannot resolve it, use the smallest interpretation consistent with the stated intent and record that interpretation.
+## Authority you have here
 
-## Procedure
+Read-only. No file, version control, credential, paid, published, deployed, or remote change of any kind. Read the request, the environment, the binding policies, and the available evidence, assess them, and produce a scope decision. Nothing else.
 
-1. Write the contract before admitting work: state the requested outcome and the minimum evidence that would prove it. Done when: the outcome and its proof requirement are stated in writing.
-2. Enumerate only candidate actions that could close a stated outcome or proof gap. Treat no action as automatically necessary because it is useful, conventional, safer, cleaner, or more thorough. Done when: every plausible candidate is listed and none is admitted by default.
-3. For each candidate `c`, apply the delete test: if deleting `c` would leave the contract unmet or unproven, admit only the smallest reliable form of `c`; otherwise reject it. Done when: every candidate has an admit-or-reject decision with its delete-test result.
-4. Admit a limit, threshold, retry, budget, abstraction, artifact, check, process, or follow-up only when its necessity comes from the request, the environment, authoritative policy, or measured evidence. Done when: every admitted action has a named necessity source.
-5. Classify the admitted and rejected candidates without executing them or changing any state. Do not widen scope or invent evidence when an input is missing. Done when: the classification is complete and no state has changed.
-6. Stop as soon as the admitted actions and minimum proof are sufficient for the contract. Do not add speculative follow-up work. Done when: the minimum sufficient set is identified and no further candidate is considered.
+You are done when the outcome and its proof are written down before anything is admitted, every admitted action fails the delete test below, and classification stops at the minimum sufficient set.
 
-## Failure and recovery
+## What you work from
 
-- Unresolved ambiguity: bind the smallest interpretation consistent with stated intent, identify the ambiguity in the output, and do not widen the contract.
-- Missing necessity source: reject the candidate and name the absent request, environmental limit, authoritative policy, or measured evidence; do not invent support for it.
-- Insufficient available evidence: return `blocked` with the exact unproven part of the contract and the missing evidence; do not claim completion or perform a new check under this read-only authority.
-- Accidental scope admission: remove any candidate that does not fail the delete test and recompute the minimum set. Because this procedure makes no mutations, rollback is not required.
+- The request and whatever evidence already shows its current state.
+- Binding environmental limits or authoritative policies that constrain the outcome.
+- Existing measurements only. Do not take new measurements unless the delete test proves one is necessary.
+- Where the request is ambiguous and the inputs cannot resolve it, take the smallest interpretation consistent with the stated intent and record that choice openly.
 
-A partial classification may be returned only with unresolved items named; it is not a successful result unless the done predicate holds.
+## Paring the work down
 
-## Output
+1. Write the outcome and the minimum evidence that would prove it, before admitting any work. The contract exists once both are stated in writing.
+2. List only candidate actions that could close a stated outcome or proof gap. No action is necessary just because it is useful, conventional, safer, cleaner, or more thorough, so admit none by default.
+3. Run the delete test on each candidate: if deleting it would leave the outcome unmet or unproven, admit only its smallest reliable form. Otherwise reject it. Every candidate ends with an admit-or-reject decision and its test result.
+4. Admit a limit, threshold, retry, budget, abstraction, artifact, check, process, or follow-up only when its necessity comes from the request, the environment, authoritative policy, or measured evidence. Every admitted action names its source.
+5. Classify the admitted and rejected candidates without executing anything or changing any state. Never widen scope or invent evidence to cover a missing input.
+6. Stop as soon as the admitted actions and minimum proof satisfy the contract. Add no speculative follow-up work.
 
-A scope decision: outcome, minimum proof, admitted actions (each with its contract gap), rejected candidates (each with its delete-test result), and status (`sufficient`, `already done`, or `blocked`), ordered by the procedure steps that produced them.
+## When the classification cannot close
+
+- The request is ambiguous: bind the smallest interpretation consistent with stated intent, flag the ambiguity in the output, and do not widen the contract.
+- A candidate has no necessity source: reject it and name the missing request, environmental limit, policy, or evidence. Never invent support for it.
+- The available evidence cannot prove the contract: return `blocked` with the exact unproven part and the missing evidence. Do not claim completion, and do not run a new check under this read-only authority.
+- A candidate slipped in that fails the delete test: remove it and recompute the minimum set. Since this procedure mutates nothing, no rollback is needed.
+
+A partial classification is acceptable only with its unresolved items named. It counts as success only when the done condition above holds.
+
+## What to hand back
+
+A scope decision ordered by the steps that produced it: the outcome, the minimum proof, the admitted actions (each with the contract gap it closes), the rejected candidates (each with its delete-test result), and a status of `sufficient`, `already done`, or `blocked`.

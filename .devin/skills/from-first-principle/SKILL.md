@@ -5,42 +5,23 @@ description: 'Use when a user wants to rebuild a design, organization, or API fr
 
 # From first principle
 
-## Contract
+When the current shape of something has accumulated too much history to reason about, stop patching it and rebuild it from what it cannot exist without. You take a design, an organization, or an API, strip it down to its irreducible primitives, derive the structure those primitives force, and write the result as a local specification (including an honest diff against what exists today).
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User wants to rebuild a design, organization, or API from primitives. |
-| Authority | Reversible local: writes only one named local rebuild specification artifact; rollback is deleting the artifact. No remote mutation. |
-| Side effect | Writes a first-principles rebuild specification of the design, organization, or API to a local file. |
-| Done | Produces a rebuilt first-principles specification naming primitives, derived structure, and open assumptions. |
+This rebuilds from primitives; it does not strip an existing structure down. A perspective take on a question belongs to from-perspective. Restarting from a blank greenfield belongs to fromzero. Nothing here touches anything remote, and the existing target stays read-only throughout: the only thing you write is one named local rebuild specification, and rolling back means deleting that file.
 
-## Not for
+## What you start with
 
-- A perspective take on a question: use from-perspective.
-- Pruning an existing structure down to its primitives: this rebuilds from primitives, it does not strip down.
-- Restarting from a blank greenfield: use fromzero.
-- Remote, credential, publish, deploy, or irreversible changes.
+The target to rebuild (a design, an organization, or an API) with access to its current form for read-only comparison. Optionally, the user may insist on the primitives to start from; when they do not, you derive the primitives from the target itself.
 
-## Inputs
+## Rebuild in order
 
-Required: the target to rebuild (a design, an organization, or an API) and access to its current form for read-only comparison. Optional: the primitives the user insists on starting from; when absent, primitives are derived from the target itself.
+1. Name the target and say which of the three kinds it is. Move on once the target type is stated.
+2. Enumerate the irreducible primitives: the concepts, data, or operations the target cannot exist without, none of them derivable from something smaller inside this target. Move on once every primitive is listed and confirmed irreducible. If the target will not reduce to stated primitives, stop here and report which concept resists reduction, and never invent primitives to fill the gap.
+3. Derive the structure from those primitives alone, rejecting anything not forced by a primitive or a necessary composition of primitives. Move on once every surviving element traces back to a primitive or a composition.
+4. For each derived element, record the primitive or composition that forces it. Anything with no primitive basis is an open assumption, not a derivation, so label it as such and never present an underived element as primitive-forced.
+5. Write the rebuild specification to the local artifact: the enumerated primitives, the derived structure, each derivation step, and the open assumptions. If some section cannot be completed honestly, emit the artifact with the finished sections and the open assumptions listed; never plug a gap with a plausible but underived element.
+6. Diff the rebuilt structure against the existing target inside the same artifact, marking what changed and what was dropped as non-primitive.
 
-## Procedure
+## What you hand back
 
-1. Name the target and confirm whether it is a design, an organization, or an API. Done when: the target type is stated.
-2. Enumerate the irreducible primitives the target cannot exist without: concepts, data, or operations that are not themselves derivable from something smaller in this target. Done when: primitives are listed and each is confirmed irreducible.
-3. Derive the target's structure from those primitives only. Reject any element that is not forced by a primitive or a necessary composition of primitives. Done when: every derived element traces to a primitive or composition.
-4. For each derived element, record the primitive or composition that forces it. Elements with no primitive basis are open assumptions, not derived. Done when: each element is labeled derived or open-assumption with its basis.
-5. Write the rebuild specification to a local artifact: the enumerated primitives, the derived structure, each derivation step, and the open assumptions. Done when: the artifact is written with all four sections.
-6. Diff the rebuilt structure against the existing target, marking what changed and what was eliminated as non-primitive. Done when: the diff is recorded in the artifact.
-
-## Failure and recovery
-
-- Primitives not enumerable: stop and report that the target cannot be reduced to stated primitives, naming the missing concept. Do not invent primitives.
-- Element with no primitive basis: record it as an open assumption; never present an underived element as primitive-forced.
-- Partial result: emit the artifact with derived sections complete and open assumptions listed; never fill a gap with a plausible but underived element.
-- Non-mutation: the existing target is read-only throughout. Rollback is deleting the written artifact; no other state is touched.
-
-## Output
-
-A local first-principles rebuild specification artifact: enumerated primitives, derived structure, per-element derivation steps, change/elimination diff against the existing target, and open assumptions, in that order.
+The local rebuild specification, in this order: enumerated primitives, derived structure, per-element derivation steps, the change-and-elimination diff against the existing target, and the open assumptions.

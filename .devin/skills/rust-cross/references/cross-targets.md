@@ -1,4 +1,5 @@
 # Rust cross-compilation target reference
+Use this reference to pick a target triple, set up its toolchain, and handle the OpenSSL and glibc issues in cross-compilation.
 
 ## Full target triple format
 

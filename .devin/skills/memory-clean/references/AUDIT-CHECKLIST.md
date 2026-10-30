@@ -1,7 +1,7 @@
 # Memory audit checklist
 
 The audit covers 13 structural transforms and staleness detection.
-`audit-memory.sh` maps each finding to one of these categories.
+`audit-memory.py` maps each finding to one of these categories.
 
 ## Severity levels
 

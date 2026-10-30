@@ -1,8 +1,8 @@
 # Go Ecosystem & Tooling
 
-The `go` command *is* the build system, test runner, formatter-driver, dependency manager, and module-aware vet host: reach for an external tool only where the stdlib genuinely stops. The skill is knowing which third-party tools have become de-facto standards (`golangci-lint`, `gopls`, `delve`, `govulncheck`, `goreleaser`), which belong in **CI vs local**, and which are **legacy** (`gccgo`, GOPATH-mode, `golint`).
+The `go` command *is* the build system, test runner, formatter-driver, dependency manager, and module-aware vet host. Reach for an external tool only where the stdlib genuinely stops. Know which third-party tools have become de-facto standards (`golangci-lint`, `gopls`, `delve`, `govulncheck`, `goreleaser`). Sort the rest into **CI vs local**. Treat `gccgo`, GOPATH-mode, and `golint` as **legacy**.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes; gopls **v0.22.0**, golangci-lint **v2**, `dlv` **v1.26.1**, 2026-06. Version tags `[1.N]` mark the Go release a claim applies to. Tool versions are pinned where load-bearing.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes); gopls **v0.24.0**, golangci-lint **v2**, `dlv` **v1.27.2**. Version tags `[1.N]` mark the Go release a claim applies to. Tool versions are pinned where load-bearing.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -10,7 +10,7 @@ The `go` command *is* the build system, test runner, formatter-driver, dependenc
 - `go tool` [1.24] records developer tools as `tool` directives in `go.mod`: version-pinned, reproducible, no global `go install`. This replaces the `tools.go` blank-import hack. (Mechanics: [modules-and-dependencies.md](modules-and-dependencies.md#1-gomod-anatomy).)
 - golangci-lint is v2 now. Config requires `version: "2"`; **formatters moved to their own `formatters:` block** (gofumpt/goimports/gci/golines are no longer "linters"). A v1 `.golangci.yml` will not run unmodified: `golangci-lint migrate` rewrites it.
 - gopls has a built-in MCP server [verify: gopls `mcp` mode, v0.21+]: agents drive `go/definition`, `go/references`, diagnostics over MCP instead of shelling out to `grep`. See [mcp-and-agents.md](mcp-and-agents.md#gopls-mcp).
-- The `modernize` analyzer auto-rewrites old idioms (`interface{}`→`any`, manual min/max, `for i:=0;i<n` →range-over-int) and is folding into **`go fix`** [1.26]; it ships in gopls and as a golangci-lint linter (`modernize`).
+- The `modernize` analyzer auto-rewrites old idioms (`interface{}`→`any`, manual min/max, `for i:=0;i<n` →range-over-int) and now lives in **`go fix`** [1.26], which gained more modernizers in 1.27; it still ships in gopls and as a golangci-lint linter (`modernize`).
 - Telemetry default is `local`, not off [1.23]. Counters are collected on-disk locally; *uploading* to telemetry.go.dev is strictly opt-in (`go telemetry on`). `gccgo` and GOPATH mode are legacy: assume gc + modules.
 
 ## Table of Contents
@@ -47,7 +47,7 @@ The single binary subsumes what is five separate tools in other ecosystems. Know
 | Command | What it does | Note |
 |---|---|---|
 | `go build` / `go run` | compile / compile-and-run | `-race`, `-cover`, `-pgo=auto` [1.21] (auto-uses `default.pgo`), `-ldflags="-s -w"` to strip |
-| `go test` | run tests + benchmarks + examples | **runs `go vet` first** by default; `-race`, `-fuzz`, `-bench`, `-cover`, `-shuffle=on` |
+| `go test` | run tests + benchmarks + examples | **runs `go vet` first** by default (incl. the `stdversion` check [1.27]); `-race`, `-fuzz`, `-bench`, `-cover`, `-shuffle=on` |
 | `go vet` | bundled correctness analyzers | printf, struct tags, loopclosure, `lostcancel`, `slog` kv pairs [1.22] |
 | `go mod` | module/dependency management | `tidy`, `download`, `verify`, `why`, `graph`, `edit` |
 | `go work` | multi-module workspaces [1.18] | `go.work` for local cross-module dev without `replace` |
@@ -88,7 +88,7 @@ Traps: `go env -w` does **not** override a real environment variable already set
 
 ## gopls: the language server {#gopls}
 
-`gopls` (v0.22.0) is the official LSP server, maintained by the Go team: it powers completion, go-to-definition, refactoring, and inline diagnostics in every editor. It is **not** something you invoke directly; your editor manages it. Install/update with `go install golang.org/x/tools/gopls@latest`.
+`gopls` (v0.24.0) is the official LSP server, maintained by the Go team: it powers completion, go-to-definition, refactoring, and inline diagnostics in every editor. It is **not** something you invoke directly; your editor manages it. Install/update with `go install golang.org/x/tools/gopls@latest`.
 
 - It runs analyzers live: the same `vet` checks plus gopls-only ones (`unusedparams`, `fillstruct`, `unusedfunc`, `modernize`). Diagnostics you see in-editor are often *ahead* of CI.
 - MCP mode [verify]: recent gopls exposes its index over the Model Context Protocol so an agent can ask for definitions/references/diagnostics structurally instead of regex-grepping a tree. This is the right substrate for Go-aware agents: details and setup in [mcp-and-agents.md](mcp-and-agents.md#gopls-mcp).
@@ -114,7 +114,7 @@ gofmt -l .          # list files that aren't formatted (CI gate: must be empty)
 gofmt -w .          # rewrite in place
 ```
 
-DO pick gofumpt for new projects (it is gofmt-compatible, just stricter) and run it via golangci-lint's `formatters` block so it's one config. **DON'T** add formatting *linters* that fight the formatter, hand-format, or argue line length in review: `gofmt`/`gofumpt` win by construction. Style *rationale* (naming, declaration grouping, doc comments: the parts a formatter can't enforce) is synthesized in [style-synthesis.md](style-synthesis.md).
+Pick gofumpt for new projects (it is gofmt-compatible, just stricter) and run it via golangci-lint's `formatters` block so it's one config. Don't add formatting *linters* that fight the formatter, hand-format, or argue line length in review: `gofmt`/`gofumpt` win by construction. Style *rationale* (naming, declaration grouping, doc comments: the parts a formatter can't enforce) is synthesized in [style-synthesis.md](style-synthesis.md).
 
 ---
 
@@ -178,13 +178,13 @@ Pin the golangci-lint version in CI: its default linter set evolves between rele
 go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest -fix ./...
 ```
 
-The Go team is folding the modernizer suite into **`go fix`** [1.26] (issue 71859), so `go fix ./...` will become the front door and the standalone command is on its way out. Until then, run it via gopls (editor "quick fix"), the standalone command above, or the `modernize` linter in golangci-lint. **DON'T** run `-fix` on a dirty working tree: review the diff; an aggressive rewrite can touch hundreds of files at once.
+The modernizer suite now lives in **`go fix`** [1.26] (issue 71859); [1.27] added the `atomictypes`, `embedlit`, `slicesbackward`, and `unsafefuncs` modernizers, removed `fmtappendf`, and renamed `waitgroup` to `waitgroupgo`. `go fix ./...` is the front door; you can also run fixes via gopls (editor "quick fix"), the standalone command above, or the `modernize` linter in golangci-lint. **DON'T** run `-fix` on a dirty working tree: review the diff; an aggressive rewrite can touch hundreds of files at once.
 
 ---
 
 ## Debugging with `Delve` {#debugging}
 
-`Delve` (`dlv`, v1.26.1) is the Go debugger: `gdb` does not understand goroutines, the Go runtime, or modern DWARF and is not recommended. `Delve` speaks DAP, so it backs the debugger in every major editor.
+`Delve` (`dlv`, v1.27.2) is the Go debugger: `gdb` does not understand goroutines, the Go runtime, or modern DWARF and is not recommended. `Delve` speaks DAP, so it backs the debugger in every major editor.
 
 ```bash
 dlv debug ./cmd/server          # build with -gcflags="all=-N -l" and start a session
@@ -359,7 +359,7 @@ The single highest-signal distinction in Go tooling: **which tools gate merges (
 - run: govulncheck ./...
 ```
 
-DON'T put interactive tools (gopls, dlv, air) in CI, and **DON'T** leave golangci-lint unpinned: its default linters drift and break unchanged code. **DO** cache `GOMODCACHE` and `GOCACHE` (massive speedup) and run independent jobs in parallel.
+Keep interactive tools (gopls, dlv, air) out of CI. Pin golangci-lint: its default linters drift and break unchanged code. Cache `GOMODCACHE` and `GOCACHE` for a large speedup and run independent jobs in parallel.
 
 ---
 
@@ -368,7 +368,7 @@ DON'T put interactive tools (gopls, dlv, air) in CI, and **DON'T** leave golangc
 Multi-stage build + a `CGO_ENABLED=0` static binary on a distroless/scratch base is the canonical Go container: sub-20 MB images, minimal attack surface.
 
 ```dockerfile
-FROM golang:1.26-bookworm AS build
+FROM golang:1.27-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -380,7 +380,7 @@ COPY --from=build /out/server /server
 ENTRYPOINT ["/server"]                    # vector form — distroless has no shell
 ```
 
-Key points: `CGO_ENABLED=0` → fully static (required for `scratch`/distroless); `-ldflags="-s -w"` strips debug info (smaller binary, but breaks `Delve` symbol resolution: don't ship stripped if you debug in prod); **pin the Go image tag** (`golang:1.26-bookworm`, never `:latest`) for reproducible builds; copy only the binary into the runtime stage. Cross-compile/build internals: [platform-and-build.md](platform-and-build.md#docker).
+Key points: `CGO_ENABLED=0` → fully static (required for `scratch`/distroless); `-ldflags="-s -w"` strips debug info (smaller binary, but breaks `Delve` symbol resolution: don't ship stripped if you debug in prod); **pin the Go image tag** (`golang:1.27-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9`, never `:latest`) for reproducible builds; copy only the binary into the runtime stage. Cross-compile/build internals: [platform-and-build.md](platform-and-build.md#docker).
 
 ---
 
@@ -417,13 +417,13 @@ These cover the judgment a formatter can't enforce (naming, package design, when
 | Tool | Status [2026] | Use when |
 |---|---|---|
 | `go` command (`build`/`test`/`vet`/`mod`/`work`/`tool`) | **Default** | Always: it's the platform |
-| `gopls` v0.22.x | **Default** (Go team) | Editor LSP; agent MCP backend |
+| `gopls` v0.24.0 | **Default** (Go team) | Editor LSP; agent MCP backend |
 | `golangci-lint` v2 | **De-facto standard** | CI lint gate (pin the version) |
 | `staticcheck` | **Default**, bundled in golangci-lint | Deep static analysis (incl. ex-gosimple/stylecheck) |
 | `gofumpt` | Active, stricter gofmt | New projects' formatter (via golangci-lint `formatters`) |
-| `modernize` | Active; folding into `go fix` [1.26] | Auto-migrate to modern idioms |
+| `modernize` | Active; folded into `go fix` [1.26, more in 1.27] | Auto-migrate to modern idioms |
 | `govulncheck` | **Default** (Go team) | CVE gate, call-graph aware |
-| `delve` (dlv) v1.26.x | **Default** debugger | Interactive debugging; `gdb` is not recommended |
+| `delve` (dlv) v1.27.2 | **Default** debugger | Interactive debugging; `gdb` is not recommended |
 | `go.uber.org/mock` (mockgen) | Active | Interface mocks (golang/mock is archived) |
 | `sqlc` / `stringer` | Active | SQL→Go / enum `String()` codegen |
 | `benchstat` | **Default** (Go team) | Statistical benchmark comparison |
@@ -446,9 +446,9 @@ These cover the judgment a formatter can't enforce (naming, package design, when
 | **1.24** | **`go tool` directive** in `go.mod` (replaces `tools.go`); `go get -tool`; `testing/synctest` experiment; FIPS toolchain mode |
 | **1.25** | `go vet` flags `wg.Add` in new goroutine; `go.mod` `ignore` directive; flight recorder; container-aware `GOMAXPROCS` default |
 | **1.26** | **`go fix` modernizers** (auto-migrate idioms incl. `errors.As`→`AsType`); `errors.AsType[E]`; `fmt.Errorf` alloc-parity with `errors.New`; Green Tea GC default |
-| **1.27 (RC)** | Generic methods; `asynctimerchan` GODEBUG removed; `encoding/json/v2` GA. Treat as draft until GA (~Aug 2026). |
+| **1.27** | **`stdversion` vet check runs by default in `go test`**; `go fix` gains modernizers (`atomictypes`, `embedlit`, `slicesbackward`, `unsafefuncs`; `fmtappendf` removed, `waitgroup` renamed `waitgroupgo`); generic methods shipped; `asynctimerchan` GODEBUG removed permanently (the `go` command still accepts it in `godebug`/`//go:debug` entries set to its final default); `encoding/json/v2` + `encoding/json/jsontext` stable, v1 backed by the v2 implementation (`GOEXPERIMENT=nojsonv2` opt-out). GA 2026-08-19. |
 
-(golangci-lint **v2**, gopls **v0.22.x**, `dlv` **v1.26.x** are independent of the Go release cycle: pin them explicitly.)
+(golangci-lint **v2**, gopls **v0.24.0**, `dlv` **v1.27.2** are independent of the Go release cycle: pin them explicitly.)
 
 ---
 
@@ -483,8 +483,8 @@ These cover the judgment a formatter can't enforce (naming, package design, when
 
 ## Sources {#sources}
 - go.dev/doc/go1.22 to go1.27 release notes; go.dev/ref/mod (`tool` directive); go.dev/doc/telemetry; go.dev/doc/modules/layout
-- pkg.go.dev/golang.org/x/tools/gopls (v0.22.0; `internal/mcp`, `internal/analysis/modernize`); golang.org/x/tools/go/analysis/passes/modernize (go.dev/issue/71859: `go fix`)
+- pkg.go.dev/golang.org/x/tools/gopls@v0.24.0 (`internal/mcp`, `internal/analysis/modernize`); golang.org/x/tools/go/analysis/passes/modernize (go.dev/issue/71859: `go fix`)
 - golangci-lint.run/docs (v2 config: `version: "2"`, `linters`/`formatters` split, `migrate`); staticcheck.dev
-- pkg.go.dev/github.com/`go-delve/delve` (v1.26.1); golang.org/x/vuln/cmd/govulncheck; golang.org/x/perf/cmd/benchstat
+- Debugger package documentation: `https://pkg.go.dev/github.com/go-delve/delve@v1.27.2`; golang.org/x/vuln/cmd/govulncheck; golang.org/x/perf/cmd/benchstat
 - goreleaser.com; buf.build/docs; go.uber.org/mock; sqlc.dev; air-verse/air; knadh/koanf
 - Google Go Style Guide; Uber Go Style Guide; go.dev/doc/effective_go

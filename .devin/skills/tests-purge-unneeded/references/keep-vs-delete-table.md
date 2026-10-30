@@ -1,54 +1,62 @@
 # Keep vs. delete: language-agnostic decision rubric
 
-Always ask: **what real bug, in the production code, would this test catch?** If you cannot name one, the test does not earn its keep.
+Always ask what real bug in the production code this test would catch. If no answer survives reading the code, the test does not earn its keep. Aggression means investigating the uncertain candidate, not deleting it by assumption.
 
-## Decision table
+Critical scoping rule: the compiler proves types and layouts, not semantic mapping. A constructor that takes `(id, name)` and assigns `self.id = id` and `self.name = name` with no other logic is direct pass-through and the compiler covers it. A constructor that validates, normalizes, defaults, transforms, or deserializes runs real logic; the test of that logic is a real-bug test no matter how trivial the result type looks. Read every Delete row below as conditional on the operation being direct, no-logic pass-through.
 
-**Critical scoping rule**, the compiler proves *types and layouts*, not *semantic mapping*. A constructor that takes `(id, name)` and assigns `self.id = id; self.name = name` is direct pass-through and the compiler covers it. A constructor that *validates*, *normalizes*, *defaults*, *transforms*, or *deserializes* runs real logic, the test of that logic is a real-bug test no matter how trivial the result type looks. Read every "Delete" row below as **conditional on the operation being direct, no-logic pass-through**.
+## Decision table with matching proof class
 
-| Test pattern | Static-typed lang (Rust/TS-strict/Kotlin/Java/C++/OCaml) | Dynamic lang (Python/JS/Ruby) |
-|---|---|---|
-| Constructor that *only* assigns parameters to fields, no logic | **Delete**, compiler proves the assignment shape; if no validation/transform/default, no behavior to test | **Keep**, boundary shape test, runtime can drift silently |
-| Constructor that validates, normalizes, defaults, or transforms | **Keep** : testing the *logic*, not the shape | **Keep** |
-| Identity passthrough (`f(x) == x` for `f` claimed identity, no transform) | **Delete**, function is dead code or test describes signature | **Delete**, same reason; test the transform if `f` transforms |
-| Function returns the type its signature claims (no logic) | **Delete** : compiler enforces | **Keep at I/O boundaries**; otherwise consider `mypy`/`pyright` strict mode |
-| Mock returns fixture, assert returns fixture | **Delete** : testing the mock | **Delete**, same |
-| `#[derive(Default)]` / generated default behavior | **Delete**, derived code is compiler-tested | N/A |
-| **Hand-written** custom `Default` / factory with non-obvious logic | **Keep** : testing the logic | **Keep** |
-| Direct field-copy assembly (`Foo { id: src.id, name: src.name }`) with no logic | **Delete** : compiler proves layout | **Keep if dynamic field manipulation is plausible** |
-| Assembly with logic : mapping, filtering, defaulting fields | **Keep** : testing the logic | **Keep** |
-| Deserialization / parsing, `from_str`, `serde`, `Zod`, `pydantic` | **Keep**, runtime boundary, type system does not check input | **Keep** |
-| Re-export forwarding (`pub use foo::bar`) | **Delete** : module system enforces | **Delete** : typically trivial |
-| ─── boundary contracts ─── | | |
-| Parser/deserializer rejects malformed input | **Keep** : runtime boundary | **Keep** |
-| Error-variant semantics (which input produces which error) | **Keep** : semantic, not structural | **Keep** |
-| HTTP status codes / response shape | **Keep** : protocol contract | **Keep** |
-| Authz/authn enforcement (401/403 paths) | **Keep, security invariant** | **Keep, security invariant** |
-| Input validation (length, format, range) | **Keep** : boundary | **Keep** |
-| Rate limiting / throttling | **Keep** | **Keep** |
-| Real DB transaction commit + rollback | **Keep** : real-I/O integration | **Keep** |
-| File I/O : paths, permissions, atomic writes | **Keep**, real-I/O integration | **Keep** |
-| Network call retries, timeouts, partial failures | **Keep**, error semantics | **Keep** |
-| Concurrency : channel close, deadlock, race | **Keep** : type system does not prove semantics | **Keep** |
-| `unsafe` block contract | **Keep : proudly** : exactly where compiler stops helping | N/A |
-| Property-based test (random inputs validate invariant) | **Keep : high signal** | **Keep : high signal** |
-| Mutation-testing-validated test (kills mutants) | **Keep, proven load-bearing** | **Keep, proven load-bearing** |
+| Test pattern | Static-typed (Rust, TS-strict, Kotlin, Java, C++, OCaml) | Dynamic (Python, JS, Ruby) | Proof class when deleted |
+|---|---|---|---|
+| Constructor that only assigns parameters, no logic | Delete | Keep as boundary shape, runtime can drift | A compiler guarantee (static); C subsumption if dynamic and a stronger shape test survives |
+| Constructor that validates, normalizes, defaults, transforms | Keep, testing logic | Keep | No deletion; if duplicated, C subsumption to the stronger test |
+| Identity passthrough (`f(x) == x`, no transform) | Delete; function is dead code, inline it and the test deletes itself | Delete; test the transform if `f` transforms | B demonstrated tautology |
+| Function returns the declared type, no logic | Delete | Keep at I/O boundaries; otherwise consider strict typing first | A compiler guarantee (static only) |
+| Mock returns fixture, assert returns fixture | Delete | Delete | B demonstrated tautology |
+| Derived default or generated default | Delete | N/A | A compiler or generator guarantee |
+| Hand-written custom default or factory with non-obvious logic | Keep | Keep | No deletion; if duplicated, C subsumption |
+| Direct field-copy assembly, no logic | Delete | Keep if dynamic field manipulation is plausible | A compiler guarantee (static only) |
+| Assembly with mapping, filtering, defaulting | Keep | Keep | No deletion; if duplicated, C subsumption |
+| Deserialization and parsing (`from_str`, `serde`, `Zod`, `pydantic`) | Keep, runtime boundary | Keep | No deletion |
+| Re-export forwarding (`pub use foo::bar`) | Delete | Delete | A module-system guarantee |
+| Parser rejects malformed input | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Error-variant semantics | Keep | Keep | No deletion except by C with case-by-case mapping |
+| HTTP status and response shape | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Authn and authz enforcement (401 and 403 paths) | Keep, security invariant | Keep, security invariant | No deletion except by C proving the same attack path is covered |
+| Input validation (length, format, range) | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Rate limiting and throttling | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Real DB transaction commit plus rollback | Keep | Keep | No deletion except by C with case-by-case mapping |
+| File I/O paths, permissions, atomic writes | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Network retries, timeouts, partial failures | Keep | Keep | No deletion except by C with case-by-case mapping |
+| Concurrency close, deadlock, race semantics | Keep | Keep | No deletion except by C with case-by-case mapping |
+| `unsafe` block contract | Keep | N/A | No deletion |
+| Property-based invariant | Keep, high signal | Keep, high signal | No deletion |
+| Mutation-validated load-bearing test | Keep | Keep | No deletion |
+
+Protected rows protect meaningful coverage, not every file. A redundant protected test may be removed only when surviving coverage demonstrably preserves its required cases and detects the relevant defects. One missed mutant never proves worthlessness; one killed mutant never proves a whole file is load-bearing.
+
+## Proof classes
+
+| Class | When it settles deletion |
+|---|---|
+| A compiler guarantee | The static checker proves the property. Name the guarantee and the language reference. No production edit. |
+| B demonstrated tautology | The test outcome follows from the test itself. Show why no production change except deleting the test changes the outcome. No production edit. |
+| C proved subsumption | Surviving tests preserve every required case. Name each survivor and map each case. Run the survivors; they must pass. |
+| D meaningful mutation | The named bug the test claims to catch is injected, the test is run, the mutation is reverted immediately. Use only when A through C do not settle the case. |
 
 ## Tiebreakers
 
-When the table is ambiguous:
+1. Can a bug be named that the test catches? If yes after reading code, select the matching class. If no, keep pending human review.
+2. Does the test fail only when the test itself changes? Then it pins the test, not behavior; class B candidate.
+3. Is the test the only cover for this behavior? Keep it; prefer writing a stronger test over deleting the only one.
+4. Is the path security-sensitive? Keep even when redundant unless class C proves the same attack path is covered.
 
-1. **Can you inject a bug that the test catches?** If yes, keep. If no, delete.
-2. **Does the test fail when you change the production code in a wrong way?** If only when you change the test, delete.
-3. **Is the test the only thing covering this behavior?** If yes, keep it, but prefer a *better* test that catches more.
-4. **Is the test in a security-sensitive path?** Keep, even if redundant. Defense in depth has a real cost-benefit.
-
-## Anti-patterns to recognize and delete
+## Anti-patterns to delete with class B
 
 | Anti-pattern | Why it is worthless |
 |---|---|
-| Tautology tests | `assert isinstance(x, MyClass)` immediately after `x = MyClass()` |
-| Implementation tests | Asserting which private methods got called, not what the public behavior produced |
-| Coverage-driven tests | Written to hit a coverage line, not to catch a bug |
-| Snapshot tests of trivial output | Approval tests of `str(obj)` or rendered HTML where any deliberate change requires updating the snapshot anyway |
-| "Just in case" tests | Written without a named failure mode they would catch |
+| Tautology tests | Asserting a value immediately after constructing it with that value |
+| Implementation tests | Asserting which private methods ran instead of what public behavior resulted |
+| Coverage-driven tests | Written to hit a line, not to catch a bug |
+| Snapshot or saved-output pins | The verdict repeats a saved output instead of checking an independent property; any deliberate change requires updating the pin anyway |
+| Just-in-case tests | Written without a named failure mode they would catch |

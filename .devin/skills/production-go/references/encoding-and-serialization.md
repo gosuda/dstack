@@ -1,15 +1,15 @@
 # Encoding and Serialization
 
-JSON dominates, but its defaults betray you: a `nil` slice becomes `null`, every `int64` over 2^53 silently loses precision through `float64`, and field matching is case-*insensitive*. Master the traps in `encoding/json`, know when `omitzero` [1.24] beats `omitempty`, reach for `Decoder`/`Encoder` to stream, and understand the `encoding/json/v2` [1.26, `GOEXPERIMENT=jsonv2`] redesign that fixes the defaults: then pick binary (protobuf/CBOR/gob) only when JSON's cost is measured, not assumed.
+JSON dominates, but its defaults betray you. A `nil` slice becomes `null`. Every `int64` over 2^53 silently loses precision through `float64`. Field matching is case-*insensitive*. Master the traps in `encoding/json`. Know when `omitzero` [1.24] beats `omitempty`. Reach for `Decoder`/`Encoder` to stream. Understand the `encoding/json/v2` [1.27, standard] redesign that fixes the defaults. Then pick binary (protobuf/CBOR/gob) only when JSON's cost is measured, not assumed.
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. `[verify]` marks a claim to confirm against the final release.
+> Verified against the final Go **1.27** release notes (go1.27.0, 2026-08-19; re-checked 2026-10). Version tags `[1.N]` mark the release a claim applies to.
 
 ## TL;DR: the modern deltas (read first)
 
 - `omitzero` [1.24] is the fix for `omitempty`'s broken cases. `omitempty` can't omit a zero `time.Time`, a zero-valued struct, or `0`/`false` you want to keep. `omitzero` omits on the Go zero value (and honors a `IsZero() bool` method). They're independent: you can set both.
 - `encoding/json` numbers decode to `float64` into `any`: silent precision loss above 2^53. Decode into a typed `int64` field, or `Decoder.UseNumber()` to get a lossless `json.Number` (a `string`).
 - JSON member matching is case-*insensitive* in v1 (an exact match wins over an inexact one, but `{"id"}` still fills a `ID` field). v2 makes it case-*sensitive* by default. This is a real interop/security difference.
-- `encoding/json/v2` [1.26, `GOEXPERIMENT=jsonv2`] flips the bad defaults (nil slice→`[]`, nil map→`{}`, duplicate names *rejected*, invalid UTF-8 *rejected*, case-*sensitive*) and adds streaming `MarshalWrite`/`UnmarshalRead` + a `jsontext` tokenizer. Still experimental: gate behind a build tag, never in published modules. [verify: GA target.]
+- `encoding/json/v2` [1.27, standard] flips the bad defaults (nil slice→`[]`, nil map→`{}`, duplicate names *rejected*, invalid UTF-8 *rejected*, case-*sensitive*) and adds streaming `MarshalWrite`/`UnmarshalRead` + a `jsontext` tokenizer. Standard package: safe in published modules; use `GOEXPERIMENT=nojsonv2` only as the compatibility opt-out.
 - `encoding.TextAppender`/`BinaryAppender` [1.24] append into a caller's buffer (alloc-free); if you also implement Marshaler, `MarshalText()` must equal `AppendText(nil)`.
 - `new(expr)` [1.26] makes optional pointer fields ergonomic: `Age: new(yearsSince(born))` instead of a throwaway local + `&`.
 - `gob` is Go-only and self-describing: fine for `net/rpc` / same-binary caches, a foot-gun for durable storage or cross-language.
@@ -21,7 +21,7 @@ JSON dominates, but its defaults betray you: a `nil` slice becomes `null`, every
 4. [Numbers, precision, json.Number & RawMessage](#numbers)
 5. [Custom marshalers, time & []byte](#custom-marshal)
 6. [Streaming with Decoder / Encoder](#streaming)
-7. [JSON v2 [1.26, experimental]](#json-v2)
+7. [JSON v2 [1.27, standard]](#json-v2)
 8. [encoding.TextAppender / BinaryAppender [1.24]](#appender)
 9. [Protocol Buffers](#protobuf)
 10. [MessagePack & CBOR](#msgpack)
@@ -210,7 +210,7 @@ enc := json.NewEncoder(w)
 enc.SetEscapeHTML(false) // emit < > & literally
 ```
 
-`json.Marshal` (the function) always HTML-escapes; only `Encoder` can disable it. `Encoder.Encode` also **appends a trailing newline**: a frequent surprise in golden-file tests and byte comparisons.
+`json.Marshal` (the function) always HTML-escapes; only `Encoder` can disable it. `Encoder.Encode` also **appends a trailing newline**: a frequent surprise in byte comparisons. Compare parsed values, or assert the trailing-newline wire invariant explicitly; saved outputs are not proof.
 
 ---
 
@@ -241,12 +241,13 @@ Trap: one `Decode` reads *one* value and stops at the next token boundary: it do
 
 ---
 
-## JSON v2 [1.26, experimental] {#json-v2}
+## JSON v2 [1.27, standard] {#json-v2}
 
-`encoding/json/v2` is a ground-up redesign (RFC 8259) fixing v1's worst defaults and adding true streaming. It exists **only** with `GOEXPERIMENT=jsonv2`; the overview states it is experimental and **not** under the Go 1 compatibility promise. It ships with `encoding/json/jsontext`, a low-level format-only tokenizer.
+`encoding/json/v2` is a ground-up redesign (RFC 8259) fixing v1's worst defaults and adding true streaming. It is standard in Go 1.27 (with `encoding/json/jsontext`); the v1 `encoding/json` API is retained and is backed by the v2 implementation. It ships with `encoding/json/jsontext`, a low-level format-only tokenizer.
 
 ```bash
-GOEXPERIMENT=jsonv2 go build ./...
+go build ./...                        # 1.27+: json/v2 + jsontext are standard, no GOEXPERIMENT needed
+GOEXPERIMENT=nojsonv2 go build ./...  # compatibility opt-out: restores the original v1 implementation
 ```
 
 Default behavior changes from v1 (all toggleable via `Options`):
@@ -271,28 +272,27 @@ func UnmarshalRead(in io.Reader, out any, opts ...Options) error
 func UnmarshalDecode(in *jsontext.Decoder, out any, opts ...Options) error
 ```
 
-True streaming custom (un)marshalers: replace v1's `MarshalJSON`/`UnmarshalJSON` (which forced a full buffer) with the `jsontext` tokenizer:
+Streaming custom marshalers use the `jsontext` tokenizer through these interfaces:
 
 ```go
-import (
-    jsonv2 "encoding/json/v2"
-    "encoding/json/jsontext"
-)
+type MarshalerTo interface {
+    MarshalJSONTo(*jsontext.Encoder) error
+}
 
-// Verified interface names: MarshalerTo.MarshalJSONTo / UnmarshalerFrom.UnmarshalJSONFrom.
-func (t MyType) MarshalJSONTo(enc *jsontext.Encoder) error   { /* write tokens */ return nil }
-func (t *MyType) UnmarshalJSONFrom(dec *jsontext.Decoder) error { /* read tokens */ return nil }
+type UnmarshalerFrom interface {
+    UnmarshalJSONFrom(*jsontext.Decoder) error
+}
 ```
 
-Useful options: `json.Deterministic(true)` (sorted map keys → reproducible/signable output), `json.OmitZeroStructFields(true)`, `json.StringifyNumbers(true)`, and `json.WithMarshalers(...)`/`WithUnmarshalers(...)` to register type behavior *without* modifying the type; combine via `json.JoinOptions(...)`.
+`json.Deterministic(true)` sorts map keys; it is not a canonical signing format. `json.OmitZeroStructFields(true)` and `json.StringifyNumbers(true)` control their named representations. Use `json.WithMarshalers` or `json.WithUnmarshalers` for caller-supplied type behavior, and `json.JoinOptions` to combine options.
 
-Status & guidance: experimental in 1.26: **do not** import from a published module or rely on it in production. Use a feature-flagged/staging build to measure the perf win and flush out behavioral diffs (nil collections, case-sensitivity, duplicate-key rejection) before GA. The dev repo `github.com/go-json-experiment/json` mirrors the API but **must not** appear in published `go.mod`. [verify: GA target; whether v1 is internally reimplemented on v2: the v2 doc does not assert this, treat as unconfirmed.]
+Status & guidance: the pre-Go-1.27 experimental restriction no longer applies; Go 1.27 makes encoding/json/v2 and encoding/json/jsontext standard packages (GOEXPERIMENT=nojsonv2 is the opt-out).
 
 ---
 
 ## encoding.TextAppender / BinaryAppender [1.24] {#appender}
 
-Append-style interfaces [1.24] let a type serialize into a caller-owned buffer with no allocation:
+Append-style interfaces [1.24] reuse a caller-owned buffer. Appending can still allocate when the buffer lacks capacity.
 
 ```go
 type TextAppender interface   { AppendText(b []byte) ([]byte, error) }
@@ -308,7 +308,7 @@ func (id ID) AppendText(b []byte) ([]byte, error) {
 func (id ID) MarshalText() ([]byte, error) { return id.AppendText(nil) }
 ```
 
-Many stdlib types (`time.Time`, `net.IP`, `netip.Addr`) implement these, so buffering many values avoids per-value allocations. `encoding/json`, `gob`, and `xml` all detect the marshaler interfaces: one implementation serves multiple encodings.
+Many standard-library types, including `time.Time`, `net.IP`, and `netip.Addr`, implement append-style methods. Use the interface the encoder actually supports: JSON and XML have text-marshaler paths, while gob uses `GobEncoder` or `BinaryMarshaler`. A `MarshalText` implementation alone does not serve all three.
 
 ---
 
@@ -476,7 +476,7 @@ Import: `encoding/xml`: use only when forced (SOAP, SAML, RSS/Atom, legacy). Tag
 
 ## High-performance JSON (sonic/jsoniter) {#fast-json}
 
-Before reaching for a third-party JSON library, try **`GOEXPERIMENT=jsonv2`**: it's stdlib, no new dependency, and closes much of the historical gap. If you still need more:
+Before reaching for a third-party JSON library, try **`encoding/json/v2`** (standard since 1.27): it's stdlib, no new dependency, and closes much of the historical gap. If you still need more:
 
 | Library | Trade-off |
 |---------|-----------|
@@ -484,7 +484,7 @@ Before reaching for a third-party JSON library, try **`GOEXPERIMENT=jsonv2`**: i
 | `github.com/json-iterator/go` | Near-drop-in `ConfigCompatibleWithStandardLibrary`; mature but **lightly maintained** now. Modest speedup over v1; v2/sonic often better. |
 | `github.com/goccy/go-json` | Drop-in API, strong all-rounder, pure Go (portable). |
 
-Trade-offs: (1) **compatibility**: they aim to match `encoding/json` but differ in error text/edge cases, so a contract test suite is mandatory before swapping. (2) **portability**: sonic's fast path is arch-gated. (3) **security**: parsers on untrusted input must be actively maintained; prefer stdlib v2 there. (4) **measure**: profile that JSON is the bottleneck; `Decoder`/`Encoder` + `sync.Pool` reuse often beats a library swap.
+Trade-offs: (1) **compatibility**: they aim to match `encoding/json` but differ in error text/edge cases, so semantic equivalence checks are mandatory before swapping: round-trip parse equality and schema-validity checks over representative payloads, never saved-output comparison. (2) **portability**: sonic's fast path is arch-gated. (3) **security**: parsers on untrusted input must be actively maintained; prefer stdlib v2 there. (4) **measure**: profile that JSON is the bottleneck; `Decoder`/`Encoder` + `sync.Pool` reuse often beats a library swap.
 
 ---
 
@@ -509,7 +509,7 @@ Rules: protobuf is the gold standard: never reuse a retired field number (`reser
 | Library | Status [2026] | Use when |
 |---------|---------------|----------|
 | stdlib `encoding/json` (v1) | **Default** | Almost all JSON today |
-| `encoding/json/v2` + `jsontext` | **Experimental** [1.26, `GOEXPERIMENT=jsonv2`] | New code via build flag; better defaults + streaming; not in published modules |
+| `encoding/json/v2` + `jsontext` | **Standard** [1.27] | Usable in published modules; v1 API retained; nojsonv2 opt-out |
 | `google.golang.org/protobuf` | **Default** for protobuf | gRPC, schemas, polyglot |
 | `github.com/golang/protobuf`, `gogo/protobuf` | **Deprecated** | Never in new code |
 | `github.com/fxamacker/cbor/v2` | Active, security-reviewed | CBOR (RFC 8949), COSE/WebAuthn, deterministic encoding |
@@ -532,7 +532,7 @@ Rules: protobuf is the gold standard: never reuse a retired field number (`reser
 | **1.24** | **`omitzero` struct tag**; **`encoding.TextAppender`/`BinaryAppender`** |
 | **1.25** | `encoding/json/v2` available as an experiment (early form) |
 | **1.26** | **`encoding/json/v2` + `encoding/json/jsontext`** under `GOEXPERIMENT=jsonv2` (experimental); `new(expr)` aids optional pointer fields; (`slog.NewMultiHandler`, `NotifyContext` cause: adjacent) |
-| **1.27 (RC)** | json/v2 progress toward GA [verify]; generic methods (enable generic marshaler helpers). Treat as draft until GA. |
+| **1.27** | json/v2 + jsontext **standard** (v1 re-backed by v2; `nojsonv2` opt-out; error text may differ); generic methods shipped (interface methods may not declare type params nor be implemented by generic methods). |
 
 ---
 
@@ -541,13 +541,13 @@ Rules: protobuf is the gold standard: never reuse a retired field number (`reser
 1. `omitempty` on a `time.Time`/struct to omit its zero value: does nothing; use **`omitzero`** [1.24].
 2. Decoding numbers into `any`/`map[string]any`: `int64 > 2^53` corrupted via `float64`; use a typed field or `UseNumber()`.
 3. Assuming v1 member matching is case-sensitive: it's case-**insensitive** (v2 flips this); and assuming `nil` slice/map → `[]`/`{}` (it's `null`).
-4. Claiming `json.Marshal` can disable HTML escaping: only `Encoder.SetEscapeHTML(false)` can; and forgetting `Encoder.Encode` appends a trailing newline (breaks golden tests).
+4. Claiming `json.Marshal` can disable HTML escaping: only `Encoder.SetEscapeHTML(false)` can; and forgetting `Encoder.Encode` appends a trailing newline (breaks byte-for-byte comparison; compare parsed values instead).
 5. `UnmarshalJSON` on a value receiver: must be `*T` and addressable. Treating `[]byte` fields as number arrays: they're **base64**.
 6. Comparing protobuf via `bytes.Equal` (not canonical) → use `proto.Equal`; comparing JSON via `string(b)` → unmarshal and compare.
 7. `gob` cross-language/durable; forgetting `gob.Register` for interface values (runtime **panic**).
-8. Importing `encoding/json/v2` or `go-json-experiment/json` from a published module: experimental/dev-only.
+8. Treating `encoding/json/v2` as experimental/dev-only: **stale [1.27]**: it is a standard package, safe in published modules (`GOEXPERIMENT=nojsonv2` is only the compatibility opt-out), and the old `go-json-experiment/json` dev module is superseded.
 9. Reusing a protobuf field number after removal: silent corruption; always `reserved` it.
-10. Adopting sonic/jsoniter with no contract tests or profile proving JSON is the bottleneck.
+10. Adopting sonic/jsoniter with no equivalence checks (round-trip parse equality, schema conformance, malformed/trailing-input rejection) or profile proving JSON is the bottleneck.
 
 ---
 
@@ -566,7 +566,7 @@ Rules: protobuf is the gold standard: never reuse a retired field number (`reser
 | `gob` cross-language / durable | Go-only, no spec, name-coupled | protobuf / CBOR |
 | Missing `gob.Register` for interfaces | runtime panic on encode | register every concrete type |
 | `binary.Read`/`Write` in hot loops | reflection: slow | `BigEndian.PutUint32` / `Append*` |
-| fast-JSON lib swap on a hunch | edge-case/arch incompat, no measured win | profile; contract tests; try json v2 first |
+| fast-JSON lib swap on a hunch | edge-case/arch incompat, no measured win | profile; equivalence checks (parse equality, schema conformance, malformed-input rejection); try json v2 first |
 
 ---
 
@@ -583,8 +583,8 @@ Rules: protobuf is the gold standard: never reuse a retired field number (`reser
 
 ## Sources {#sources}
 
-- pkg.go.dev/{encoding, encoding/json, encoding/json/v2, encoding/json/jsontext, encoding/binary, encoding/csv, encoding/gob, encoding/xml} @ go1.26.x
-- go.dev/doc/go1.24 (omitzero, TextAppender/BinaryAppender), go.dev/doc/go1.26 (new(expr); json/v2 + jsontext under GOEXPERIMENT=jsonv2), go.dev/doc/go1.27 (RC notes: draft)
+- pkg.go.dev/{encoding, encoding/json, encoding/json/v2, encoding/json/jsontext, encoding/binary, encoding/csv, encoding/gob, encoding/xml} @ go1.27.x
+- go.dev/doc/go1.24 (omitzero, TextAppender/BinaryAppender), go.dev/doc/go1.26 (new(expr); json/v2 + jsontext under GOEXPERIMENT=jsonv2), go.dev/doc/go1.27 (final; go1.27.0 2026-08-19)
 - `encoding/json` package overview: v1 "behaviors that cannot be changed" (duplicate keys, case-insensitive matching, unknown-key handling, invalid-UTF-8 replacement, integer precision)
 - `encoding/json/v2` package overview: differs-from-v1 list, `Options` toggles, `MarshalerTo`/`UnmarshalerFrom`
 - protobuf.dev (proto3 JSON mapping, field-number rules); RFC 8949 (CBOR); buf.build docs

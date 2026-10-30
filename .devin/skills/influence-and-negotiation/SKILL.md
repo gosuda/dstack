@@ -3,80 +3,72 @@ name: influence-and-negotiation
 description: 'Use when an agreement-seeking interaction arises, including mid-conversation moments the model detects.'
 disable-model-invocation: true
 ---
-
 # Influence and negotiation
 
-## Contract
+This skill prepares you for an agreement-seeking interaction, helps you respond while one is happening, or debriefs one that already happened. It works from interests and evidence, never from tricks. Every tactic it suggests would still work if the other side knew about it.
 
-| Field | Bound contract |
+It is read-only. It never writes files, touches version control, uses credentials, spends money, publishes, deploys, contacts anyone, makes commitments for you, or changes anything remote. The only thing it may do beyond reasoning is send out read-only web research sub-agents to fill in missing background on a counterparty, an organization, or a domain fact.
+
+## What you are walking into
+
+Give it a situation description: what is being negotiated, who the parties are, and where things stand. That is the one required piece. Anything else sharpens the advice:
+
+- Who the other side is (interests, constraints, style, power, history with you).
+- Where you stand (best alternative to a deal, walk-away point, target outcome, constraints). If you skip this, the skill infers a reasonable starting position from the situation rather than stalling.
+- The actual exchange so far, for a live moment or a debrief (transcript or notes).
+- Which job you want: `prepare` for an upcoming talk, `live` for one happening now, or `debrief` for one already over. If you do not say, the skill picks from the evidence (a transcript or active exchange means `live`, a concluded interaction means `debrief`, otherwise `prepare`). When the state is genuinely unclear, such as an upcoming talk with a fragment of transcript, it defaults to `prepare` and notes that live scripts can follow once the interaction starts.
+
+If your description is so vague that not even one Mandascan point below can be filled in, it stops and asks for the specific missing pieces instead of building on air.
+
+## How it maps every side
+
+For each party, the skill builds the Mandascan five-point map and writes the answers down.
+
+| Mandascan point | What it captures |
 |---|---|
-| Trigger | An agreement-seeking interaction arises, including mid-conversation 'they just said X' moments the model detects. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | May dispatch read-only web research sub-agents to gather context on counterparties, organizations, or domain facts. Writes nothing itself. |
-| Done | Prepared mandate and mutual-gains agenda (MAP), live response scripts for an active negotiation, or a retrospective debrief with pathology analysis delivered. |
+| Interests | Underlying needs, not stated positions |
+| Alternatives | Best alternative to a deal (BATNA) and walk-away threshold |
+| Legitimacy | Objective criteria, precedents, or norms each side can cite |
+| Commitment | What each side can credibly promise and actually enforce |
+| Communication | Channel, tone, and relationship quality between the parties |
 
-## Inputs
+Anything without evidence is marked unknown, never invented. The map counts as done only when all five answers exist for every party, with gaps labeled unknown.
 
-- Situation description (required): what is being negotiated, who the parties are, and the current state of the interaction.
-- Counterparty profile (optional): known interests, constraints, communication style, power position, and relationship history.
-- The negotiator's position (optional): BATNA, reservation point, target outcome, and constraints. If absent, the skill infers a reasonable starting position from the situation description.
-- Interaction transcript or notes (optional): for mid-conversation moments or retrospective debriefs, the actual exchange so far.
-- Mode (optional): one of `prepare`, `live`, or `debrief`. If absent, the skill selects based on whether an interaction is upcoming, in progress, or concluded.
+## Where a deal can live
 
-## Procedure
+The skill names the single dimension where the parties interests overlap most, or where the largest joint gain sits. That axis is stated outright, and the rest of the work trades around it. If the map shows the positions cannot meet anywhere, the skill says so plainly and advises strengthening the BATNA instead of forcing a deal.
 
-1. **Classify mode.** If the user supplies a transcript or describes an active exchange, set mode to `live`. If the user describes a concluded interaction, set mode to `debrief`. Otherwise set mode to `prepare`. Done when: the mode and the input feature that selected it (transcript, active exchange, or concluded interaction) are both recorded.
+## How it stays honest
 
-2. **Map the Mandascan five points.** For every party, identify and record:
-   - Interests: underlying needs, not stated positions.
-   - Alternatives: best alternative to negotiated agreement (BATNA) and walk-away threshold.
-   - Legitimacy: objective criteria, precedent, or norms each side can cite.
-   - Commitment: what each party can credibly promise and enforce.
-   - Communication: channel, tone, and relationship quality between parties.
-   If evidence is missing for a point, mark it as unknown rather than inventing it. Done when: all five Mandascan points are recorded for every party, with missing evidence marked unknown.
+Every tactic is tested before it is suggested: would it still work if the other side understood it was being used. Tactics that pass (shared value, legitimate framing, transparent reasoning) are kept. Tactics that fail (deception, coercion, exploiting cognitive biases for one-sided gain, hoarding information by concealment) are dropped. If you ask for a tactic that fails the test, the skill refuses that tactic, explains which line it crosses, and offers a transparent way to pursue the same goal.
 
-3. **Identify the axis of agreement.** Determine the single dimension along which the parties' interests most overlap or where the largest joint gain exists. State it explicitly. Done when: the dimension of greatest overlap or joint gain is stated explicitly.
+## What you get back
 
-4. **Draw the influence-not-manipulation line.** Every tactic proposed must pass this test: would the tactic remain effective if the counterparty understood it was being used? If yes, include it. If no, discard it. Persuasion through shared value, legitimate framing, and transparent reasoning is in scope. Deception, coercion, exploitation of cognitive biases for asymmetric gain, and information asymmetry maintained by concealment are out of scope. Done when: every proposed tactic has passed or failed the transparency test, with out-of-scope tactics discarded.
+The output depends on the moment. Each artifact lists every applicable requirement with a written entry. A conditional requirement that did not apply says why it was skipped, and missing evidence stays marked unknown.
 
-5. **Execute mode-specific procedure:**
+Preparing for an upcoming negotiation, you get a mandate plus a mutual-gains agenda:
 
-   **prepare**. Build a mandate and mutual-gains agenda:
-   a. Draft the mandate: the opening position, target outcome, reservation point, and the objective criteria supporting each.
-   b. Construct the MAP (Mutual-gains Agenda Protocol): a list of issues ordered by joint-gain potential, with proposed trades and package deals.
-   c. Script the opening statement: a concise framing that names shared interests and invites collaborative problem-solving.
-   d. Anticipate the top three objections or moves the counterparty is likely to make. For each, prepare a response that reframes toward joint value.
-   e. If the situation involves multiple parties or internal team dynamics, note coalition structure and team roles.
+- Opening position, target, and reservation point with the objective criteria behind each.
+- A MAP (Mutual-gains Agenda Protocol): issues ordered by joint-gain potential with proposed trades and package deals.
+- A short opening statement that names shared interests and invites joint problem-solving.
+- The three counterparty moves or objections to expect, each with a response that steers back to joint value.
+- Where several parties or internal team dynamics matter, the coalition structure and team roles.
 
-   **live**. Provide real-time response scripts:
-   a. Analyze the latest counterparty statement for its underlying interest, implicit concession, or anchoring move.
-   b. Classify the move: anchor, concession signal, objection, reframing, stalling, or power play.
-   c. Draft a response script (2-4 sentences) that addresses the move, advances the position, and maintains the influence-not-manipulation line.
-   d. Flag any moment where the counterparty has implicitly conceded or revealed a new interest. Name it explicitly.
-   e. If the exchange has reached a decision point, state whether to close, package-trade, or pause.
+In the middle of one, you get a script for the latest move:
 
-   **debrief**. Conduct a retrospective with pathology analysis:
-   a. Reconstruct the negotiation timeline: key moves, turning points, and final outcome.
-   b. Score each Mandascan point: was it accurately assessed beforehand? Where was the assessment wrong?
-   c. Identify pathologies: anchoring bias, reactive devaluation, escalating commitment, mythical fixed pie, premature closure, or loss of face.
-   d. For each pathology found, name the moment it occurred, what it cost, and what an alternative response would have been.
-   e. Extract transferable lessons: what to prepare differently, what tactic worked, and what to avoid. Done when: the artifact for the selected mode exists, every applicable sub-step has a written entry, a skipped conditional sub-step names why it did not apply, and missing evidence is marked unknown rather than filled in.
+- What the other side words reveal about interests, hidden concessions, or anchoring.
+- The move classified as anchor, concession signal, objection, reframing, stalling, or power play.
+- A 2 to 4 sentence reply that answers the move, advances your position, and stays honest.
+- Any implicit concession or newly revealed interest called out by name.
+- At a decision point, a clear call to close, package-trade, or pause.
 
-6. **Back-brief.** Before delivering the output, verify that every recommendation traces to a Mandascan point or an observed move. Remove any recommendation that cannot be grounded in evidence from the inputs. Done when: every recommendation traces to a Mandascan point or observed move, and ungrounded recommendations are removed.
+Looking back at one, you get a retrospective:
 
-7. **Dispatch research if needed.** If a counterparty profile, organizational context, or domain fact is material but missing, dispatch a read-only web research sub-agent to gather it. Integrate findings into the Mandascan map. If research returns nothing useful, proceed with what is available and note the gap. Done when: research is either dispatched and integrated or the gap is noted and the skill proceeds with available information.
+- Timeline with key moves, turning points, and outcome.
+- A score for each Mandascan answer (was it right beforehand, and where was it wrong).
+- Each pathology found by name (anchoring bias, reactive devaluation, escalating commitment, mythical fixed pie, premature closure, loss of face) with the moment it happened, what it cost, and what would have worked better.
+- Transferable lessons on what to prepare differently, what worked, and what to avoid.
 
-## Failure and recovery
-- Insufficient information: if the situation description is too vague to map even one Mandascan point, ask the user for clarification on the specific missing points rather than proceeding with an empty map.
-- Mode ambiguity: if the interaction state is unclear (upcoming but with partial transcript), default to `prepare` and note that live scripts can be requested when the interaction begins.
-- Research failure: if web research sub-agents return no useful results, proceed with available information and explicitly flag which Mandascan points lack external grounding.
-- Manipulation boundary: if the user requests a tactic that fails the influence-not-manipulation test, decline the specific tactic, explain why it crosses the line, and offer a transparent alternative that achieves the same objective.
-- Non-convergence: if the parties' positions are irreconcilable based on the Mandascan analysis, state that no agreement zone exists and recommend strengthening the BATNA instead.
-- Authority is read-only throughout. No failure class permits writing files, making commitments on the user's behalf, or contacting counterparties.
+## How it checks itself
 
-## Output
-One of three artifacts, determined by mode:
-
-- prepare: A structured report containing the Mandascan five-point map for all parties, the identified axis of agreement, the mandate (opening/target/reservation), the MAP with package trades, the opening statement script, and the top-three objection responses.
-- live: A response script for the latest counterparty move, with move classification, implicit concession flags, and a recommendation on next action (close, package-trade, or pause).
-- debrief: A retrospective report with the negotiation timeline, Mandascan assessment accuracy scores, identified pathologies with moment-level attribution, cost analysis per pathology, and transferable lessons.
+Before delivering, the skill checks that each recommendation traces to a Mandascan point or an observed move, and cuts anything that does not. If background that matters is missing, it dispatches a read-only research sub-agent and folds the findings into the map. If the research comes back empty, it proceeds with what it has while flagging which answers still lack outside grounding.

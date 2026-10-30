@@ -1,3 +1,0 @@
-interface:
-  display_name: "Baremetal Startup"
-  short_description: "Use when writing reset-to-main startup code, vector tables, VTOR, .data/.bss init, stack setup, startup.s, or crt0 for Cortex-M/RISC-V."

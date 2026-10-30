@@ -1,12 +1,12 @@
 # Synthesis Summary
 
-The synthesis is not a plan artifact. It is NOT a preview, draft, or substitute for the requirements-only plan: it is the scope checkpoint that doc-write consumes as input. The ODIN spec outline itself is written in Phase 3 from the confirmed synthesis. Both stay scope-only, implementation detail is downstream, in later technical planning.
+The synthesis is not a plan artifact. It is NOT a preview, draft, or substitute for the requirements-only plan: it is the scope checkpoint that doc-write consumes as input. The DStack spec outline itself is written in Phase 3 from the confirmed synthesis. Both stay scope-only, implementation detail is downstream, in later technical planning.
 
 The shape is two-stage: an internal draft, then a chat-time scoping synthesis. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think through scope. Stage 2 is the scoping synthesis presented to the user: shaped like what two product collaborators would confirm before writing a PRD. The user only sees Stage 2.
 
 The internal draft still informs the doc body via the routing below; it does not reach the user verbatim.
 
-**Discipline: an internal-draft item may enter the ODIN spec outline only if it is represented in Stage 2.** If an Inferred or Out-of-scope item would change the doc but does not survive the Stage 2 keep tests, it is not yet user-confirmed scope. Either surface it in Stage 2 (as a trade-off, deferred item, or call-out) or leave it out of the doc until a later dialogue confirms it.
+**Discipline: an internal-draft item may enter the DStack spec outline only if it is represented in Stage 2.** If an Inferred or Out-of-scope item would change the doc but does not survive the Stage 2 keep tests, it is not yet user-confirmed scope. Either surface it in Stage 2 (as a trade-off, deferred item, or call-out) or leave it out of the doc until a later dialogue confirms it.
 
 This content is loaded when Phase 2.5 fires, after Phase 2 (approaches chosen) and before Phase 3 (write the plan). The synthesis is the user's last opportunity to correct the agent's interpretation before the artifact lands.
 
@@ -76,7 +76,7 @@ The cap is heuristic. Typical bounds by tier, counting bullets across Trade-offs
 
 ### Detail level: conversational, not documentary
 
-Each bullet is **one line, two at most**. The reference shape is what two collaborators would say to each other in conversation, not what an ODIN spec outline would say. If a bullet reads like a doc paragraph, it is wrong-shaped.
+Each bullet is **one line, two at most**. The reference shape is what two collaborators would say to each other in conversation, not what an DStack spec outline would say. If a bullet reads like a doc paragraph, it is wrong-shaped.
 
 The "What we're building" prose obeys the same discipline: 1-3 sentences describing shape, not an enumeration of requirements.
 
@@ -94,7 +94,7 @@ The "What we're building" prose obeys the same discipline: 1-3 sentences describ
 For a notification-mute feature, Stage 2 might look like:
 
 ```
-Based on our dialogue, here's the scope I'm proposing for the ODIN spec outline:
+Based on our dialogue, here's the scope I'm proposing for the DStack spec outline:
 
 **What we're building:** Per-channel mute on notification rules, with a 24h preset for the support team's 3 AM ping problem. Mute lives on the rule itself and survives rule edits.
 
@@ -136,7 +136,7 @@ Fall back to a numbered list in chat only when no blocking tool exists or the ca
 
 ## Self-redirect
 
-If the user response indicates they are in the wrong skill (e.g., "this is too small, just `/work` it" or "this needs more thought, let me brainstorm differently"):
+If the user response indicates they are in the wrong skill (e.g., "this is too small, just `/do-it-now` it" or "this needs more thought, let me brainstorm differently"):
 
 - Stop `/brainstorm`.
 - Suggest the alternative skill the user appears to want.

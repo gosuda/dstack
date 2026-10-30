@@ -1,5 +1,0 @@
-interface:
-  display_name: "Diverge"
-  short_description: "Use when the user wants to expand a decision field with additional options and dimensions."
-policy:
-  allow_implicit_invocation: false

@@ -1,5 +1,0 @@
-interface:
-  display_name: "Promql CLI"
-  short_description: "Use when asked to execute or investigate a PromQL expression against a Prometheus server."
-policy:
-  allow_implicit_invocation: false

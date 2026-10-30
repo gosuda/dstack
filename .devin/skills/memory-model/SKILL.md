@@ -1,30 +1,17 @@
 ---
 name: memory-model
-description: 'Use when choosing memory orderings for C++ or Rust atomics, reasoning about happens-before, writing lock-free patterns, or diagnosing data races. Not for lock-based design: use kernel-concurrency.'
+description: 'Use when choosing memory orderings for C++ or Rust atomics, reasoning about happens-before, writing lock-free patterns, or diagnosing data races. Not for lock-based design.'
 ---
 
 # Memory model
 
-Atomics without a memory ordering argument are guesses. The C++ and Rust models are the same model: pick the weakest ordering that proves the happens-before edge the algorithm needs, and justify it in a comment.
+An atomic without a stated ordering is a guess. C++ and Rust share one model: pick the weakest ordering that still proves the happens-before edge your algorithm needs, and write that edge down next to the operation. This skill is read-only guidance (it explains and drafts, and any code change lands through the normal coding path). You are finished when every atomic in the reviewed code carries an ordering justified by its edge, or a race is named with the edge that is missing.
 
-## Contract
+To work you need the concurrent code or design, and which language it is in. The orderings map one to one between C++ and Rust. Bring the target architectures only when barrier cost matters.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The task selects `memory_order` values or Rust `Ordering`s, explains a synchronization edge, writes lock-free code, or reads TSan output on a race. |
-| Authority | Read-only. The skill explains and drafts; edits land through the normal coding path. No remote mutation. |
-| Side effect | None. |
-| Done | Every atomic operation in the reviewed code carries an ordering justified by the synchronization edge it creates, or a race is named with the edge that is missing. |
+## The five orderings, weakest first
 
-## Inputs
-
-- The concurrent code or design: required.
-- The language: required. The orderings map one to one between C++ and Rust.
-- The target architectures: optional, needed only when barrier cost matters.
-
-## Procedure
-
-1. Rank the orderings by strength and pick the weakest one that proves the edge. Weaker ordering costs less on weakly ordered CPUs, and costs nothing on x86 for load and store shapes. Done when: each atomic operation states the edge it creates.
+Weaker ordering costs less on weakly ordered machines and costs nothing on x86 for load and store shapes.
 
 | Ordering | C++ | Rust | Guarantee |
 |----------|-----|------|-----------|
@@ -34,7 +21,9 @@ Atomics without a memory ordering argument are guesses. The C++ and Rust models 
 | AcqRel | `memory_order_acq_rel` | `Ordering::AcqRel` | Both, RMW operations only |
 | SeqCst | `memory_order_seq_cst` | `Ordering::SeqCst` | One total order every thread agrees on |
 
-2. Establish happens-before before trusting any read. A release store that an acquire load reads creates the edge: every write before the store is visible after the load, and edges compose transitively. Done when: the code's correctness argument names its edge, not intuition.
+## Prove happens-before before trusting a read
+
+A release store that an acquire load reads creates the edge: every write before the store is visible after the load, and edges compose transitively. State the edge as the correctness argument, not intuition.
 
 ```cpp
 std::atomic<int> data_ready{0};
@@ -50,7 +39,9 @@ void consumer() {
 }
 ```
 
-3. Match the ordering to the pattern. Done when: each site in the code maps to a row.
+## Match the ordering to the pattern
+
+Each site in the code should map to one row:
 
 | Pattern | Ordering |
 |---------|----------|
@@ -61,7 +52,9 @@ void consumer() {
 | Sequence-number check | Release plus Acquire |
 | Mutex internals | AcqRel on the RMW that takes and gives the lock |
 
-4. Use fences only where an atomic operation cannot carry the ordering. A fence orders without touching one variable, typical when several writes must land before one flag flips. Done when: the fence replaces a real edge and the flag still carries its own ordering.
+## Fences are for edges no single operation can carry
+
+A fence orders without touching one variable (typically when several writes must land before one flag flips). The flag still carries its own ordering.
 
 ```cpp
 // publish several writes, then flip the flag
@@ -72,9 +65,9 @@ flag.store(true, std::memory_order_relaxed);
 // consumer pairs with an acquire fence after reading the flag
 ```
 
-5. Keep SeqCst for the cases that need a single global order. Two flags each read after waiting on the other is the store-buffering case where weaker orderings allow both readers to miss both writes. Done when: the code either uses SeqCst on the participating operations or carries a written proof that weaker orderings suffice.
+Keep SeqCst for the cases that need a single global order. Two flags each read after waiting on the other is the store-buffering case where weaker orderings let both readers miss both writes. Either keep SeqCst on the participating operations or carry a written proof that weaker orderings suffice.
 
-6. Map C++ orderings to Rust directly. The names change, the model does not. Done when: the review uses one vocabulary across both.
+## The same model in Rust names
 
 | C++ | Rust |
 |-----|------|
@@ -87,7 +80,7 @@ flag.store(true, std::memory_order_relaxed);
 
 Rust signs the intent in the type: `AtomicBool`, `AtomicUsize`, and friends, with `compare_exchange` returning the previous value and the failure ordering taken explicitly.
 
-7. Respect the CAS rules. The failure ordering of a compare-exchange is a load, so it may not be Release or AcqRel, and it may not be stronger than the success ordering. Use `compare_exchange_weak` in retry loops, where spurious failure costs one iteration. Done when: every CAS call carries a legal ordering pair.
+Respect the CAS rules. The failure ordering of a compare-exchange is a load, so it may not be Release or AcqRel, and it may not be stronger than the success ordering. Use `compare_exchange_weak` in retry loops, where spurious failure costs one iteration.
 
 ```cpp
 int expected = 0;
@@ -98,9 +91,11 @@ while (!val.compare_exchange_weak(expected, 42,
 }
 ```
 
-8. Fold in the platform facts. x86 is TSO: stores drain in order, so plain Acquire and Release compile to plain loads and stores, and SeqCst needs a full fence or a locked operation. ARMv8 and RISC-V are weakly ordered: acquire and release map to load-acquire and store-release instructions, and a full fence needs an explicit barrier instruction. Done when: performance claims about ordering name the architecture.
+If the compiler rejects the failure ordering, it was Release or AcqRel, so drop it to Acquire or Relaxed. If a CAS loop live-locks, it is losing every race under contention: add backoff or restructure to fewer writers.
 
-9. Audit the classic mistakes. Done when: each row is checked against the code.
+## Platform cost and the classic mistakes
+
+x86 is TSO: stores drain in order, so plain Acquire and Release compile to plain loads and stores, and SeqCst needs a full fence or a locked operation. ARMv8 and RISC-V are weakly ordered: acquire and release map to load-acquire and store-release instructions, and a full fence needs an explicit barrier instruction. Name the architecture whenever you claim an ordering is cheap.
 
 | Mistake | Fix |
 |---------|-----|
@@ -111,16 +106,8 @@ while (!val.compare_exchange_weak(expected, 42,
 | Two values assumed consistent with no edge between them | Add one atomic carrying the edge, or SeqCst on both |
 | Lock-free pop frees nodes the readers still hold | Add a reclamation scheme; the ABA and reclamation problem is separate from ordering |
 
-## Failure and recovery
+When TSan reports a race, one side of the pair is not atomic or the edge is missing, so name the two accesses, then supply the release and acquire pair that orders them. When a test passes but the reasoning is unclear, the ordering may be right by luck of the architecture: write the edge as a comment and re-derive it rather than weakening blindly. When weakening SeqCst breaks a stress test, restore SeqCst, because the code needed the total order.
 
-| Failure class | Behavior |
-|---|---|
-| TSan reports a race | One side of the pair is not atomic or the edge is missing. Name the two accesses, then supply the release and acquire pair that orders them. |
-| Test passes but the reasoning is unclear | The ordering may be right by luck of the architecture. Write the edge as a comment and re-derive it, or weaken nothing. |
-| Weakening SeqCst broke a stress test | Restore SeqCst for the participating operations; the code needed the total order. |
-| CAS compile error on the failure ordering | The failure ordering was Release or AcqRel. Use Acquire or Relaxed. |
-| Live lock in a CAS loop | The loop loses every race under contention. Add backoff or restructure to fewer writers. |
+## What you hand back
 
-## Output
-
-A per-site ordering review: each atomic operation, the edge it creates or needs, the chosen ordering, and the platform cost note where relevant. The happens-before diagram, the CAS variants, and the lock-free stack sketch are in `references/cpp-memory-ordering.md`.
+A per-site ordering review: each atomic operation, the edge it creates or needs, the chosen ordering, and the platform cost note where relevant. The happens-before diagram, the CAS variants, and the lock-free stack sketch live in `references/cpp-memory-ordering.md`.

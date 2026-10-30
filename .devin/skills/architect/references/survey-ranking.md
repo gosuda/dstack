@@ -1,30 +1,25 @@
-# Survey and ranking
+# Surveying and ranking shallow modules
 
-Depth indicators and two-axis scoring for the brownfield survey sub-branch. Assumes the vocabulary in the survivor SKILL.md: module, interface, depth, seam, adapter, leverage, locality.
+Depth signals and two-axis scoring for the brownfield survey pass. Reads with the shared words from `../SKILL.md`: module, interface, depth, seam, adapter.
 
-## Depth indicators
+## Depth signals
 
-For each public module (directories with an index or entry point, packages, or namespaces exposing types and functions consumed by other modules), evaluate:
+For each public module (directories with an entry point, packages, or namespaces exposing types and functions consumed by other modules), note:
 
-- Surface size: number of distinct types, functions, and constants in the public surface.
-- Internal abstraction: presence of private types, helper modules, or sub-namespaces holding logic separate from the entry point.
-- Coupling: does the public surface delegate to other modules or contain all logic inline?
-- Width: does the module expose many unrelated responsibilities on its public surface?
+- Surface size: distinct types, functions, and constants on the public surface.
+- Internal abstraction: private types, helper modules, or sub-namespaces holding logic separate from the entry point.
+- Coupling: whether the public surface delegates to other modules or holds all logic inline.
+- Width: whether the surface covers many unrelated responsibilities.
 
-A shallow module has a broad public surface with few internal abstractions, where logic lives directly on the public surface and is not decomposed into internal seams.
+A shallow module has a broad public surface with few internal abstractions, logic sitting directly on the surface rather than behind internal seams.
 
 ## Two-axis ranking
 
 Order shallow modules by:
 
 - Refactoring effort: how many call sites or dependents would need to change. Lower effort ranks higher.
-- Architectural gain: how much internal depth the module would gain from decomposition. Higher gain ranks higher.
+- Architectural gain: how much hidden behavior the module would gain from deepening. Higher gain ranks higher.
 
-Higher gain and lower effort ranks higher.
+## Handoff shape
 
-## Report plan
-
-- Ranked list of all shallow modules with their effort and gain scores.
-- Top candidate with a one-paragraph rationale for why it ranks first.
-- Internal seam notes: what seams the top candidate would need to expose.
-- Load-bearing rejection: if the top candidate cannot be deepened without breaking a hard invariant or triggering a cascade, note this with the specific invariant or cascade.
+These entries travel in the reply, never in a file unless the user asks for one. Lead with the ranked list, one line per candidate (location, verdict, effort, gain). Give the full entry only for the top candidate: files and modules, concrete problem, deletion-test result, dependency category, plain-language solution without a premature interface, expected locality and testability change, smallest before-and-after sketch, strength (`Strong`, `Worth exploring`, `Speculative`), and any decision-record conflict worth reopening, plus a one-paragraph reason it ranks first and the seams it would need. Where the top candidate cannot be deepened without breaking a hard invariant or triggering a cascade, say so with the specific invariant or cascade: that rejection is load-bearing.

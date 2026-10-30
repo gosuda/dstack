@@ -1,3 +1,3 @@
 interface:
   display_name: "Code Simplification"
-  short_description: "Use when the user asks to simplify, clean, or refine code."
+  short_description: "Use when a named module, file set, or dependency slice needs less code and structure without losing required behavior."

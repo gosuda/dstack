@@ -11,23 +11,26 @@ This matrix pairs profiling and location tools with benchmark harness templates 
 |---|---|---|---|
 | **Rust** | `samply record`, `perf record` + `flamegraph`, `cargo flamegraph` | `heaptrack`, `dhat`, `valgrind --tool=massif` | `criterion`, `iai-callgrind`, `hyperfine` |
 | **C / C++** | `perf record` + `flamegraph`, `valgrind --tool=callgrind`, `samply` | `valgrind --tool=massif`, `heaptrack`, `dhat` | `hyperfine`, `google/benchmark`, `criterion.rs` (C via cbindgen) |
-| **Python** | `py-spy record --format flamegraph`, `scalene`, `cProfile` + `snakeviz` | `scalene` (memory mode), `tracemalloc`, `memray` | `pytest-benchmark`, `asv` (airspeed velocity), `hyperfine` |
+| **Python** | `py-spy record --format flamegraph`, `scalene`, `cProfile` + `pstats` | `scalene` (memory mode), `tracemalloc`, `memray` | `pytest-benchmark`, `asv` (airspeed velocity), `hyperfine` |
 | **Go** | `go tool pprof` (CPU profile via `runtime/pprof`), `go test -cpuprofile` | `go tool pprof` (heap), `runtime.MemStats` | `go test -bench -benchmem`, `benchstat`, `hyperfine` |
-| **Java / Kotlin** | `async-profiler`, JFR (`jcmd <pid> JFR.start`) | JFR allocation events, Eclipse MAT on heap dump | JMH, `hyperfine` |
+| **Java / Kotlin** | `async-profiler`, JFR (`jcmd <pid> JFR.start`) | JFR allocation events, Eclipse MAT 1.17.0 (`ParseHeapDump.sh`) | JMH, `hyperfine` |
 | **JavaScript / TypeScript** | Chrome DevTools, `node --prof` + `node --prof-process`, `clinic flame` | Chrome heap snapshot, `clinic doctor` | `tinybench`, `mitata`, `hyperfine` |
 | **OCaml** | `landmarks`, `magic-trace`, `perf record` | `memtrace` + `memtrace-viewer`, `Statmemprof` | `bechamel`, `core_bench`, `hyperfine` |
 
-**Tool rules (inherit from the ODIN banned-tool list):**
+**Tool rules (inherit from the DStack banned-tool list):**
 - `hyperfine` not `time`. `procs` not `ps`. `bat -P -p -n` not `cat`. `difft` not `diff`.
 - Always `--warmup 3 --min-runs 10` on hyperfine. Export JSON: `--export-json <path>`.
 - Profile in a release/optimized build, never debug. Benchmark the same binary that will ship.
+- For existing Python `cProfile` dumps (`.prof` or `.pstats`), inspect them with stdlib `pstats` rather than SnakeViz (SnakeViz 2.2.2 fails the 12-month maintenance policy with no releases since Nov 2024; the maintenance policy failure is sufficient without unsupported vulnerability banner claims). Use the noninteractive command default so agents do not stall in the interactive REPL: `python -c "import pstats; p = pstats.Stats('profile.prof'); p.strip_dirs().sort_stats('cumulative').print_stats(30)"`. Inspecting existing dumps requires a compatible Python runtime (cProfile marshal data is specific to the dumping Python minor version) and trusted input files.
+- For new Python profiling runs, use `py-spy record --format flamegraph -o profile.svg -- <cmd>` for visual flamegraph analysis without forcing production reruns.
+- For Java or Kotlin heap dumps, standalone Eclipse MAT 1.17.0 requires a minimum of Java 21. Run headless batch analysis via `./mat/ParseHeapDump.sh <heapdump.hprof> org.eclipse.mat.api:suspects` (or `.\mat\ParseHeapDump.bat` on Windows) to generate automated leak suspects and overview reports without a GUI.
 
 ---
 
 ## Minimal harness templates
 
-Use these when Phase 3 finds no existing benchmark harness for the hot path. It is a **throwaway
-instrument**: its only purpose is to measure `HOT_PATH` in isolation with realistic inputs.
+Use these when Phase 3 finds no existing benchmark harness for the hot path. It is a throwaway
+instrument: its only purpose is to measure `HOT_PATH` in isolation with realistic inputs.
 Delete it after the skill run unless the user asks to keep it as a regression guard.
 
 ### Harness placement
@@ -39,8 +42,9 @@ Delete it after the skill run unless the user asks to keep it as a regression gu
   `<project-root>/benches/bench_<target>.rs`. Run from `<project-root>` as shown. Remove after
   the skill run.
 - **Go (`go test -bench`)**: `go test` runs only within the package directory. Write the
-  `_test.go` harness alongside the source file being benchmarked (same package directory). Run
-  from that directory. Remove after the skill run.
+  `_test.go` harness alongside the source file being benchmarked (same package directory), so no
+  import is needed and the call carries no package qualifier. Run from that directory. Remove
+  after the skill run.
 - **JMH (Java/Kotlin)**: JMH requires the benchmark to live in the standard JMH source layout
   (`src/jmh/java/` for Gradle, `src/test/java/` annotated appropriately for Maven). Write to
   that location; run the build task (`./gradlew jmh` or `mvn jmh:benchmark`) from the project
@@ -51,12 +55,10 @@ The `BENCH_CMD` passed to lens agents must reflect the actual invocation path af
 ### Rust: criterion
 
 ```rust
-// <project-root>/benches/bench_<target>.rs  (toolchain-native; registered in Cargo.toml)
 use criterion::{criterion_group, criterion_main, Criterion};
 use <crate>::<module>::<hot_function>;
 
 fn bench(c: &mut Criterion) {
-    // Replace with realistic input that exercises the hot path.
     let input = setup_realistic_input();
     c.bench_function("<hot_function>", |b| b.iter(|| <hot_function>(criterion::black_box(&input))));
 }
@@ -70,7 +72,6 @@ Run: `cargo bench --bench bench_<target> -- --save-baseline before`
 ### Python: pytest-benchmark
 
 ```python
-# .outline/optimize/<target>/bench_<target>.py
 from <module> import <hot_function>
 
 def test_<hot_function>(benchmark):
@@ -83,8 +84,7 @@ Run: `pytest .outline/optimize/<target>/bench_<target>.py --benchmark-json befor
 ### Go
 
 ```go
-// <pkg-dir>/bench_<target>_test.go  (alongside the source file under test, same package)
-package <pkg>  // same-package: no import needed, call unexported functions directly
+package <pkg>
 
 import "testing"
 
@@ -92,13 +92,13 @@ func Benchmark<HotFunction>(b *testing.B) {
     input := setupRealisticInput()
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
-        <HotFunction>(input)  // direct call — no package qualifier
+        <HotFunction>(input)
     }
 }
 ```
 
-// For exported-API-only hot paths, swap `package <pkg>` → `package <pkg>_test` and add
-// `import "<module>"`, then call `<module>.<HotFunction>(input)`.
+For exported-API-only hot paths, swap `package <pkg>` → `package <pkg>_test` and add
+`import "<module>"`, then call `<module>.<HotFunction>(input)`.
 
 Run: `go test -bench=Benchmark<HotFunction> -benchmem -count=10 .`
 Diff: `benchstat before.txt after.txt`
@@ -106,7 +106,6 @@ Diff: `benchstat before.txt after.txt`
 ### Java / Kotlin: JMH
 
 ```java
-// src/jmh/java/BenchHotPath.java  (Gradle) or src/test/java/ with @Fork (Maven)
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -128,7 +127,6 @@ Run: `./gradlew jmh` or `mvn jmh:benchmark`
 ### JavaScript / TypeScript: tinybench
 
 ```typescript
-// .outline/optimize/<target>/bench.<target>.ts
 import { Bench } from "tinybench";
 import { hotFunction } from "<module>";
 
@@ -147,7 +145,6 @@ Or via `hyperfine 'npx tsx bench.<target>.ts'` for wall-clock comparison.
 ### OCaml: bechamel
 
 ```ocaml
-(* .outline/optimize/<target>/bench_<target>.ml *)
 open Bechamel
 open Toolkit
 
@@ -168,14 +165,14 @@ let () =
 
 ## Measurement discipline
 
-- **stddev > 20 % of median**: stop and fix measurement noise before proceeding.
+- Stop and fix measurement noise when stddev exceeds 20 % of median before proceeding.
   Causes: CPU frequency scaling, background load, cold cache, OS jitter.
   Fixes: `cpupower frequency-set -g performance`, `nice -n -20`, warm-up runs, pin to a core
   (`taskset 0x1`), disable turbo boost (`echo 1 > /sys/devices/.../no_turbo`).
-- **Always measure what ships.** Optimize + benchmark the release build; debug builds have
+- Always measure what ships: optimize and benchmark the release build; debug builds have
   different inlining, bounds-check overhead, and optimization levels.
-- **Re-measure end-to-end (Phase 7, integrated benchmark gate).** A worktree win sometimes
+- Re-measure end to end at the Phase 7 integrated benchmark gate. A worktree win sometimes
   vanishes after integration due to changed inlining decisions, link order, or PGO profile
   invalidation. The integrated re-measure on the main tree before commit is the ground truth.
-- **Report variance, not just median.** Commit body format: `After: <median> ± <stddev>`.
+- Report variance, not just median: commit body format is `After: <median> ± <stddev>`.
   A 10 % speedup with 15 % stddev is noise; a 10 % speedup with 1 % stddev is a win.

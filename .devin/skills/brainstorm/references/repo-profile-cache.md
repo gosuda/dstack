@@ -2,7 +2,7 @@
 
 Read this when a repo-grounding skill needs the question-agnostic **project profile** (stack, deps, conventions, structure). The profile is derived once and reused within a session and across sessions and skills at an unchanged commit, only the *question-specific* grounding for the current run is ever re-derived.
 
-Owner. pov calls ../brainstorm/scripts/repo-profile-cache.py and this file. Do not recopy.
+Owner. Brainstorm owns both this file and scripts/repo-profile-cache.py; this file is the protocol for invoking the script via SKILL_DIR. Do not recopy.
 
 ## What is cached (the agnostic profile)
 
@@ -25,7 +25,7 @@ Never read from the cache, recompute every run:
 ## Cache location & key
 
 ```
-/tmp/odin/repo-profile/<root-sha>/<head-sha>.json
+/tmp/dstack/repo-profile/<root-sha>/<head-sha>.json
 ```
 
 - `<root-sha>` = lexicographically-first `git rev-list --max-parents=0 HEAD`: the repo identity, shared across worktrees and clones.
@@ -35,7 +35,7 @@ Two checkouts at the same commit share the same entry. Lookup is git metadata on
 
 ## Protocol, how a skill uses it
 
-Invoke the helper via the `SKILL_DIR` anchor (set `SKILL_DIR` to the absolute path of the brainstorm skill directory, `plugins/odin-planning/skills/brainstorm`; the Bash tool's cwd is the user's project, not the skill dir):
+Invoke the helper via the `SKILL_DIR` anchor (set `SKILL_DIR` to the absolute path of the brainstorm skill directory, `plugins/dstack-core/skills/brainstorm`; the Bash tool's cwd is the user's project, not the skill dir):
 
 ```bash
 SKILL_DIR="<absolute path of the brainstorm skill directory>"

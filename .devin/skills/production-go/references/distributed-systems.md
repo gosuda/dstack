@@ -1,8 +1,8 @@
 # Distributed Systems Patterns in Go
 
-Distributed systems fail in ways invisible locally. Almost every bug here is the same bug: confusing *"the message/lock/log arrived"* with *"the effect happened exactly once."* Correctness lives in **determinism, fencing tokens, and idempotent consumers**, never in the coordination primitive itself. gRPC + protobuf are the default RPC substrate; put retries/breakers/timeouts at **boundaries** (see [errors-and-resilience.md](errors-and-resilience.md)); propagate `context` and trace headers across every hop.
+Distributed systems fail in ways invisible locally. Almost every bug here is the same bug: confusing *"the message/lock/log arrived"* with *"the effect happened exactly once."* Correctness lives in **determinism, fencing tokens, and idempotent consumers**, never in the coordination primitive itself. gRPC + protobuf are the default RPC layer; put retries/breakers/timeouts at **boundaries** (see [errors-and-resilience.md](errors-and-resilience.md)); propagate `context` and trace headers across every hop.
 
-> Verified against Go **1.26** (stable) + **1.27 RC** (GA ~Aug 2026), 2026-06. Library versions are pinned where corroborated against pkg.go.dev. None of these patterns require 1.26-only language APIs (they run on the 1.22 baseline); `[verify]` marks claims I could only single-source.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes). Library versions are pinned where corroborated against pkg.go.dev. None of these patterns require recent language APIs; compatibility follows the `go` directive in the target module (a mandatory minimum since 1.21; features newer than that line don't compile), not a fixed baseline. `[verify]` marks claims I could only single-source.
 
 ## TL;DR: the deltas that bite (read first)
 
@@ -41,7 +41,7 @@ Distributed systems fail in ways invisible locally. Almost every bug here is the
 
 ## gRPC: client/server, deadlines, errors {#grpc}
 
-`google.golang.org/grpc` is at **v1.81.x** (2026). The two facts models get wrong: **dialing is now lazy**, and **errors are a status code + message, not a Go error string**.
+`google.golang.org/grpc` is at **v1.85.0** (2026). The two facts models get wrong: **dialing is now lazy**, and **errors are a status code + message, not a Go error string**.
 
 ```go
 // CORRECT [grpc v1.63+] — NewClient is lazy (no connection until first RPC).
@@ -315,7 +315,7 @@ func RunSaga(ctx context.Context, steps []Step) error {
 
 **Compensation rules:** reverse order; each compensation idempotent and retryable (it can re-run); sagas lack ACID isolation (intermediate states are visible; use semantic locks / commutative updates / re-reads); handle **timed-out/orphaned** sagas explicitly (a mid-flight timeout leaves partial state). A compensation for an irreversible action is a counter-action, not an undo.
 
-**Temporal** (`go.temporal.io/sdk`, **v1.45.0** 2026-06) is the dominant durable orchestrator: write saga logic as ordinary Go; it persists workflow history and replays on crash, which mitigates the "coordinator is a SPOF" concern. **Replay imposes hard constraints models violate:** workflow code must be **deterministic** (no `time.Now`; no `range` over a Go map: use `workflow.DeterministicKeys` [SDK v1.26+]; no bare goroutines: use `workflow.Go`); `workflow.SideEffect` is **not at-most-once**; use `workflow.NewDisconnectedContext` for compensation after cancellation (a canceled `ctx` won't run cleanup); and evolve running workflows with `workflow.GetVersion` (keep the first marker even after a branch is gone).
+**Temporal** (`go.temporal.io/sdk`, **v1.50.0** 2026-06) is the dominant durable orchestrator: write saga logic as ordinary Go; it persists workflow history and replays on crash, which mitigates the "coordinator is a SPOF" concern. **Replay imposes hard constraints models violate:** workflow code must be **deterministic** (no `time.Now`; no `range` over a Go map: use `workflow.DeterministicKeys` [SDK v1.26+]; no bare goroutines: use `workflow.Go`); `workflow.SideEffect` is **not at-most-once**; use `workflow.NewDisconnectedContext` for compensation after cancellation (a canceled `ctx` won't run cleanup); and evolve running workflows with `workflow.GetVersion` (keep the first marker even after a branch is gone).
 
 ```go
 func OrderWorkflow(ctx workflow.Context, req Request) error {
@@ -346,7 +346,7 @@ Mechanics (backoff loop, breaker state machine, code) live in [errors-and-resili
 
 ## Consensus (Raft) {#raft}
 
-> `github.com/hashicorp/raft` **v1.7.3** (Mar 2025) is the dominant embeddable Raft (Consul, Nomad, Vault). Use it when you need a *replicated log + FSM* and will own correctness/snapshots/recovery; if you actually just need an HA coordination store, use **etcd** and its ecosystem instead. Pre-vote is default since v1.7.0; be on **≥1.7.1** (two pre-vote bugs fixed). Storage: `hashicorp/raft-boltdb/v2` **v2.3.1**: **always the `/v2` path** (bbolt, not unmaintained boltdb); migrate with `MigrateToV2`.
+> `github.com/hashicorp/raft` **v1.8.0** (Sep 2026) is the dominant embeddable Raft (Consul, Nomad, Vault). Use it when you need a *replicated log + FSM* and will own correctness/snapshots/recovery; if you actually just need an HA coordination store, use **etcd** and its ecosystem instead. Pre-vote is default since v1.7.0; be on **≥1.7.1** (two pre-vote bugs fixed). Storage: `hashicorp/raft-boltdb/v2` **v2.3.1**: **always the `/v2` path** (bbolt, not unmaintained boltdb); migrate with `MigrateToV2`.
 
 ```go
 type FSM interface {
@@ -495,7 +495,7 @@ A resumes, writes @33 → RESOURCE REJECTS (33 < 34)
 
 Two families: **NATS** (lightweight, low-latency, JetStream for persistence) and **Kafka** (high-throughput durable log). Pick by ops profile, not features alone.
 
-**NATS**: `nats-io/nats.go` **v1.52.0** (2026). Core NATS is fire-and-forget at-most-once; **JetStream** adds persistence + at-least-once. The **modern API is the `github.com/nats-io/nats.go/jetstream` subpackage**. `nc.JetStream()`/`js.Subscribe`/`js.PullSubscribe` (the `JetStreamContext`) is documented as **legacy**.
+**NATS**: `nats-io/nats.go` **v1.55.0** (2026). Core NATS is fire-and-forget at-most-once; **JetStream** adds persistence + at-least-once. The **modern API is the `github.com/nats-io/nats.go/jetstream` subpackage**. `nc.JetStream()`/`js.Subscribe`/`js.PullSubscribe` (the `JetStreamContext`) is documented as **legacy**.
 
 ```go
 nc, _ := nats.Connect("nats://localhost:4222")
@@ -558,7 +558,7 @@ Spread keys across nodes so adding/removing a node remaps ~1/N of keys, not all 
 | Bounded-load (CH-BL) | ring + load cap | capped at c·avg | via partitions | **load balancers** (hot keys) |
 
 ```go
-// github.com/buraksezer/consistent v0.10.0 — bounded-load + fixed partitioning (NOT a plain ring).
+// github.com/buraksezer/consistent v1.1.0 — bounded-load + fixed partitioning (NOT a plain ring).
 type member string
 func (m member) String() string { return string(m) }
 type hasher struct{}
@@ -574,7 +574,7 @@ owner := c.LocateKey([]byte("customer:42"))
 replicas, _ := c.GetClosestN([]byte("customer:42"), 2) // for replication/fallback
 ```
 
-**The catastrophic, silent bug: a per-process-seeded hash** (Go's `hash/maphash` uses a random per-process seed) → **every node computes a different ring**, sending the same key to different owners. Use a fixed-seed, well-distributed hash (xxhash, murmur3) everywhere. **`buraksezer/consistent` is not a libketama clone:** keys map to partitions via `MOD(hash, PartitionCount)`, partition count is fixed at creation, and adding a member can **panic** if the bounded-load constraint can't be satisfied. Used in Olric, SeaweedFS, the OTel Operator; stale (Nov 2022) but de-facto standard. **Jump hash** (`lithammer/go-jump-consistent-hash`) is O(1)/perfectly balanced but can only add/remove the *last* bucket, wrong for a dynamic named-server set with failures. **Rendezvous/HRW** redistributes only a removed node's keys, evenly; strictly better churn than a naive ring, at O(n)/lookup. `serialx/hashring` is legacy ketama (untagged, no go.mod, 2020), only for wire-compat with existing clients. For *load balancing* (hot keys), bounded-load (CH-BL); for *data placement*, ring/HRW.
+**The catastrophic, silent bug: a per-process-seeded hash** (Go's `hash/maphash` uses a random per-process seed) → **every node computes a different ring**, sending the same key to different owners. Use a fixed-seed, well-distributed hash (xxhash, murmur3) everywhere. **`buraksezer/consistent` is not a libketama clone:** keys map to partitions via `MOD(hash, PartitionCount)`, partition count is fixed at creation, and adding or removing a member can **panic** if the bounded-load constraint cannot be satisfied (when all members hit maximum load). Active maintenance: `v1.1.0` (2026-08-29, Go 1.22+; v1.0.0 fixed key collisions #17 and distribution loop #13; v1.1.0 added `Config.ReplicaKey`), de-facto standard in Olric, SeaweedFS, and OTel Operator. Module path remains `github.com/buraksezer/consistent`. **Jump hash** (`lithammer/go-jump-consistent-hash`) is O(1)/perfectly balanced but can only add/remove the *last* bucket, wrong for a dynamic named-server set with failures. **Rendezvous/HRW** redistributes only a removed node's keys, evenly; strictly better churn than a naive ring, at O(n)/lookup. `serialx/hashring` is legacy ketama (untagged, no go.mod, 2020), only for wire-compat with existing clients. For *load balancing* (hot keys), bounded-load (CH-BL); for *data placement*, ring/HRW.
 
 ---
 
@@ -664,21 +664,21 @@ An asynchronously-fed read side is eventually consistent, so surface that stalen
 
 | Concern | Library | Version (2026) | Status / note |
 |---|---|---|---|
-| gRPC | `google.golang.org/grpc` | **v1.81.x** | `Dial`→`NewClient`; status codes; keepalive |
+| gRPC | `google.golang.org/grpc` | **v1.85.0** | `Dial`→`NewClient`; status codes; keepalive |
 | Protobuf runtime + codegen | `google.golang.org/protobuf` (+`protoc-gen-go-grpc`) | current | APIv2; old `golang/protobuf` deprecated |
 | Proto toolchain | `buf` | current | Lint + breaking-change detection + BSR |
-| Raft | `github.com/hashicorp/raft` | **v1.7.3** | Pre-vote default ≥1.7.0; use ≥1.7.1 |
+| Raft | `github.com/hashicorp/raft` | **v1.8.0** | Pre-vote default ≥1.7.0; use ≥1.7.1 |
 | Raft store | `github.com/hashicorp/raft-boltdb/v2` | **v2.3.1** | Use **/v2** (bbolt); `MigrateToV2` |
 | Raft WAL store | `github.com/hashicorp/raft-wal` | n/a | Faster than BoltDB write-heavy |
-| Saga / workflow | `go.temporal.io/sdk` | **v1.45.0** | Durable orchestration; determinism rules |
+| Saga / workflow | `go.temporal.io/sdk` | **v1.50.0** | Durable orchestration; determinism rules |
 | Outbox / messaging toolkit | `github.com/ThreeDotsLabs/watermill` | v1.5+ | Forwarder nacks non-decorated msgs |
-| etcd lock/election | `go.etcd.io/etcd/client/v3` (`/concurrency`) | **v3.6.x** | Correctness-grade; revision=fence; `NewSTMSerializable` deprecated |
+| etcd lock/election | `go.etcd.io/etcd/client/v3` (`/concurrency`) | **v3.7.3** | Correctness-grade; revision=fence; `NewSTMSerializable` deprecated |
 | Redis lock | `github.com/go-redsync/redsync/v4` | **v4.16.x** | **Efficiency only**; no fencing; `Valid` deprecated |
-| NATS / JetStream | `github.com/nats-io/nats.go` (`/jetstream`) | **v1.52.0** | Use the `jetstream` subpkg; legacy `JetStreamContext` |
+| NATS / JetStream | `github.com/nats-io/nats.go` (`/jetstream`) | **v1.55.0** | Use the `jetstream` subpkg; legacy `JetStreamContext` |
 | Kafka | `github.com/twmb/franz-go` | current (Feb 2026) | Pure Go, fastest, full EOS, **default** |
 | Kafka (simple) | `github.com/segmentio/kafka-go` | current | Smaller surface; `Reader`/`Writer` |
 | Kafka (legacy) | `github.com/IBM/sarama` | maintained | Older; franz-go preferred for new code |
-| Consistent hash (bounded load) | `github.com/buraksezer/consistent` | **v0.10.0** | Fixed partitions; can panic on add; de-facto standard |
+| Consistent hash (bounded load) | `github.com/buraksezer/consistent` | **v1.1.0** | Fixed partitions; fixed seed; can panic on add/remove under max load; de-facto standard |
 | Jump hash | `github.com/lithammer/go-jump-consistent-hash` | current | Sequential buckets only |
 | Ketama ring (legacy) | `github.com/serialx/hashring` | untagged (2020) | Wire-compat only |
 | Circuit breaker | `github.com/sony/gobreaker/v2` | current | See errors-and-resilience.md |
@@ -701,7 +701,7 @@ An asynchronously-fed read side is eventually consistent, so surface that stalen
 11. **Treating any Redis/redsync lock as correctness-grade**: no fencing tokens; for correctness use etcd/Consul lease + a monotonic revision the resource enforces.
 12. **Lock without TTL** (deadlocks waiters), **without extension** for long jobs, or unconditional `DEL` (frees another holder's lock).
 13. **etcd mutex assumed permanent**: it's a lease; re-check `session.Done()`/`IsOwner()` at the mutation; `NewSTMSerializable` is deprecated.
-14. **Per-process-seeded hash in a consistent-hash ring** → every node computes a different ring (silent, catastrophic). Use a fixed-seed hash. Jump hash for a dynamic named set; assuming `buraksezer/consistent` partition count is mutable.
+14. **Per-process-seeded hash in a consistent-hash ring** → every node computes a different ring (silent, catastrophic). Use a fixed-seed hash. Jump hash for a dynamic named set; assuming `buraksezer/consistent` partition count is mutable or ignoring bounded-load panics.
 15. **`time.Now()` to order events across machines**: wall clocks drift; use Lamport/vector/HLC; LWW without a logical clock loses writes.
 16. **Severing the trace by not passing `ctx`** to a downstream call or goroutine; not setting a global propagator (cross-vendor traces break).
 17. **Temporal `SideEffect` assumed at-most-once** (it isn't); native nondeterminism (`time.Now`, map range, bare goroutines) in workflow code; cleanup on a canceled `ctx` (use `NewDisconnectedContext`); changing workflow code without `GetVersion`.
@@ -723,7 +723,7 @@ An asynchronously-fed read side is eventually consistent, so surface that stalen
 
 ## Sources {#sources}
 
-- pkg.go.dev: `google.golang.org/grpc{,/status,/codes,/keepalive,/metadata}` (v1.81.x); `google.golang.org/protobuf`; `go.etcd.io/etcd/client/v3/concurrency` (v3.6.x); `github.com/hashicorp/raft` (v1.7.3); `github.com/hashicorp/raft-boltdb/v2` (v2.3.1); `github.com/nats-io/nats.go{,/jetstream}` (v1.52.0); `github.com/twmb/franz-go/pkg/kgo`; `github.com/go-redsync/redsync/v4`; `github.com/buraksezer/consistent` (v0.10.0); `go.temporal.io/sdk` (v1.45.0)
+- pkg.go.dev: `google.golang.org/grpc{,/status,/codes,/keepalive,/metadata}` (v1.85.0); `google.golang.org/protobuf`; `go.etcd.io/etcd/client/v3/concurrency` (v3.7.3); `github.com/hashicorp/raft` (v1.8.0); `github.com/hashicorp/raft-boltdb/v2` (v2.3.1); `github.com/nats-io/nats.go{,/jetstream}` (v1.55.0); `github.com/twmb/franz-go/pkg/kgo`; `github.com/go-redsync/redsync/v4`; `github.com/buraksezer/consistent` (v1.1.0); `go.temporal.io/sdk` (v1.50.0)
 - grpc.io docs (status codes, deadlines, keepalive, name resolution); developers.google.com/protocol-buffers (wire format, field rules); buf.build docs
 - Kleppmann, "How to do distributed locking" (2016-02-08); antirez, "Is Redlock safe?"; etcd `concurrency.Mutex.IsOwner` source
 - microservices.io transactional outbox; Stripe API idempotency docs; IETF `Idempotency-Key` draft; Temporal workflow determinism docs (`SideEffect`, `NewDisconnectedContext`, `GetVersion`, `DeterministicKeys`)

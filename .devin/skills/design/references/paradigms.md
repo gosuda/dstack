@@ -2,9 +2,9 @@
 
 Five paradigms cover the production-distinct surface space. Each is named, anchored on real exemplars, and has a known failure mode. Pick one per direction; mixing two on a single surface reads as confusion (see `references/anti-slop.md` §2 row 4).
 
-**Grounded: 2026-08-26**
+**Grounded: 2026-10-30**
 
-Order matters below, post-minimalism is the ODIN default; the rest are alternatives chosen against a register, not picked from a buffet. Each subsection follows a fixed shape (when-to-use, failure mode, OKLCH palette starter, type pair, motion signature, density signature, taste anchors) so the paradigms can be scanned uniformly and compared without re-reading the prose.
+Order matters below, post-minimalism is the DStack default; the rest are alternatives chosen against a register, not picked from a buffet. Each subsection follows a fixed shape (when-to-use, failure mode, OKLCH palette starter, type pair, motion signature, density signature, taste anchors) so the paradigms can be scanned uniformly and compared without re-reading the prose.
 
 ## §0 Register × paradigm matrix
 
@@ -60,7 +60,7 @@ The diagnostic: if every removed element makes the surface lighter without makin
 --border: oklch(0.88 0.002 0);        /* very light neutral border */
 ```
 
-Type pair. Display: Inter Display or Geist Sans (committed weight, tight tracking). Body: Inter Text or Geist Sans Text. Mono: Geist Mono or JetBrains Mono. The pairing collapses display and body into one family at different optical sizes: appropriate because post-minimalism stakes restraint, not editorial contrast.
+Type pair. Display: Inter Display or Geist Sans (committed weight, tight tracking). Body: Inter Text or Geist Sans Text. Mono: Geist Mono or JetBrains Mono. The pairing collapses display and body into one family at different optical sizes: appropriate because post-minimalism stakes restraint, not editorial contrast. Anchor defense: Linear ships Inter Display and Vercel ships Geist (see taste anchors), so these are homage picks with a rationale, not reflex defaults; without that anchor, choose a family outside the reflex-reject list.
 Motion signature. 120: 200ms, ease-out, on `opacity` and `transform` only. No `transition: all`. Layout, color, and shadow do not animate. The motion budget is small on purpose, every frame the user spends watching a transition is a frame they are not reading the content the surface exists to communicate.
 
 Density signature. Spacing subset 4 / 8 / 16; line-height 1.4: 1.5; content-to-chrome ratio 2,3× the LLM default. Vertical rhythm tightens until information lands per scroll.
@@ -84,13 +84,13 @@ Lift the look without inheriting the audience and the brutalism becomes costume,
 --border: oklch(0 0 0);               /* raw black, 2-4px */
 ```
 
-Type pair. Display: a coarse grotesque or geometric mono (e.g. Space Mono, Departure Mono, IBM Plex Mono Bold) at heavy weight, oversized. Body: a plain neutral sans (Inter, Helvetica). The pairing earns its tension from contrast in *register*, not just size: display reads handmade, body reads industrial.
+Type pair. Display: a coarse grotesque or geometric mono (e.g. Space Mono, Departure Mono, IBM Plex Mono Bold) at heavy weight, oversized. Body: a plain neutral sans (Inter, Helvetica). The pairing earns its tension from contrast in *register*, not just size: display reads handmade, body reads industrial. Anchor defense: the crude-mono tension is the brutalist register itself (creator/indie homage), which is the rationale the reflex-reject list requires; Space Mono and IBM Plex Mono sit on the default-banned list, so use them only when the surface defends the homage, otherwise substitute an unbanned coarse family.
 
 Motion signature. Minimal: 100ms or less, no easing curves (`linear` or no transition). Motion is anathema to the static-poster register; movement breaks the illusion that the page is print, and print is the metaphor neo-brutalism is leaning on.
 
 Density signature. Spacing subset 16 / 24 / 48; 2: 4px borders; line-height 1.3,1.5. Content-to-chrome ratio is medium-tight, generous block padding inside harsh borders, not cramped.
 
-Taste anchors. Read.cv (anti-LinkedIn; acquired by Perplexity 2025 and shut down 2025-05-16: historical anchor). Gumroad (creator-economy register). Vercel's old blog era (pre-2023 grotesque-display moment).
+Taste anchors. Read.cv (anti-LinkedIn: historical visual anchor). Gumroad (creator-economy register). Vercel's old blog era (pre-2023 grotesque-display moment).
 
 ## Glassmorphism
 
@@ -118,7 +118,7 @@ Taste anchors. Apple visionOS (native depth-as-affordance). macOS Big Sur+ Notif
 
 ## Material 3 Expressive
 
-When to use. Android / Compose surfaces and Google-ecosystem apps, Compose support is not yet stable: stable `androidx.compose.material3` is 1.4.x, with the Expressive APIs in a 1.5.0 alpha behind `@ExperimentalMaterial3ExpressiveApi`. The register is consumer, expressive, motion-rich: gestures matter, theming matters, accessibility is enforced by the system. Appropriate when the user expects platform-native feel, not bespoke branding, and when dynamic color from system wallpaper is a feature rather than a leak.
+When to use. Android / Compose surfaces and Google-ecosystem apps. The register is consumer, expressive, motion-rich: gestures matter, theming matters, accessibility is enforced by the system. Pin production work to the stable material3 track and keep Expressive APIs behind their experimental opt-in (see `references/design-systems.md` for the current pin, which advances faster than this file). Appropriate when the user expects platform-native feel, not bespoke branding, and when dynamic color from system wallpaper is a feature rather than a leak.
 
 Failure mode. M3-default: using the stock palette and component shapes reads as "I used the framework defaults" (the framework-default slop tell, see `references/anti-slop.md` §1 row 9, generalized from Tailwind to Material).
 

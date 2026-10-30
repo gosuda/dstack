@@ -2,7 +2,7 @@
 
 Two migrations live here. **Cross-language** (Python/Java/TS/Rust → Go): the trap is writing the old language in Go syntax: errors are values, composition replaces inheritance, goroutines replace threads. **Within Go** (old toolchain/APIs → current): the Go 1 promise means your code keeps compiling, but `io/ioutil`, `math/rand`, `interface{}`, and `strings.Title` all have modern replacements, and `go fix` now automates most of the rewrite.
 
-> Verified against Go **1.26.x** (stable, Feb 2026) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. No-corpus build: deprecations/versions checked against go.dev release notes + pkg.go.dev; unverified specifics flagged `[verify]`.
+> Verified against Go **1.26.x** (stable, Feb 2026) and the **Go 1.27 final release notes** (current patch pin in `SKILL.md`). Version tags `[1.N]` mark the release a claim applies to. No-corpus build: deprecations/versions checked against go.dev release notes + pkg.go.dev; unverified specifics flagged `[verify]`.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -29,7 +29,7 @@ Two migrations live here. **Cross-language** (Python/Java/TS/Rust → Go): the t
 13. [Rust → Go](#rust-to-go)
 14. [Quick Reference](#quick-reference)
 15. [Version / migration map](#versions)
-16. [What models get wrong](#stale)
+16. [Stale beliefs to drop](#stale)
 
 ---
 
@@ -209,7 +209,7 @@ Strategy:
 - Replace `interface{}`-based containers/utilities (`Map`, `Filter`, `Keys`) with generics or the stdlib `slices`/`maps` packages [1.21]: `go fix` migrates many manual loops automatically.
 - Constrain with `comparable`, `cmp.Ordered` [1.21], or `~`-underlying constraints: not bare `any` unless you truly accept anything.
 - Don't parameterize a function used at one type, or to "future-proof." Concrete types read better and inline more reliably.
-- Methods can't add their *own* type parameters before **[1.27]** (generic methods land in 1.27 RC): until then, put parameters on the enclosing type or a free function.
+- Methods could not add their *own* type parameters before **[1.27]**; generic methods are now stable in 1.27. Interface methods still may not declare type parameters or be implemented by generic methods. For older toolchains, put parameters on the enclosing type or use a free function.
 
 `interface{ ... }` *behavioral* interfaces (`io.Reader`, `error`) remain the right tool for polymorphism; generics are for type-uniform code (containers, numeric algorithms).
 
@@ -261,7 +261,7 @@ defer conn.Close()
 
 Migration notes: drop `WithBlock`/`WithReturnConnectionError` (no eager dial: the first RPC connects; wait on RPC readiness instead); `WithInsecure()`→`WithTransportCredentials(insecure.NewCredentials())`; if you relied on the old default scheme, prefix the target with `passthrough:///`. The deprecation landed in grpc-go around **v1.63 (mid-2024)** `[verify exact version]`; match your project's `google.golang.org/grpc` version.
 
-Preparing for `encoding/json/v2`: a major revision of `encoding/json` (correctness fixes, streaming, big performance gains) is in flight as an experiment (`GOEXPERIMENT=jsonv2`); `v1` stays supported under the Go 1 promise and is re-implemented on the v2 engine. It is **not yet GA in 1.26** `[verify GA release — possibly 1.27+]`. Prepare now without committing:
+Preparing for `encoding/json/v2`: the Go 1.25/1.26 experiment (`GOEXPERIMENT=jsonv2`) became stable in Go 1.27 as `encoding/json/v2` and `encoding/json/jsontext`. `encoding/json` remains supported under the Go 1 promise and is now backed by the v2 implementation; `GOEXPERIMENT=nojsonv2` restores the original v1 implementation when compatibility requires it. Prepare migrations without asserting on v1 error text:
 
 ```go
 // Write decoupling-friendly code today so a later switch is mechanical:
@@ -270,7 +270,7 @@ Preparing for `encoding/json/v2`: a major revision of `encoding/json` (correctne
 // - centralize (un)marshal in one helper so the import swap is one edit
 ```
 
-Behavioral deltas to expect at GA: stricter defaults (e.g. case-sensitive keys, duplicate-key rejection), changed error messages, `omitzero` semantics. Don't assert on v1 error strings. Full detail: [encoding-and-serialization.md](encoding-and-serialization.md#json-v2).
+Final 1.27 behavior includes stricter defaults (for example, rejecting invalid UTF-8 and duplicate object names), changed error messages, and `omitzero` semantics. The v2 API also removed the `format` and `unknown` tag options, the `DiscardUnknownMembers` marshal option, and the `SkipFunc` sentinel error; the former `inline` tag option is now `embed`. Don't assert on v1 error strings. Full detail: [encoding-and-serialization.md](encoding-and-serialization.md#json-v2).
 
 ---
 
@@ -474,13 +474,13 @@ Within Go: Bump → `go get go@1.x` + `go fix` + `go vet` + `go test -race`. `io
 | `go mod init` lower `go` line | writes `go 1.(N-1).0` | **1.26** |
 | `ReverseProxy.Director` → `Rewrite` | safer header handling | **1.26** (Rewrite since 1.20) |
 | `fmt.Errorf("x")` ≈ `errors.New` | the "use New for plain strings" rule is stale | **1.26** |
-| generic methods | methods may declare type params | **1.27 (RC)** `[verify]` |
-| `asynctimerchan` GODEBUG removed | timers always synchronous | **1.27 (RC)** |
-| `encoding/json/v2` GA | streaming/correctness; stricter defaults | `[verify — 1.27+]` |
+| generic methods | methods may declare type params; interface methods cannot declare type params or be implemented by generic methods | **1.27** |
+| `asynctimerchan` GODEBUG removed | timers always synchronous | **1.27** |
+| `encoding/json/v2` + `jsontext` stable | `encoding/json` is backed by v2; stricter defaults and changed error text; `format`/`unknown`/`DiscardUnknownMembers`/`SkipFunc` removed; `inline` renamed `embed` | **1.27** |
 
 ---
 
-## What models get wrong {#stale}
+## Stale beliefs to drop {#stale}
 
 1. Thinking the Go 1 promise means **nothing** changes on upgrade: behavior changes do happen (gated by GODEBUG / the `go.mod` `go` line). Bumping `go 1.x` is a behavior change.
 2. Forgetting **the `go` line in `go.mod` selects GODEBUG defaults [1.21]**, so a version bump silently flips loopvar semantics and dozens of defaults.
@@ -511,8 +511,8 @@ Within Go: Bump → `go get go@1.x` + `go fix` + `go vet` + `go test -race`. `io
 
 ## Sources {#sources}
 - go.dev/doc/go1compat (Go 1 compatibility promise); go.dev/doc/godebug (GODEBUG history, `go.mod` defaults)
-- go.dev/doc/go1.16, go1.18, go1.21, go1.22, go1.23, go1.26 release notes; go1.27 RC notes
+- go.dev/doc/go1.16, go1.18, go1.21, go1.22, go1.23, go1.26, and **go1.27** release notes
 - pkg.go.dev/{io/ioutil (deprecated 1.16/1.17), math/rand/v2, errors#AsType (added 1.26.0), strings#Title}
 - go.dev/doc/go1.26 §Tools: `go fix` modernizers + `//go:fix inline`; `go mod init` lower `go` line; `errors.AsType`; `fmt.Errorf` alloc parity
 - go.dev/wiki: modules `/vN` semantic-import versioning; "From X to Go"; Effective Go; Go FAQ
-- grpc-go `Dial`/`DialContext` deprecation → `grpc.NewClient` (version `[verify]`); `encoding/json/v2` proposal (`GOEXPERIMENT=jsonv2`, GA `[verify]`)
+- grpc-go `Dial`/`DialContext` deprecation → `grpc.NewClient` (version `[verify]`); Go 1.27 final release notes and pkg.go.dev/encoding/json/v2 + pkg.go.dev/encoding/json/jsontext for the stable JSON v2 migration

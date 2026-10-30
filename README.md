@@ -1,19 +1,19 @@
-# Outline-Driven Development
+# DStack
 
 > Vibes are too shallow. Specs are too complex. Let there be the outline.
 
 **Beyond specs. Beyond vibes.** A versioned outline becomes the contract for every agentic act.
 
-[![GitHub Stars](https://img.shields.io/github/stars/OutlineDriven/outline-driven-development?style=flat-square)](https://github.com/OutlineDriven/outline-driven-development/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/gosuda/dalcom-skills?style=flat-square)](https://github.com/gosuda/dalcom-skills/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-c8803c?style=flat-square)](LICENSE)
-[![Last commit](https://img.shields.io/github/last-commit/OutlineDriven/outline-driven-development?style=flat-square)](https://github.com/OutlineDriven/outline-driven-development/commits/main)
+[![Last commit](https://img.shields.io/github/last-commit/gosuda/dalcom-skills?style=flat-square)](https://github.com/gosuda/dalcom-skills/commits/main)
 [![Site](https://img.shields.io/badge/site-outlinedriven.github.io-c8803c?style=flat-square)](https://outlinedriven.github.io)
 
 ---
 
 ## Contents
 
-- [What is Outline-Driven Development](#what-is-outline-driven-development)
+- [What is DStack](#what-is-dstack)
 - [Implementation](#implementation)
 - [Install](#install)
 - [Comparison](#comparison)
@@ -23,9 +23,9 @@
 
 ---
 
-## What is Outline-Driven Development
+## What is DStack
 
-Outline-Driven Development is a coding methodology for LLM code agents. It occupies the space between two failure modes: vibes (too shallow, non-reproducible) and specs (too rigid, too expensive to maintain). The unit of truth is a versioned outline whose hash anchors every diff, every test, and every diagram.
+DStack (formerly Outline-Driven Development) is a coding methodology for LLM code agents. It occupies the space between two failure modes: vibes (too shallow, non-reproducible) and specs (too rigid, too expensive to maintain). The unit of truth is a versioned outline whose hash anchors every diff, every test, and every diagram.
 
 The outline is harness-agnostic. One implementation carries it to every agent, and the methodology
 itself lives here as prompt files that any agent can consume. See [PHILOSOPHY.md](PHILOSOPHY.md)
@@ -35,8 +35,8 @@ for the full design rationale and traceability model.
 
 ## Implementation
 
-[odin-claude-plugin](https://github.com/OutlineDriven/odin-claude-plugin) is the single source: 613
-skills in 28 plugins, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
+[dalcom-skills](https://github.com/gosuda/dalcom-skills) is the single source: 304
+skills in 22 plugins at release 2.1.8, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
 Plugins client from the same tree. There is no separate per-agent repository to install or track.
 
 ---
@@ -46,23 +46,23 @@ Plugins client from the same tree. There is no separate per-agent repository to 
 ### Claude Code
 
 ```
-/plugin marketplace add OutlineDriven/odin-claude-plugin
-/plugin install odin-core@odin-marketplace
+/plugin marketplace add gosuda/dalcom-skills
+/plugin install dstack-core@dstack
 ```
 
 ### Codex
 
 ```
-codex plugin marketplace add OutlineDriven/odin-claude-plugin
-codex plugin add odin-core@odin-marketplace
+codex plugin marketplace add gosuda/dalcom-skills
+codex plugin add dstack-core@dstack
 ```
 
 ### Cursor
 
-Add the `OutlineDriven/odin-claude-plugin` marketplace in Cursor, then:
+Add the `gosuda/dalcom-skills` marketplace in Cursor, then:
 
 ```
-/plugin install odin-core
+/plugin install dstack-core
 ```
 
 Cursor reads the Agent Plugins manifest at each plugin root.
@@ -76,20 +76,20 @@ this repository carries every skill there as a flat, generated mirror of the plu
 
 ### Pick your plugins
 
-`odin-core` is the base installed above. The other 27 plugins are optional, so add the domains you
+`dstack-core` is the base installed above. The other 21 plugins are optional, so add the domains you
 work in and skip the rest. Every one installs the same way, for example
-`/plugin install odin-security@odin-marketplace`. Three common additions:
+`/plugin install dstack-planning@dstack`. Three common additions:
 
 | Working on | Add |
 |---|---|
-| Everyday code changes | `odin-code`, `odin-run` |
-| Security review and hardening | `odin-security`, `odin-security-advanced` |
-| Research and technical writing | `odin-research`, `odin-writing` |
+| Everyday code changes | `dstack-code`, `dstack-run` |
+| Planning and task breakdown | `dstack-planning` |
+| Knowledge and context retention | `dstack-knowledge` |
 
 The full domain-to-plugin table, with the skill count per plugin, is in the
-[odin-claude-plugin README](https://github.com/OutlineDriven/odin-claude-plugin#choose-your-plugins).
+[dalcom-skills README](https://github.com/gosuda/dalcom-skills#choose-your-plugins).
 
-### CLI Tools
+### CLI tools
 
 See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 
@@ -97,7 +97,7 @@ See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 
 ## Comparison
 
-| Aspect | Vibe coding | Spec-driven (Spec Kit) | BMad | **Outline-Driven Development** |
+| Aspect | Vibe coding | Spec-driven (Spec Kit) | BMad | **DStack (Outline-Driven)** |
 |---|---|---|---|---|
 | Source of truth | LLM intuition | Spec doc | Behavioral specs | **Versioned outline (hash-anchored)** |
 | Iteration unit | "Try again" | Spec -> re-prompt | BDD scenarios | **Outline node x diff** |
@@ -111,7 +111,7 @@ See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 
 ## Status (2026-09)
 
-odin-claude-plugin 2.0.0 is the single implementation, shipping 613 skills across 28 plugins for
+dalcom-skills at release 2.1.8 is the single implementation, shipping 304 skills across 22 plugins for
 Claude Code, Codex, Cursor, and any Agent Plugins client. The three prompt files were stripped of
 persona doctrine in early September 2026, so the methodology carries no agent identity of its own.
 Releases ship from the implementation repository, not from here.
@@ -123,14 +123,14 @@ Releases ship from the implementation repository, not from here.
 Open an issue to discuss ideas or report bugs. PRs improving the methodology, prompts, or tooling documentation are welcome.
 
 Do not edit `.devin/skills/` here. Every file under it is written by `scripts/sync-outline-skills.mjs`
-in [odin-claude-plugin](https://github.com/OutlineDriven/odin-claude-plugin), which also deletes any
+in [dalcom-skills](https://github.com/gosuda/dalcom-skills), which also deletes any
 file the plugin tree no longer carries. Change the skill under `plugins/<plugin>/skills/<slug>/` in
 that repository and run `just sync-outline` there. The script writes to the sibling checkout
-`../outline-driven-development` by default; `node scripts/sync-outline-skills.mjs --target <path>`
+`../dstack` by default; `node scripts/sync-outline-skills.mjs --target <path>`
 points it elsewhere, and `--check` reports drift without writing.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT: see [LICENSE](LICENSE).

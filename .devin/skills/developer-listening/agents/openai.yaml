@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Listening"
+  short_description: "Use when collecting dated per-conversation evidence from public developer discussions to triage opportunities."

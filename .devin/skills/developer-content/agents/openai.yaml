@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Content"
+  short_description: "Use when preparing an evidence-backed developer content package with runnable examples and accuracy checks."

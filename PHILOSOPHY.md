@@ -1,5 +1,7 @@
-# Outline-Driven Development — Philosophy
+# DStack: philosophy
 
+> Formerly ODIN / Outline-Driven Development.
+>
 > Deterministic scaffolds harness non-deterministic LLM creativity only when the outline stays the single source of truth and every downstream stage revalidates against it.
 
 ## Deterministic with Non-Deterministic LLMs

@@ -2,7 +2,7 @@
 
 Concrete command sequences for the workflows enforced by this skill. Each
 recipe is verbatim: copy-paste, then adapt the placeholders. All examples
-target `git-branchless 0.11.x`.
+target `git-branchless 0.11.1`.
 
 **Grounded: 2026-08-26**
 

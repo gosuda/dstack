@@ -55,7 +55,7 @@ PingFang and Hiragino are non-redistributable; reach for them via the system sta
 
 ## 6. Cross-CJK typography rules
 
-Line-height runs **+0.1em above the Latin equivalent**, Material's M1 rule. Body land at **1.5-1.9**; Latin's 1.4-1.6 reads cramped on CJK because square character frames need more leading than proportional Latin (m1.material.io/style/typography).
+Line-height runs about **+0.1em above the Latin equivalent**, Material's M1 rule of thumb. Body lands around **1.5-1.9**; Latin's 1.4-1.6 reads cramped on CJK because square character frames need more leading than proportional Latin (https://m3.material.io/styles/typography/overview). Treat both figures as starting heuristics, not guarantees.
 
 Letter-spacing **0** for CJK body. Latin tracking degrades the em-grid composition CJK depends on; reach for OpenType `palt` instead of `letter-spacing` when proportional metrics matter.
 

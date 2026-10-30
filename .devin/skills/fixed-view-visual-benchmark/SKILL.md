@@ -6,39 +6,24 @@ disable-model-invocation: true
 
 # Fixed-view visual benchmark
 
-## Contract
+This skill renders one frozen view repeatedly and scores each render against a frozen rubric. It never offers free-form review or subjective critique. The human asks for it by name, and only the human fires it, which is why model invocation stays disabled.
 
-| Field | Bound contract |
+Rendering needs explicit human consent, and everything else stays local and reversible: only the named local artifacts are written, rollback is undo, and nothing mutates a remote. The run ends in one named terminal class: success (the saved render clears the frozen rubric threshold), stalled (repeated renders stop improving), blocked (the rig cannot render through the specified interface), or capped (the budget runs out before the threshold clears). Budget exhaustion counts as success only when the predeclared success predicate says so. A sub-threshold render is never presented as clearing the rubric.
+
+## Freeze the rig, the rubric, and the budget
+
+Bind all three before any mutation and freeze them there:
+
+| Element | What freezing means |
 |---|---|
-| Trigger | A visual needs repeatable fixed-view rendering and independent rubric scoring. |
-| Authority | Human-gated: asks for capture consent before rendering; otherwise reversible local: writes a run record and receipt only under `.outline/loops/fixed-view-visual-benchmark/<run_id>/`, and saves a render plus render-derived fields only when a render exists; rollback is deleting that directory. No VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Fixed-view visual benchmark: renders and scores the fixed view against the frozen rubric. |
-| Done | The saved render clears the frozen rubric threshold. |
-| Stop | Stalled; render blocked; budget exhausted. Bound: fixed view rig, rubric threshold, render budget. |
+| Fixed view rig | Camera position and orientation, scene definition, and render settings (resolution, samples, lighting, post-processing) are named. Every parameter affecting the output is fixed. |
+| Rubric and threshold | Scoring dimensions (for example composition, lighting accuracy, material fidelity, geometric correctness) carry weights summing to 1.0 with a 0 to 10 scale per dimension, plus the minimum weighted-sum aggregate that defines a pass. |
+| Render budget | The maximum render attempts or time allowed, declared before work begins. |
 
-## Inputs
+## Render with consent, score independently
 
-- Fixed view rig (required): camera position and orientation, scene definition, render settings (resolution, samples, lighting, post-processing). All parameters that affect the rendered output must be named and frozen.
-- Frozen rubric threshold (required): the minimum aggregate score that defines a passing render, plus the rubric dimensions and their weights.
-- Render budget (required): the maximum render attempts or time allowed, declared before work begins.
+Ask for and record explicit human consent before rendering. Then render the fixed view through a specified rendering interface with reproducibility controls. The interface must accept the frozen rig parameters and produce a reproducible output under the frozen rig and the declared seed or averaging strategy: same camera, same scene, same settings, same strategy, same comparable result. Record the interface name, version, and the exact parameter set used. When the interface is non-deterministic (stochastic sampling, temporal effects), declare the seed or averaging strategy that makes repeated renders comparable before scoring. Renders without a declared strategy are not comparable, so never compare them.
 
-## Procedure
+Score each render against the rubric criteria, never against the previous render. Record per-dimension scores, the weighted-sum aggregate, and the threshold. Stop at success (the aggregate clears the threshold), at any non-success terminal, or at the bound, and name the terminal class reached.
 
-1. Bind the fixed view rig, rubric threshold, and render budget. Freeze all three before any mutation. Done when: the rig, threshold, and budget are named and frozen.
-2. Capture consent. Ask for and record explicit human consent before rendering. Done when: consent is recorded.
-3. Render the fixed view through a specified rendering interface with reproducibility controls. The interface must accept the frozen rig parameters and produce a deterministic output: same camera, same scene, same settings, same result. Record the interface name, version, and the exact parameter set used. If the interface is non-deterministic (stochastic sampling, temporal effects), declare the seed or averaging strategy that makes repeated renders comparable. Done when: a render is produced from the frozen rig with the interface and parameters recorded.
-4. Score the render against the frozen rubric independently. The rubric defines scoring dimensions (for example: composition, lighting accuracy, material fidelity, geometric correctness), each with a weight summing to 1.0 and a 0–10 scale per dimension. The aggregate score is the weighted sum. Score each dimension against the rubric criteria, not against the previous render. Record per-dimension scores, the aggregate, and the threshold. Done when: the rubric score is recorded with per-dimension breakdown.
-5. Stop at success (aggregate score clears the threshold), any non-success terminal, or the bound. Done when: a terminal class is reached and named.
-6. Persist the run record under `.outline/loops/fixed-view-visual-benchmark/<run_id>/` and emit `receipt.json` in that directory before return. Save the rendered artifact there only when one exists. Done when: the run record and receipt include the terminal class, threshold, and blocking condition for `blocked`; when a render exists, they also include its path, per-dimension scores, and aggregate.
-
-## Failure and recovery
-
-- Stagnation: repeated renders do not improve the score. Terminal `stalled`; report the score plateau and the renders attempted.
-- Render blocked: the rig cannot produce a render through the specified interface. Terminal `blocked`; report the blocking condition.
-- Budget exhausted: the render budget is spent before the threshold is cleared. Terminal `capped`; report the best score achieved. Budget exhaustion is never success unless it is the predeclared success predicate.
-- Non-deterministic output without declared seed: if repeated renders with the same parameters produce different scores and no seed or averaging strategy was declared, the renders are not comparable. Declare the strategy before scoring; do not compare incomparable renders.
-- Partial result: emit the best render and score obtained; never present a sub-threshold render as clearing the rubric.
-
-## Output
-
-A terminal classification (`success`, `capped`, `stalled`, or `blocked`) plus the run receipt. The receipt includes the saved render, its per-dimension rubric scores, aggregate score, and threshold when a render was produced; for `blocked`, it records the blocking condition and has no render-derived fields.
+Persist the run record under `.outline/loops/fixed-view-visual-benchmark/<run_id>/`, emitting `receipt.json` before return with the saved render path, per-dimension scores, aggregate, threshold, and terminal class. Hand back the terminal classification with the saved render, its per-dimension scores, the aggregate, the threshold, and the run receipt. When the run yields only a partial result, emit the best render and score obtained.

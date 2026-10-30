@@ -6,43 +6,49 @@ disable-model-invocation: true
 
 # Scheduler
 
-## Contract
+You set up personal reminders and small local tasks that fire at a confirmed time or interval. Each request creates, pauses, updates, or deletes one named local item. You never touch unrelated system schedules, and you refuse any scheduled action that is itself destructive or irreversible. There is no admin elevation, no credential use, and no remote change. Every mutation rolls back by removing the backend entry and its metadata record.
 
-| Field | Bound contract |
+## What you need from the request
+
+| Input | What it is |
 |---|---|
-| Trigger | The user asks to set a personal reminder or run a lightweight local task at a specific time or interval, or to list, pause, update, or delete an existing scheduled item. |
-| Authority | Reversible local: user-level scheduling only. A scheduled action that is itself destructive or irreversible is refused outright, not installed after confirmation. No admin elevation, no credentials, no remote mutation. Every mutation has a stated rollback path: remove the entry and its metadata record. |
-| Side effect | Creates, pauses, unpauses, deletes, or updates one named local scheduled item per confirmed request. Never modifies unrelated system schedules. |
-| Done | For create or update, the item exists in both the backend and the metadata record. For delete, the item is verified absent from both. For list, a list report is returned. For create, update, or delete, the user receives a confirmation with name, action, human-readable time, and delivery method. |
+| Action | The reminder message or the exact command to run. Required. |
+| Schedule | An absolute time, a relative delay, or a recurrence pattern. Required. |
+| Delivery method | How the user gets it: notification, terminal output, or background command execution. Required before anything is installed, so ask when it is missing. |
+| Timezone | Whose clock the schedule runs on. Optional, defaults to the user's local timezone. |
+| Name | A stable kebab case name for the item. Optional, defaults to a name derived from the action. |
 
-## Inputs
+## Setting up a scheduled item
 
-- Action (required): the reminder message or the exact command to run.
-- Schedule (required): an absolute time, a relative delay, or a recurrence pattern.
-- **Delivery method** (required before install, asked when unspecified): notification, terminal output, or background command execution.
-- Timezone (optional): defaults to the user's local timezone.
-- Name (optional): defaults to a generated kebab-case name.
+First identify the operation: create, list, pause or unpause, update, or delete. Schedule and delivery are required only for create and update. List, pause, and delete need just the item name (or nothing, for a full list), so never block those on a missing schedule.
 
-## Procedure
+For create and update, these steps run in order.
 
-1. Parse intent, action, schedule, and delivery. Classify the request as reminder or task. When the classification is unclear, assume reminder and say so. Ask the one blocking question when anything is ambiguous: vague times ("tomorrow morning"), unclear timezone, or unclear action. Done when: intent, action, schedule, and delivery method are resolved or the blocking question is asked.
-2. Normalize the schedule into a human-readable rule in local time. Whether an absolute timestamp, relative delay, or recurrence, express it in the user's local timezone unless stated otherwise. Confirm this normalized schedule with the user before installing anything. Done when: the normalized schedule is confirmed by the user.
-3. Generate a stable kebab-case name and write the metadata record. Derive the name from the action ("review PRs" becomes `review-prs`); on collision, append a numeric suffix. Write the metadata record under `~/.odin/scheduler/` with the schema: name, type, backend path, normalized schedule, delivery, status. Done when: the metadata record is written.
-4. Install through the platform backend with a stated mechanism per platform. Quoting and escaping rules for the action string are part of this step:
-   - macOS: write a launchd plist to `~/Library/LaunchAgents/<name>.plist`. Notifications use `osascript`. The unload path is `launchctl unload ~/Library/LaunchAgents/<name>.plist`.
-   - Linux: write a systemd user timer unit plus service unit to `~/.config/systemd/user/`. Verify with `systemctl --user list-timers`. When systemd is unavailable, fall back to a crontab line installed with `crontab -l | { cat; echo "<line>"; } | crontab -`. Notifications use `notify-send` with terminal output as fallback.
-   - Windows: create a Task Scheduler task using `schtasks /create`. Notifications use a PowerShell toast.
-   One-shot entries are self-cleaning: after firing, the backend entry and metadata record are removed. Done when: the entry is installed in the backend.
-5. Verify the backend and metadata record match the requested action. For create or update, confirm the entry exists in both and the schedule and command match the metadata. For delete, confirm the entry and metadata record are both removed. Confirm to the user with name, action, human-readable time, and delivery method. Done when: the backend and metadata record are both verified against the action and the confirmation is shown.
+1. Sort out intent, action, schedule, and delivery. Decide whether this is a reminder or a task; when it is unclear, assume reminder and say so. If anything is ambiguous (a vague time like "tomorrow morning", an unclear timezone, an unclear action), ask the one blocking question and stop. Nothing gets scheduled until intent, action, schedule, and delivery are all resolved.
+2. Restate the schedule in plain local time terms and get confirmation. Whether the request was an absolute timestamp, a relative delay, or a recurrence, express it in the user's local timezone unless they said otherwise, and confirm that normalized schedule before installing anything.
+3. Name it and record it. Derive the kebab case name from the action ("review PRs" becomes `review-prs`), appending a numeric suffix on collision. Write the metadata record under `~/.dstack/scheduler/` with the schema: name, type, backend path, normalized schedule, delivery, status.
+4. Install it through the platform backend, quoting and escaping the action string correctly for that backend:
+   - macOS: write a launchd plist to `~/Library/LaunchAgents/<name>.plist`. Notifications go through `osascript`. Removal is `launchctl unload ~/Library/LaunchAgents/<name>.plist`.
+   - Linux: write a systemd user timer unit plus service unit to `~/.config/systemd/user/`, and verify with `systemctl --user list-timers`. Where systemd is unavailable, fall back to a crontab line installed with `crontab -l | { cat; echo "<line>"; } | crontab -`. Notifications use `notify-send`, with terminal output as fallback.
+   - Windows: create a Task Scheduler task with `schtasks /create`. Notifications use a PowerShell toast.
+   - One shot entries clean up after themselves: once fired, the backend entry and metadata record are removed.
+5. Check that the backend entry and the metadata record agree with what was asked, then confirm. The entry must exist in both places with matching schedule and command. Tell the user the name, action, human readable time, and delivery method.
 
-## Failure and recovery
+For the other operations, follow the matching branch instead of steps 1 to 4.
+
+- List: read the metadata records under `~/.dstack/scheduler/` and confirm each against its backend entry, then emit the list report. No schedule, delivery, or confirmation needed.
+- Pause or unpause: flip the status in the metadata record and disable or re-enable the backend entry, then confirm the state transition with the updated record.
+- Update: change only the named fields, re-confirm the normalized schedule when the time changed, and verify backend and metadata agree before confirming.
+- Delete: remove the backend entry and its metadata record, verify both are gone, then confirm the deletion.
+
+## When setup stops instead
 
 - Ambiguous input: ask the one blocking question and stop. Nothing is scheduled.
-- Mechanism unavailable or outside authority: state the limitation and the nearest local alternative. Wait for the user's decision. No install.
-- Backend install failure: remove any partially created entry and its metadata record. Report the failure. Never claim the item is scheduled.
-- Destructive action: refuse under authority. Do not install. Ask the user to confirm the exact action if they want to proceed, but do not schedule it.
-- Rollback for every mutation: delete the OS scheduler entry and its metadata record under `~/.odin/scheduler/`. Any failure before install leaves the system unchanged.
+- Outside authority or no workable mechanism: state the limitation and the nearest local alternative, then wait for the user's decision. No install.
+- Backend install failure: remove any partially created entry and its metadata record, report the failure, and never claim the item is scheduled.
+- Destructive action: refuse outright under authority. Do not install it. You may ask the user to confirm the exact action if they want to proceed outside this skill, but you do not schedule it.
+- Anything failing before install leaves the system unchanged.
 
-## Output
+## What you hand back
 
-One of: a confirmation block (name, action, human-readable trigger in local time, delivery method); a list report (name, type, schedule, delivery, status per item); a state transition (paused, active, updated, deleted) with the updated record; or a terminal `blocked` classification naming the exact unresolved question or failing step.
+One of: a confirmation block (name, action, human readable trigger in local time, delivery method); a list report (name, type, schedule, delivery, status per item); a state transition (paused, active, updated, deleted) with the updated record; or a terminal `blocked` result naming the exact unresolved question or failing step.

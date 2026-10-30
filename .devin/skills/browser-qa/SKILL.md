@@ -4,39 +4,29 @@ description: 'Use when the user runs /browser-qa for report-only QA results with
 disable-model-invocation: true
 ---
 
-# Browser qa
+# Reporting QA results without fixing anything
 
-## Contract
+You run one QA verification pass and hand back report-only results. You write a single local report under the working tree and then you stop. There is no fix loop, no source edit, and no further checks after the report goes out.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The user runs /browser-qa to run a QA verification pass and get report-only results. |
-| Authority | Reversible local: writes only one local QA report under the working tree; rollback is deleting the report. No remote mutation. No source or VCS mutation. |
-| Side effect | A QA report only. No fix loop, no file edits, no further checks after the report is returned. |
-| Done | Report-only verification results are returned: per-check status and findings in one local report file. |
+You may write that one report file and nothing else. Rollback is deleting the report. No remote mutation and no source or VCS mutation.
 
-## Inputs
+## What you need before you start
 
-- The working tree or change set to verify. Supply a scope (paths or diff range) to narrow the pass; without one, verify the whole tree.
-- Optional: an ordered list of check commands to run. If omitted, run the project's configured QA checks in order: build, then tests, then lint.
+- The working tree or change set to verify. Supply a scope (paths or diff range) to narrow the pass. Without one, verify the whole tree.
+- Optionally, an ordered list of check commands to run. If omitted, run the project's configured QA checks in order: build, then tests, then lint.
 
-## Procedure
+## Running the pass
 
-1. Bound scope to the supplied paths or diff range, or the whole tree when none is given. Do not read or change files outside that scope. Done when: the scope boundary is established and enforced.
-2. Run each configured QA check in order (build, then tests, then lint) and capture exit status, stdout, and stderr for each. Done when: every check has been run or recorded as non-runnable.
-3. Collect every finding into a single list tagged by check name and severity. Done when: all findings are collected with their check and severity tags.
-4. Write the findings to one local QA report file under the repository working tree. Done when: the report file exists with all findings.
-5. Return the report contents as the result. Done when: the report contents are returned.
-6. After step 5, do not apply fixes, edit files, or run more checks. This report-only variant intentionally skips the fix loop. Done when: no fixes are applied and no further checks run.
+Bound the scope first. Use the supplied paths or diff range, or the whole tree when none is given. Do not read or change files outside that boundary.
 
-## Failure and recovery
+Run each configured QA check in order (build, then tests, then lint). Capture exit status, stdout, and stderr for each one. Every check ends either run or recorded as non-runnable, with nothing skipped silently.
 
-- Check command missing or non-runnable: record the command name and error in the report; continue the remaining checks. Do not substitute a different command.
-- A check returns non-zero: that is a finding, not a skill failure. Record it and proceed to the next check.
-- Report file unwritable: return the findings inline and state that the write failed; do not create a partial file.
-- Rollback: delete the report file. No source, VCS, or remote state is mutated, so no further recovery is required.
-- Blocked: return a report listing which checks ran, which could not, and the findings collected. Never claim the done predicate when a requested check never ran.
+Write the findings to one local QA report file under the repository working tree. The report holds per-check status (what ran, what did not, exit status for each) alongside the findings tagged by check name and severity. Then return the same per-check status and findings as the result. After that point, do not apply fixes, edit files, or run more checks. This report-only variant intentionally skips the fix loop.
 
-## Output
+## When checks misbehave
 
-One local QA report file containing per-check status and findings, plus the same findings returned as the result. No fixes are applied.
+- A check command is missing or non-runnable. Record the command name and error in the report and continue with the remaining checks. Do not substitute a different command.
+- A check returns non-zero. That is a finding, not a skill failure. Record it and proceed to the next check.
+- The report file is unwritable. Return the findings inline, state that the write failed, and do not leave a partial file behind.
+- Rollback is deleting the report file. No source, VCS, or remote state is touched, so nothing else is required.
+- When a requested check never ran, say so. Return a report listing which checks ran, which could not, and the findings collected. Never claim the pass is complete when a requested check never ran.

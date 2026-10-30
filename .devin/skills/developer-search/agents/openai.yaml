@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Search"
+  short_description: "Use when mapping technical search opportunities by exact query, intent, and source evidence."

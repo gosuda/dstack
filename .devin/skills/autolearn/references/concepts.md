@@ -1,60 +1,51 @@
-# `CONCEPTS.md`: entry schema and reconciliation rules
+# `CONCEPTS.md` vocabulary contract
 
-Sync-lineage note: `skills/compound/references/concepts.md` is an independent sibling file. It defines compound's own accretion and seeding model for the same `CONCEPTS.md` surface; it is not a copy of this file. Don't merge them.
+Owner: `compound`. `autolearn` carries a generator-owned byte-identical copy of this file. The glossary at the operating repo root is shared; this contract is its single maintenance discipline.
 
-Read this in Mode 4 (Concepts capture) and when refreshing `CONCEPTS.md`. It defines the entry shape and the reconciliation and refresh loop that enforces one definition per concept. The file lives at the **operating repo root**. It is one glossary shared by autolearn and `compound`, its second legitimate writer. This document covers autolearn's entry schema and reconciliation loop. Create the file only when a term clears the gate; never scaffold an empty file.
+`CONCEPTS.md` defines words with codebase-specific meanings. It is a shared reference that `docs/solutions/` and project instructions can cite without redefining those words. Terms enter through accretion or seeding. Create the file only when the first qualifying entry exists; never scaffold an empty file.
 
-## What earns a slot: the reject-by-default gate, applied to vocabulary
+## How terms enter
 
-A term earns an entry only if it clears all three filters in order, the same gate that governs a learning doc:
+- Accretion: a learning surfaces a term whose meaning was not obvious, so it gets defined. This catches peripheral terms, because friction surfaces them.
+- Seeding: a run proactively defines the core domain nouns of the area it actually investigated: the declared domain model in scope (schema, core types, primary models, top-level domain docs), never a full-codebase trawl for nouns never touched. A scoped run seeds only its area; only an explicit repo-wide bootstrap seeds the whole project.
 
-1. **Would I forget its precise local meaning?** Define only words whose meaning *here* is precise enough that a new engineer needs it spelled out to follow code, tickets, or conversation. General programming vocabulary (cache, queue, job, session) and everyday domain English never qualify, however heavily used.
-2. **Already defined?** Search `CONCEPTS.md` for the term and its synonyms before adding. If it is already there, this is not a new entry; refresh on drift, never duplicate. One definition per concept.
-3. **Scope-qualified to this project?** The bar is "specific to this codebase," not "a generic CS term." An unqualified import of general vocabulary is noise.
+The count comes from the source and the bar below, never a fixed quantity.
 
-Nothing clears the gate → write nothing. A clean "no durable term here" is correct.
+## What earns a slot
 
-## Per entry: the shape
+A term qualifies only when all three hold, in order:
 
-- Definition is one sentence: what the term means in this domain and what distinguishes it from its neighbors. Not a tutorial.
-- Second paragraph only for non-obvious behavioral rules: lifecycle, ownership invariants, cancellation/transition semantics. Never to elaborate the definition itself.
-- Retired synonyms → an aliases line directly under the definition: `*Avoid:* OldName, otherword`. When the team uses several words for one concept, pick the best and retire the rest; the glossary is the agreed vocabulary, not a record of every word ever used.
+1. Its meaning here is precise and stable enough that a future engineer needs it defined to follow conversations, tickets, or code across sessions.
+2. It is not already defined there under any synonym. A hit means refresh, never a second entry.
+3. It is scope-qualified to this project, not general programming or domain English, and not incidental jargon from one session.
 
-## The file stands on its own
+Nothing clears the gate: write nothing. A clean no-term result is correct. Incidental jargon that happened to appear once never earns a slot, however precisely phrased.
 
-Each entry must teach its concept to a reader without access to the codebase, PR history, or chat. This rules out:
+## Per entry
 
-- Implementation specifics: file paths, class/function names, table names, library calls.
-- Status fields, dates, owners on entries.
-- Current-config values that will change: specific thresholds, counts, enum values. State the behavior, not the number.
-- Links to PRs, issues, channels, milestones; version-specific claims ("currently X, migrating to Y").
+- One sentence: what the term means here and what distinguishes it from neighbors.
+- A second paragraph only for non-obvious behavioral rules: lifecycle, ownership, cancellation, or transition semantics. Never to restate the definition.
+- Retired synonyms go directly under the definition as `*Avoid:* OldName, otherword`. When the team uses several words for one concept, pick the best and retire the rest.
+- No implementation specifics: file paths, class or function names, table names, library calls. No incidental jargon: one-session words without a precise stable project meaning.
+- No status fields, dates, or owners on entries.
+- No current-config values that will change: specific thresholds, counts, or enum values. State the behavior, not the number.
+- No links to PRs, issues, channels, milestones, or version-specific claims.
 
-Cross-references between entries *within* the file are fine; they resolve internally. If an entry leans on another **project-specific** term to make sense, that sibling term must also be defined here (an undefined project-specific sibling is itself a candidate).
+Cross-references between entries within the file are fine. When an entry leans on another project-specific term, that sibling must also be defined here.
 
 ## Organization
 
-Cluster concepts by domain relationship so the structure is easy to see: entities with their states, and processes with their stages. A flat list is fine while the file is small; reshape it as it grows. When relationships carry load-bearing meaning (ownership, cardinality, cross-entry lifecycle), capture them in a short `## Relationships` section near the top. Skip that section when entries stand alone.
+Cluster concepts by domain relationship: entities with their states, processes with their stages. A flat list is fine while small; reshape as it grows. When relationships carry load (ownership, cardinality, cross-entry lifecycle), capture them in a short `## Relationships` section near the top. Skip that section when entries stand alone.
 
-**Flagged ambiguities (tail of file):** when two terms were used interchangeably and the team settled a distinction, record it as a one-line note: *"'account' had been used for both Customer and User; these are distinct."* This tail is the audit trail for settled opinions.
+Tail section `## Flagged ambiguities` records settled distinctions in one line each: `*'account' had been used for both Customer and User; these are distinct.*`
 
-## Reconciliation: idempotent merge, one definition per concept
+## Reconciliation
 
-Reconcile; never append blindly.
+1. Locate the file (`fd -g 'CONCEPTS.md' --max-depth 2` or equivalent). Absent plus a qualifying term: create it. Absent plus nothing: write nothing.
+2. Search the term and its synonyms (`git grep -ni '<term>' CONCEPTS.md` or equivalent). A hit is the concept: refresh on drift, never duplicate.
+3. Add a genuinely new term in the right cluster per the shape above.
+4. Read the file back and confirm no duplicate or near-duplicate heading landed.
 
-1. Locate the file: `fd -g 'CONCEPTS.md' --max-depth 2`. Absent + a term clears the gate → create it; absent + nothing clears → do nothing.
-2. Search for the term and its synonyms: `git grep -ni '<term>' CONCEPTS.md`. A hit means the concept exists: go to refresh, do not add a second entry.
-3. New term → add one entry in the right cluster, per the schema above.
-4. **Read the file back** to confirm the merge landed and created no duplicate or near-duplicate heading.
+## Refresh
 
-## Refresh: keep definitions matched to reality
-
-In `mode:refresh [scope]`, maintain `CONCEPTS.md` alongside `docs/solutions/`. Per in-scope concept, re-derive the meaning against current code and pick one outcome:
-
-| Outcome | When | Action |
-|---------|------|--------|
-| **Keep** | Definition still matches the code | No edit. Prefer no-write. |
-| **Refresh** | Meaning drifted; the term still exists | Rewrite the definition to current reality. |
-| **Consolidate** | Two entries name the same concept | Merge into the better name, retire the other as an alias. |
-| **Delete** | The concept's domain is gone from the code | Remove the entry. Age alone is never a reason. |
-
-Match the glossary to the code, not the reverse. No cosmetic churn: typo and prose-polish edits are not refreshes. Headless: skip questions, apply safe refreshes/deletes, leave genuinely ambiguous concepts untouched and report them.
+In refresh scope, re-derive each in-scope definition against current code and pick one outcome: Keep (still matches; prefer no-write), Refresh (meaning drifted; rewrite to current reality), Consolidate (two entries name one concept; merge into the better name, retire the other as an alias), Delete (the concept's domain is gone from the code; age alone is never a reason). No cosmetic churn: typo or prose-polish edits are not refreshes.

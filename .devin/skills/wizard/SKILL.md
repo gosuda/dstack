@@ -1,67 +1,38 @@
 ---
 name: wizard
-description: 'Use when asked to generate a bash wizard for provisioning, credentials, dashboards, migrations, or cutovers a human performs. Not for remote, credential, publish, deploy, or irreversible changes.'
+description: 'Use when a human must perform steps only they can, such as provisioning infrastructure, entering credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover. Not for steps the agent can perform itself.'
 ---
 
 # Wizard
 
-## Contract
+You write a script a stranger can follow, for the steps only a human can do. When infrastructure must be provisioned, credentials or CI secrets entered, an unfamiliar third-party dashboard walked, or a one-off migration or cutover run, the human drives the browser and types the secrets. You never run the wizard end to end, never enter credentials, and never perform the manual steps yourself.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User needs provisioning, credentials, dashboard, or migration steps that only a human can perform. |
-| Authority | Reversible local: write only the wizard script to the named target path; delete the file to roll back. |
-| Side effect | Writes the wizard script to the target path and makes it executable; verification is static only: the script is never executed. |
-| Done | The wizard script exists at the target path, is executable, passes static verification, and every collected value is traced to its destination. |
+Your only write is the wizard script itself at the named target path, which is reversible local work (deleting the file rolls it back). Verification is static only.
 
-## Inputs
+What you need before starting:
 
-1. **Procedure description** (required): what the wizard must accomplish: provisioning, credential setup, dashboard walkthrough, migration, or cutover.
-2. **Target path** (optional): where to write the script; default `scripts/setup-<topic>.sh`.
-3. **Repository context** (read automatically): `.env`, `.env.example`, `.env.*`, `README`, `docker-compose*`, framework configuration, `.github/workflows/*`.
+- Procedure description, required: what the wizard must accomplish.
+- Target path, optional: where to write the script, defaulting to `scripts/setup-<topic>.sh`.
+- Repository context, read and never asked for cold: `.env`, `.env.example`, `.env.*`, `README`, `docker-compose*`, framework configuration, and `.github/workflows/*`.
 
-## Procedure
+## Scoping the procedure from the repo
 
-### 1. Scope the procedure
+Read the repository context first. Treat every `secrets.*` and `vars.*` reference in a workflow as a value the wizard must produce. For a migration, read the current state, the target state, and every irreversible action between them. Show the ordered stage list with the values each stage produces and confirm it with the user. This step is done when every stage is named in order and every captured value has a known source, a destination (`.env`, a CI secret, both, or nowhere for a pure-action stage), and a secret or public classification. If the scope is still unconfirmed, stop before authoring, re-present the stage list, and wait (`scope-unconfirmed`).
 
-Read the repository before asking anything: `.env`, `.env.example`, and `.env.*`; `README`; `docker-compose*`; framework configuration; `.github/workflows/*`. Treat every `secrets.*` and `vars.*` reference in a workflow as a value the wizard must produce. For a migration, read the current state, the target state, and every irreversible action between them.
+## Mapping the human journey
 
-Show the ordered stage list and the values each stage produces. Confirm it with the user. Done when: every stage has a name and order, every captured value has a known source, every captured value has a destination (`.env`, a GitHub secret, both, or nowhere for a pure-action stage), and every captured value is classified as secret or public.
+Write instructions per stage that a stranger can follow: which URL to open, what to click, where the value appears, and which variable it fills. Where the current UI or the exact command is unknown, say so and check the official docs or ask the user. Never invent steps that may not exist. This step is done when every stage traces to concrete followable instructions. If anything is still unknown, stop and report what is unknown and how to resolve it (`unknown-step`).
 
-### 2. Map the human journey
+## Authoring the script from the template
 
-For each stage, write instructions a stranger can follow. Name the URL, the clicks, where the value appears, and which variable it fills. If the current UI or exact command is unknown, say so. Check the official docs or ask the user. Never invent a step. Done when: every stage has stranger-followable instructions naming the URL, clicks, value location, and target variable.
+Fail before any write when a file already exists at the target path; report the existing path and never overwrite it (`path-collision`). Copy `scripts/wizard-template.sh` to the target path and replace only the example stage with one `stage` per step in dependency order. Set `TOTAL_STAGES` and `TOTAL_MINUTES` to honest values and keep each stage to one focused task. Use the library helpers only by the contract in `references/library-helpers.md`: open the URL before asking for its value, `ask_secret` for secrets, `write_env` for every persisted value, `set_secret` only for values CI needs, and `confirm` before any irreversible action. Never hand-edit the library above the stages marker. This step is done when the script holds one stage per step with honest totals and every helper used by contract. If any value has no capture or no destination, stop and report it rather than handing off (`value-untraced`). If any `set_secret` name does not exactly match its `secrets.*` workflow reference, stop and reconcile before handoff (`secret-mismatch`).
 
-### 3. Author the script
+## Verifying without running, then handing off
 
-Fail if a file already exists at the target path; do not overwrite. Copy `scripts/wizard-template.sh` to the target path. Replace the example with one `stage` per step in dependency order. Set `TOTAL_STAGES` and `TOTAL_MINUTES` to honest values because they drive the time-remaining display. Use the library helpers by contract per `references/library-helpers.md`. Done when: script is written with one stage per step, honest totals, and all helpers used correctly.
+Run `bash -n <script>`, run `shellcheck <script>` when available, and run `chmod +x <script>`, then fix any `bash -n` or `shellcheck` error before handoff (`syntax-failed`). Never execute the wizard, since it opens browsers and blocks on human input. Trace statically instead: every value from scoping is captured and lands where scoping declared, and every `set_secret` name exactly matches a `secrets.*` workflow reference. When the `gh` CLI is not ready for a secret, record that in `SKIPPED` so the script warns at runtime and the human sets the secret by hand (`gh-unready`). Tell the user how to run the script. Commit it only when the user wants a repeatable setup path that lives in the repo and is linked from the README; otherwise treat it as ephemeral and delete it when the job is done.
 
-### 4. Verify and hand off
+A partially authored script is never handed off. While it is still uncommitted, rollback is deleting the script file.
 
-1. Run `bash -n <script>`.
-2. Run `shellcheck <script>` when ShellCheck is available.
-3. Run `chmod +x <script>`.
-4. Static journey trace: parse the script without executing it. For every read cycle confirm the read variable has a named destination, every destination is a writable path or a named env-var export, and the script terminates with a clear success message and exit 0. If any read cycle is untraced, fail.
-5. Trace every scoped value. Confirm it is captured and reaches its declared destination.
-6. Confirm every `set_secret` name matches a `secrets.*` workflow reference exactly.
-7. Tell the user how to run the script.
+## What you hand back
 
-Done when: script passes `bash -n` and shellcheck (when available), is executable, every read cycle is traced to a destination with exit 0, every scoped value is traced to its destination, and every `set_secret` name matches its workflow reference.
-
-Commit the wizard only when the user wants a repeatable setup path in the repository. Otherwise, treat it as ephemeral and delete it after the job is done.
-
-## Failure and recovery
-| Failure class | Behavior |
-|---|---|
-| Scope not confirmed | Stop before authoring. Re-present the stage list and wait. |
-| Path collision | Fail before write. Report the existing path. Do not overwrite. |
-| Value trace fails | Stop. Report which value has no capture or no destination. Do not hand off. |
-| Untraced read cycle | Roll back the wizard file. Report the untraced block and the missing destination. |
-| `bash -n` or shellcheck fails | Stop. Report the syntax error. Fix before handoff. |
-| `set_secret` name mismatch | Stop. Report the secret name and the workflow reference. Reconcile before handoff. |
-| `gh` unavailable | Record in `SKIPPED`. The script warns at runtime; the user sets the secret manually. |
-
-Partial-result rule: a partially authored script is never handed off. Rollback: delete the script file if it has not been committed.
-
-## Output
-A self-contained bash wizard script at the target path containing the shared library, stages in dependency order, honest `TOTAL_STAGES` and `TOTAL_MINUTES`, and every scoped value captured and routed to its declared destination.
+A self-contained executable bash wizard at the target path with honest totals and every scoped value captured and routed to its declared destination, plus the run instruction and the ephemeral or repeatable disposition.

@@ -1,6 +1,6 @@
 # Python, pytest deletion patterns
 
-Python has no enforced static type system at runtime, `mypy`/`pyright` are advisory. This means **boundary shape/type tests ARE real-bug tests** in Python; a refactor that silently changes a return shape will pass type checking (if the user even runs it) but blow up at runtime. Keep these.
+Python does not enforce type annotations at runtime; `mypy`/`pyright` are advisory. This means **boundary shape/type tests ARE real-bug tests** in Python; a refactor that silently changes a return shape will pass type checking (if the user even runs it) but fail at runtime. Keep these.
 
 ## Delete (no compiler covers this, the test still does not earn its keep)
 

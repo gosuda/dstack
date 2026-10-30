@@ -1,6 +1,6 @@
 # Ecosystem advisory queries
 
-Per-ecosystem advisory sources and query methods. Load the section for the detected ecosystem before step 4 of the procedure.
+You look up known advisories for each direct dependency using the method for the detected ecosystem. Load only the section below that matches the ecosystem before step 4 of the procedure in `SKILL.md`. Every match records advisory ID, severity, affected version ranges, and fixed version. Anything reached without a lockfile follows the no-lockfile rule stated per ecosystem.
 
 ## npm
 

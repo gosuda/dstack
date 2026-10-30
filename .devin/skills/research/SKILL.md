@@ -5,58 +5,43 @@ description: 'Use when researching a named library, framework, SDK, API, or serv
 
 # Research command
 
-## Contract
+Answer a question about a named external library, framework, SDK, API, CLI, or service with a cited artifact written to disk. Codebase-internal questions do not belong here; hand those to a scout subagent. This job never mutates anything remote and never takes a paid action. Its product is one Markdown file, and returning without writing it fails the run.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Researching a named library/framework/SDK/API/service or finding a migration guide. |
-| Authority | Reversible local: writes only named local artifacts; rollback is version control or undo. No remote mutation. |
-| Side effect | Writes a cited Markdown artifact to `docs/research/` or `.outline/research/`; no remote mutation and no paid action. |
-| Done | Cited artifact written to disk with subject id, source-cited claims, confidence labels, open questions. |
+To start you need the subject, pulled as a canonical name from the request, plus an optional pinned version such as `pydantic@2.7`. Without a stated version, record "latest stable" and resolve it from official docs. The artifact lands under a preferred target path when given, otherwise under `docs/research/` when that directory exists and `.outline/research/` when it does not, filed under a slug of the subject name.
 
-## Refusals
+## Send one worker that owns the artifact
 
-- Codebase-internal research: dispatch a scout subagent. This skill researches external libraries, frameworks, and services.
-- Assertions derived solely from training data without a `[Speculative]` label: rejected. Every factual claim must cite at least one source URL or doc path.
-- Returning without writing the artifact: rejected. Do not return without writing the artifact.
+Dispatch a background subagent through `task` with self-contained instructions covering subject, version, source-ladder requirements, and target path. That worker owns completion: it climbs the ladder, cites its claims, and writes the file. You record the outcome as artifact-on-disk or as `BLOCKED` with a named failure class. A partially successful run still returns the artifact path with its specific gaps listed.
 
-## Inputs
+## Climb the source ladder in order
 
-Subject (required): the library, framework, SDK, API, CLI, or service name extracted from the user request.
-Version (optional): pinned version string if stated, e.g. `pydantic@2.7`. If unstated, resolve latest stable at Tier 1.
-Target path (optional): preferred output directory. Defaults to `docs/research/` if it exists, else `.outline/research/`.
+Inside the worker, resolve the canonical name from official docs, then probe these tiers in priority order, moving on only when a tier fails hard (source unavailable, no results, non-authoritative), and recording every skipped tier:
 
-## Procedure
+| Tier | Priority | Source type |
+|------|----------|-------------|
+| 1 | Highest | Official docs: library and framework documentation sites, SDK reference pages |
+| 2 | High | API refs: reference pages, repository README and docs folders, source code |
+| 3 | Medium | Books and papers: RFCs, academic papers, vendor whitepapers, standards documents |
+| 4 | Low | Tutorials: tutorial articles, blog posts, vendor how-to guides |
+| 5 | Lowest | Community: repository issues and discussions, forums, Q and A threads |
 
-1. Identify the subject. Extract the canonical name and version from the user request. Capture version if stated. If unstated, note "latest stable" and resolve from Tier 1. **Done when**: the canonical name and resolved version are recorded.
-2. Dispatch a background subagent via `task` with self-contained instructions: subject, version, source ladder requirements, target artifact path. The worker owns completion and writes the artifact. **Done when**: the artifact is written to disk, or the worker reports `BLOCKED` with a named failure class.
-3. Walk the 5-tier source ladder inside the subagent. Resolve the canonical name from official docs, then probe tiers in priority order. Proceed to the next tier only on hard failure (source unavailable, no results, non-authoritative). Record skipped tiers.
+The ladder is done when every tier is probed, or (in primary-source-only mode) when the first authoritative match is found and recorded, or when a hard failure stops it.
 
-   | Tier | Priority | Source type |
-   |------|----------|-------------|
-   | 1 | Highest | Official docs: library/framework documentation site, SDK reference pages |
-   | 2 | High | API refs: reference pages, repository README and docs folders, and source code |
-   | 3 | Medium | Books/papers: RFCs, academic papers, vendor whitepapers, standards documents |
-   | 4 | Low | Tutorials: tutorial articles, blog posts, vendor how-to guides |
-   | 5 | Lowest | Community: repository issues and discussions, forums, Q&A threads |
+## Cite every claim honestly
 
-   **Done when**: all tiers are probed, the first authoritative match is found and recorded (primary-source-only mode), or a hard failure stops the ladder.
+Every factual claim carries at least one source URL or doc path. Anything drawn solely from training data carries the label `[Speculative — training data only]`. For each load-bearing claim, test both stances against external sources (the surprising case that it holds, the settled case that it fails) and record both results; where no authoritative source is reachable, label the claim unverified and assert nothing from intuition.
 
-4. Cite every claim. Every factual claim must cite at least one source URL or doc path. Assertions derived solely from training data must carry `[Speculative — training data only]`. **Done when**: every claim has a citation or speculative label.
-5. Write the artifact. Persist all findings into a single Markdown file at the target location. The file name is a slug of the subject. **Done when**: the artifact is written to disk.
+## When only primary sources count
 
-## Primary-source-only mode
+Some tasks need primary-source reading. Then the ladder shrinks to Tier 1 official docs plus Tier 2 API refs, README and docs folders, and source code, stopping after the first authoritative match without probing lower tiers. Every claim links to its owning primary source URL or file path, with one citation owning each claim. A claim no primary source can support is written with `[Unverified — no primary source available]` and left unfilled; never close the gap with a community, tutorial, or other non-authoritative source. An unreachable primary source gets one retry, not a drop to a lower tier. If the target write fails, delete any partial file before reporting.
 
-When the task needs primary-source reading, restrict the ladder to its strictest tier: search only authoritative primary sources (Tier 1 official docs, and Tier 2 API refs, repository README/docs folders, and source code). Stop after the first authoritative match; do not iterate the rest of the ladder. Every factual claim must link to its owning primary source URL or file path, and each citation must uniquely own the claim it annotates. A claim that cannot be sourced from a primary source is written with the label `[Unverified — no primary source available]` and the gap is left unfilled; never substitute a community, tutorial, or non-authoritative source to close it. If a primary source is unreachable, stop after one retry rather than dropping to a lower tier. If the target write fails, delete any partial file before reporting. This mode never widens beyond primary sources; the lower tiers (3-5) are not probed.
+## When the ladder fails
 
-## Failure and recovery
+Name what happened and stop rather than pretending the artifact is complete:
 
-- `ladder-exhausted`: no authoritative source found after Tier 5; surface all attempted tiers and any partial findings.
-- `invalid-output`: artifact missing required fields, unparseable, or not written to the target path.
-- `task-dispatch-failed`: background subagent could not start or returned no result.
-- Partial-result rule: when the background subagent partially succeeds (artifact written but claims sparse), return the artifact path and list the specific gaps.
-- Blocked/non-converged result: if no artifact can be written, return `BLOCKED: <named failure class>` with the specific blocking reason. Do not pretend the done predicate holds.
+- `ladder-exhausted`: nothing authoritative through Tier 5, so surface every attempted tier plus partial findings.
+- `invalid-output`: the artifact is missing required fields, unparsable, or not at the target path.
+- `task-dispatch-failed`: the subagent never started or returned nothing.
+- No writable outcome at all: return `BLOCKED: <failure class>` with the specific reason.
 
-## Output
-
-A single cited Markdown artifact (`<subject-slug>.md`) with subject id, source-cited claims with confidence labels (Verified for Tier 1-2, Probable for Tier 3-4, Unverified for Tier 5, Speculative for training data only), and open questions listing attempted tiers, ordered: subject id, claims, open questions.
+The finished file holds the subject id, the claims each with citations and confidence labels (Verified for Tiers 1 and 2, Probable for Tiers 3 and 4, Unverified for Tier 5, Speculative for training data only), and the open questions with attempted tiers, in that order.

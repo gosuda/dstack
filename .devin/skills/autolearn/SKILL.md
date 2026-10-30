@@ -1,236 +1,92 @@
 ---
 name: autolearn
-description: 'Use when a verified non-trivial fix lands or existing solution docs need refresh. Not for unverified fixes.'
+description: 'Use when a verified fix yields a generalized well-abstracted invariant with enforcement or proof, or existing solution docs need bounded refresh. Not for unverified fixes, minor learnings, narrative/activity/weak-test stories, retrospective analysis, or remote migration.'
 ---
 
 # Autolearn
 
-## Contract
+Solved problems evaporate. Autolearn keeps the durable part: one generalized, well-abstracted invariant per write, a reusable mechanism with stated scope, real enforcement or proof, and a material consequence. Narrative choices, activity logs, trivia, tiny one-off fixes, session history, and weak-test stories (fixture snapshots, single-run green, quota-driven write-ups) never qualify, and no quota ever justifies a write. Zero output is a normal, valid result. Retrospective analysis belongs to retro; this skill keeps durable technical capture only. There is no STRATEGY.md prerequisite.
 
-| Field | Bound contract |
+Writes stay reversible and local: the operating repo's `docs/solutions/` and repo-root `CONCEPTS.md`, staged only from surfaces this skill wrote or edited, committed locally by the repo's flow, never pushed. Publication needs a separate explicit authority. Nothing here performs remote, publish, deploy, credential, or paid mutation. The skill directory resolves from this skill's own directory: `references/schema.md`, `references/concepts.md`, `scripts/validate-record.py`, `assets/solution-template.md`. Never invoke a peer skill at runtime for these contracts.
+
+## Route first: strip tokens, pick the job
+
+Control tokens come off before anything else is read as context or scope. Accepted tokens are `mode:refresh [scope]`, `mode:headless`, `consent:write`, and `consent:cross-branch`. Unknown or repeated tokens are errors.
+
+| Route | Job |
 |---|---|
-| Trigger | A non-trivial fix has been verified (observed working, not hoped working), or explicit autolearn or refresh invocation. |
-| Authority | Reversible local: writes only the operating repo's docs/solutions/ and repo-root CONCEPTS.md; rollback is version control. No remote mutation. |
-| Side effect | Writes or refreshes docs/solutions/ learning docs and CONCEPTS.md; stages only the surfaces this skill wrote or edited. |
-| Done | A validated learning or concept entry exists, or an explicit determination that nothing qualifies. |
+| Capture, the default | Document one generalized invariant from a solved technical problem |
+| Vocabulary capture | Reconcile a durable reusable project term in `CONCEPTS.md` |
+| Memory handoff | Surface a fact about the user, preferences, or cross-project context as a handoff candidate for the memory system, never written into `docs/solutions/` or `CONCEPTS.md` |
+| Refresh | Bounded maintenance of existing docs and vocabulary, never implicit delete or migration of stored records |
+| Headless, overlaying any route | Skip questions, never pause, apply safe actions, mark genuinely uncertain docs stale |
 
-## Inputs
+Phrases like "that worked", "it is fixed", or "tests pass now" permit evaluation without fabricating evidence and never count as admission by themselves. One run may write a learning doc, reconcile a concept, and flag a handoff candidate together.
 
-- The verified fix or solved problem, from conversation history or codebase. Must be supplied or derivable from context.
-- Optional: `mode:refresh [scope]` to maintain existing docs; `mode:headless` for non-interactive operation.
-- Optional: an injected auto-memory block (supplementary context, not primary evidence).
+## The gate that says no
 
-## Procedure
+Capture starts from rejection. Three preconditions must all hold: the problem is solved, not in progress (a finished abandoned attempt counts only when its learning is a reusable anti-pattern invariant, naming the specific failure reason plus when retrying would make sense); the solution is observed working, with actual enforcement or proof (guardrail, check, reproduction, or reference behavior), never a claimed run; and the write carries a generalized invariant, a reusable mechanism rather than an incident, project name, command, version, or path, with supported scope stated without overgeneralizing beyond the evidence and a material consequence stated (it prevents a plausible significant failure or improves a recurring decision). Being solved, verified, or non-trivial alone is never a shortcut.
 
-### 0. Route the mode
+Then three filters run in order: would this be forgotten without a record and reused under stated inputs; is it already covered (improving the existing invariant beats writing, since duplicating is drift); is the claim scope-qualified and no broader than the evidence. The same gate governs vocabulary: precise local meaning, not already defined, scope-qualified to this project. Anything failing the gate exits in one line with no write.
 
-Strip `mode:` tokens from arguments before treating the remainder as context or scope.
+## What you need on hand
 
-- **Capture** (default): document one solved problem into docs/solutions/.
-- Vocabulary capture: a durable, reusable project term surfaces; reconcile CONCEPTS.md.
-- Memory handoff: a fact about the user, preferences, or cross-project context surfaces; do not write it into docs/solutions/ or CONCEPTS.md; surface it as a memory-handoff candidate for the memory system to capture.
-- Refresh: maintain existing docs/solutions/ and CONCEPTS.md.
-- Headless: overlays any mode; skip all questions, never pause, apply safe actions, mark uncertain as stale.
+The verified fix or solved problem comes from conversation history or the codebase, and must be supplied or derivable; without it there is nothing to capture. Refresh takes an optional scope hint. Any injected auto-memory block is supplementary context, never primary evidence: tag memory-derived lines that land in a doc with `(auto memory [claude])`, and prefer code or conversation when memory conflicts with either. Headless runs need `consent:write` before writing; cross-branch consolidation needs `consent:cross-branch`.
 
-Fire automatically on a trigger phrase ("that worked", "it's fixed", "working now", "problem solved", "verified the fix", "tests pass now", "build succeeds", "that approach failed") or after a verified non-trivial fix. Auto-firing is permission to evaluate, not permission to fabricate.
+## Research before writing
 
-One run can do all three repo-scoped actions: write a learning doc, reconcile a concept, and flag a memory-handoff candidate.
+Scan any injected memory block for related entries and carry matches as labeled supplementary context. Then dispatch three read-only researchers that write nothing: a Context Analyzer picking the track (bug versus knowledge), `problem_type`, category directory, and slug filename (human-readable semantic `[sanitized-problem-slug].md`, no date, serial, or hash noise) plus a frontmatter skeleton with no invented enums; a Solution Extractor pulling the invariant substance: incident details may inform extraction of root cause and frontmatter metadata but never ship as a session diary or incident retelling; the durable body extracts only the invariant mechanism (what must always or never hold, never an incident retelling, project name, command, version, or path), supported scope (where the invariant holds and where it does not, stated without overgeneralizing beyond evidence), material consequence (what fails when violated: plausible significant failure prevented or recurring decision improved), enforcement or independent proof (concrete guardrail, check, or test that exercises the invariant and fails on violation; never a mock echo or fixture snapshot), and necessary counterexample or limits (concrete violation conditions, boundary cases, or known limits where the invariant does not apply), stating the mechanism without overgeneralizing beyond evidence and keeping the body semantic invariant rather than a fixture snapshot oracle (references clear the extreme test bar or stay out); and a Related-Docs Finder grepping `docs/solutions/` frontmatter on keywords, reading frontmatter of candidates, fully reading only strong matches, and scoring overlap across problem, cause, solution, references, and prevention as High (4 to 5), Moderate (2 to 3), or Low (0 to 1). Without subagents, run the same pass inline and record the degraded coverage. Wait for all three before assembling.
 
-Done when: the mode is routed and `mode:` tokens are stripped from arguments.
+## Write it and prove it
 
-### 1. Reject-by-default gate
+The overlap gate decides the shape: High overlap updates the existing doc (keeping its path, adding `last_updated`); Moderate creates normally and notes a consolidation candidate; Low creates normally. Read `assets/solution-template.md` and assemble the doc with only invariant, supported scope, material consequence, enforcement or independent proof, and necessary counterexample or limits. Incident details may inform extraction but never ship as a session diary. Read rationale records for overlap only; never rewrite one into the solution schema. Write frontmatter per the local `references/schema.md`, quoting values the validator requires quoted, keeping provenance as metadata only, making no claim the evidence does not support. Never change the stored record schema or field shapes. Write to `docs/solutions/<category>/<slug>.md` (category from the schema map, slug human-readable semantic, no date, serial, or hash noise), then validate from the skill directory:
 
-A doc is earned, not assumed. Verify all three preconditions:
+```bash
+python3 scripts/validate-record.py docs/solutions/<category>/<slug>.md
+```
 
-1. The problem is solved, not in progress. An abandoned attempt counts as solved once it is finished (branch dead, decision to stop made); its learning is the anti-pattern: what was tried, the specific reason it failed, and the condition under which it would be worth trying again.
-2. The solution is verified: observed working, not hoped working.
-3. It was non-trivial, not a typo or obvious one-liner.
+Quote, rewrite, and re-run until exit 0. A non-zero exit blocks the write. Read the file back to confirm it landed as intended. When a durable term surfaced that clears the gate, reconcile `CONCEPTS.md` per its local concepts contract.
 
-Then apply the reject-by-default gate (all three filters in order):
+## Refresh only what the new learning disturbs
 
-1. **Would I forget this?** Skip baseline knowledge anyone in this codebase already carries.
-2. **Already covered?** If an existing docs/solutions/ doc covers it, updating that doc beats spawning a second one. A duplicate is drift, not knowledge.
-3. **Universal or local?** Scope-qualify the claim. Say when a quirk is repo-specific and when a truth is general. An unqualified claim is a future trap.
+Recommend a narrow bounded refresh only when the new invariant contradicts or supersedes an older doc, the work invalidated references (refactor, migration, rename, dependency bump), or the finder surfaced strong candidates. Otherwise capture first and skip refresh explicitly.
 
-The gate governs CONCEPTS.md entries too: a term earns a slot only when its precise local meaning would otherwise be forgotten, it is not already defined there, and it is scope-qualified to this project rather than general programming or domain English.
+`CONCEPTS.md` at the operating repo root is the shared glossary with compound as co-writer. Follow the bundled concepts contract: locate or create only when a term clears the gate, search before adding, add one well-shaped entry, read back to confirm no duplicate heading. Never scaffold an empty file.
 
-If nothing clears the gate, say so in one line and exit. A clean "nothing worth capturing here" is a valid, correct result.
+## Maintain the shelf
 
-Done when: all three preconditions and all three gate filters are evaluated, with a pass or a one-line "nothing qualifies" exit.
+Refresh scope covers every `.md` under `docs/solutions/` except `README.md`. A `[scope]` hint narrows in order: subdirectory name, frontmatter `module`, `component`, or `tags` match, filename partial, content keyword. No match reports the miss and exits. With no candidate docs at all, report it and point at create mode.
 
-### 2. Capture: research (parallel, read-only)
-
-Scan any injected auto-memory block for entries related to the problem. If it is absent or empty, skip it. If relevant entries exist, carry them as a labeled supplementary context block. Memory is supplementary; when it conflicts with the codebase or conversation, prefer the codebase or conversation. Tag any memory-derived line that lands in the final doc with `(auto memory [claude])`.
-
-Dispatch three subagents in parallel. Each returns text and writes nothing.
-
-1. **Context Analyzer**: from the problem, decide the track (bug vs knowledge), the problem_type, the category directory, and a slug filename (`[sanitized-problem-slug].md`, no date suffix). Return a frontmatter skeleton and which track applies. Do not invent enum values or fields.
-2. **Solution Extractor**: extract the substance from the conversation, folding in the auto-memory excerpt as supplementary evidence. Bug track: Problem, Symptoms, What Didn't Work, Solution (with code), Why This Works, Prevention. Knowledge track: Context, Guidance, Why This Matters, When to Apply, Examples.
-3. **Related-Docs Finder**: grep docs/solutions/ (`title:`, `tags:`, `module:`, `component:` on extracted keywords; narrow to the candidate subdirectory when known), read only frontmatter of candidates, fully read only strong matches. Score overlap across problem statement, root cause, solution approach, referenced files, prevention rules: High (4-5 dimensions), Moderate (2-3), Low (0-1). Return links and the overlap verdict.
-
-Wait for all three before assembling.
-
-Done when: all three subagents return and their results are assembled for the write step.
-
-### 3. Capture: assemble and write
-
-1. **Overlap gate**: High (4-5) → update the existing doc, keep its path and frontmatter, add `last_updated: YYYY-MM-DD`. Moderate (2-3) → create normally; note as a refresh/consolidation candidate. Low or none → create normally. Done when: the overlap gate decision is made.
-2. Read `assets/solution-template.md`; assemble the doc with the track's section structure. Done when: the doc is assembled with the correct track structure.
-3. Frontmatter per the Solution schema section; apply the YAML-safety quoting rule to array items. Done when: frontmatter follows the Solution schema with YAML-safe quoting.
-4. `mkdir -p docs/solutions/<category>/`, write `docs/solutions/<category>/<slug>.md`. Done when: the doc file is written to the correct category directory.
-5. Validate: `python3 scripts/validate-frontmatter.py <path>`. Exit 0 = parser-safe; exit 1 names the offending field. Quote, re-write, re-run until 0. Done when: the validator exits 0.
-6. Read the file back to confirm it landed as intended. Done when: the file is read back and confirmed correct.
-7. **Concept reconciliation** (optional, when warranted): if the run surfaced a durable project term that clears the gate, reconcile CONCEPTS.md per step 5. Done when: concept reconciliation is performed or skipped.
-
-### 4. Refresh check (selective, not automatic)
-
-Suggest refresh with a narrow scope only when the new fix contradicts or supersedes an older doc, the work was a refactor/migration/rename/dependency-bump that likely invalidated references, or the Related-Docs Finder surfaced strong refresh candidates or moderate overlap. Otherwise do not. Capture the new learning first; refresh is targeted maintenance after.
-
-Done when: a refresh recommendation is made or explicitly skipped.
-
-### 5. Vocabulary capture: CONCEPTS.md
-
-CONCEPTS.md at the operating repo root is the shared-vocabulary glossary. It holds words with a precise meaning in this codebase, with one definition per concept. Other knowledge-capture processes may also write to this shared surface; always follow the one-definition-per-concept discipline.
-
-1. Locate the file: `fd -g 'CONCEPTS.md' --max-depth 2`. Absent and a term clears the gate → create it. Absent and nothing clears → write nothing; never scaffold an empty file. Done when: the file is located or its absence is handled.
-2. Search for the term and its synonyms: `git grep -ni '<term>' CONCEPTS.md`. A hit means the concept exists: refresh on drift, never add a second entry. Done when: the term is searched and existing entries are identified.
-3. New term → add one entry: a one-sentence definition of what it means here and what distinguishes it from neighbors; a second paragraph only for non-obvious behavioral rules. Retire synonyms as an `*Avoid:*` aliases line. No file paths, dates, owners, or version-specific claims. The file stands on its own. Done when: the new entry is written with its definition and alias line.
-4. Read the file back to confirm the merge landed and created no duplicate heading. Done when: the file is read back with no duplicate headings.
-
-### 6. Refresh: maintain existing docs
-
-Find every `.md` under `docs/solutions/`, excluding `README.md` and anything under `_archived/`. Top-level records written by `compound` carry that skill's own seven-field schema (`type`, `tags`, `confidence`, `date`, `source`, `Context`, `Implication`); the Solution schema below does not apply to them. Read them for overlap and contradiction, and never rewrite one to the Solution schema or mark it stale for lacking those fields. A `[scope]` hint narrows it: try in order, stop at first hit: (1) subdirectory name, (2) frontmatter `module`/`component`/`tags` match, (3) filename partial match, (4) content keyword. No match → report the miss and exit. No scope hint → process everything.
-
-Classify every candidate doc into exactly one outcome:
+Classify every candidate into exactly one outcome:
 
 | Outcome | When | Action |
-|---------|------|--------|
-| Keep | Still accurate and useful | No edit. Report reviewed-and-trustworthy. |
-| Update | Core solution correct, references drifted | Evidence-backed in-place edits. |
-| Consolidate | Two or more docs overlap heavily, both correct | Merge unique content into the canonical doc, delete the subsumed one. |
-| Replace | Old guidance is now misleading, better answer known | Write a trustworthy successor, then delete the old. |
-| Delete | No longer useful, applicable, or distinct | Delete the file. |
+|---|---|---|
+| Keep | Generalized invariant still accurate, material, enforced or proven | No edit; say why it stays trustworthy |
+| Update | Core invariant mechanism correct, references drifted | Evidence-backed in-place edits |
+| Consolidate | Two or more docs overlap heavily, all correct | Merge unique content into the canonical doc, repoint references, delete the subsumed doc only with explicit authority |
+| Replace | Old guidance misleads, better invariant answer known | Write a validated successor, then delete the old file |
+| Delete | Domain gone, fully redundant, inbound references absent or decorative | Delete only with explicit authority; never archive into `_archived/` |
 
-Core rules: evidence informs judgment, not a mechanical scorecard; prefer no-write Keep; match docs to reality, not the reverse; be decisive; no low-value churn (no typo fixes, prose polish, cosmetic edits); delete, don't archive (no `_archived/`, git history preserves everything).
+Evidence beats scorecards; prefer the no-write Keep; no low-value churn (typo or polish-only edits are not refreshes); age alone is never stale; rewriting the Invariant section is Replace, not Update. Only invariants may be newly recorded on refresh. Before Delete, grep repo markdown for citations: decorative citations may be cleaned, substantive citations force Replace, unclear citations force a stale mark. Consolidation requires identical `record_kind` values (rationale with rationale, solution with solution); preserve every input's `origin_records` as the ordered union and drop no input tuple. Cross-branch conversion needs `consent:cross-branch` plus a complete lossless field and body mapping; without both, leave both inputs unchanged and report the consolidation as blocked. After every write, update, consolidation, or replacement, run the bundled validator until exit 0 and read the file back; preserve `origin_records` unchanged on refresh edits.
 
-Investigate each doc: read it, cross-reference claims against current codebase. Check references (file paths, symbols, modules: still exist or moved?), solution (does the fix still match how the code works today?), code examples (do snippets reflect current implementation?), related docs (cross-referenced learnings still present and consistent?), overlap (another in-scope doc covering the same domain?). Update vs Replace boundary: references moved but approach still correct → Update; recommended solution conflicts with current code or architecture changed → Replace; if rewriting the Solution section, it is Replace, not Update. Age alone is not a stale signal. Check for a successor before deleting.
+Headless runs attempt safe actions, mark genuinely uncertain docs `status: stale` with `stale_reason` and `stale_date`, and record failed writes as Recommended rather than retrying into a mess. Emit Applied versus Recommended sections with per-file path, classification, evidence, and action.
 
-Document-set analysis: step back and judge the set as a whole. High overlap across 3+ dimensions → strong Consolidate signal. Older narrow precursor vs newer canonical doc → consolidation candidate. Retrieval-value test: does keeping these separate help discoverability or just create drift risk? Cross-doc contradictions are more urgent than individual staleness.
+For execution shape, see `references/refresh.md`, which defers to this skill for scope, delete authority, citation checks, validation, provenance, and headless stale marking. Prefer the lightest path: Focused (1 to 2 files) means investigate then recommend; Batch (up to about 8 mostly-independent docs) means grouped recommendations; Broad (9 or more, ambiguous, or repo-wide) means triage first (inventory frontmatter, cluster by area, spot-check whether referenced files still exist), then investigate in batches. Investigators are read-only subagents returning path, evidence, recommended action, confidence, and open questions; they never write. Deletes, commits, and frontmatter metadata stay with the orchestrator; even for Replace, the orchestrator validates the successor, deletes the old file, and commits. Most Updates and Consolidations apply directly without asking; ask only when the right action is genuinely ambiguous, about to Delete without explicit authority, about to Consolidate with no clear canonical, or about to Replace, one question at a time with a recommended option first. A doc that grew to cover several genuinely independent problems is a split candidate. A Replace successor needs the old doc's full content, an investigation-evidence summary (what changed, what the code does now, why the old guidance misleads), the target path and category, and the contents of `references/schema.md` plus `assets/solution-template.md` (never invented from memory); the successor states only the invariant mechanism with supported scope, material consequence, enforcement or independent proof, and necessary counterexample or limits, with optional `supersedes: [old-filename]`. Tag memory-sourced findings `(auto memory [claude])`.
 
-Execute per action:
-- Keep: no edit, summarize why it remains trustworthy.
-- Update: in-place edits only when solution is still substantively correct. Not Update territory: typo/style-only edits, or old fix is now an anti-pattern → Replace.
-- Consolidate: confirm canonical doc (broader, more current); extract unique content from subsumed doc(s); merge into canonical; repoint cross-references; delete subsumed. Three or more overlapping → process pairwise.
-- Replace: process one at a time. Write a successor, validate with `scripts/validate-frontmatter.py` until exit 0, then delete the old file. Evidence insufficient → mark stale in place: add `status: stale`, `stale_reason`, `stale_date: YYYY-MM-DD`.
-- Delete: only when referenced code/workflow is gone, problem domain no longer exists, and inbound links absent or unambiguously decorative. Before unlinking, grep repo markdown for citations. Decorative → delete fine, clean up citation; substantive → Replace signal; mixed/unclear → stale-mark. A late-discovered citation that is anything but unambiguously decorative stops the Delete.
+## Move house only on purpose
 
-Headless variant: skip all questions, never pause. Process every in-scope doc. Attempt all safe actions. Uncertain → mark `status: stale`. A write that fails is recorded as Recommended, not retried. Emit a report split into Applied and Recommended.
+Migration is explicit and approved, never incidental and never part of capture or refresh. Bind the exact source set, destinations, and window first. Classify each source per `references/schema.md` (canonical, `legacy-autolearn-v0`, `legacy-compound-v0`, explicitly scoped `legacy-keep-why-v0`, `unmigrated`, `ahead-blocked`). Convert autolearn shapes to `record_kind: solution` and compound shapes to `record_kind: rationale`; never force either branch's fields onto the other. Preserve dates (missing or invalid dates stay `unmigrated`), preserve tags and body meaning, move legacy body detail into body sections, and attach complete `origin_records` digested from original bytes. Never silently change the `odin-learning/v1` shape. All-or-nothing per set: any `unmigrated` source leaves the whole set unchanged. Only named files are in scope; undiscovered external stores get reported, never read or migrated. The pre-migration commit is the restore point; without version control, block rather than inventing a backup store. Publish atomically; on failure restore every touched file.
 
-Report:
-```
-Refresh Summary
-===============
-Scanned: N docs
+## Commit like a guest
 
-Kept: X   Updated: Y   Consolidated: C   Replaced: Z   Deleted: W   Marked stale: S
-```
-Then per file: path, classification, evidence, action taken or recommended.
+One learning per commit on capture; one concern per commit on refresh, with the DStack `Op:` trailer in the refresh body. Stage only surfaces this skill wrote or edited, never unrelated dirty files. Commit locally by the operating repo's flow and skip when nothing changed. Never push.
 
-After refreshing, check whether the repo's documentation would lead an agent to discover and search `docs/solutions/`. If not, surface a discoverability recommendation in the report. Do not edit instruction files.
+## What can still go wrong
 
-Done when: every in-scope doc is classified and acted on, and the refresh report is emitted.
+Validation failure means quoting the named field, rewriting, and re-running until exit 0; never declare success while failing. Overlap collision resolves to updating the existing doc, since duplicating is drift. Insufficient evidence for Replace means marking `stale` in place rather than guessing a successor. A late-discovered substantive citation reclassifies off Delete. Partial refresh failure records as Recommended without retrying into a mess. Rollback reverts the local commit or restores the file from history, since all writes stay under version control.
 
-### 7. Commit
+## What you leave behind
 
-One learning per commit. Stage only the surfaces this skill wrote or edited (a solution doc, CONCEPTS.md, or both). Never stage other dirty files. Commit locally by the operating repo's normal flow. Skip the commit if nothing was modified.
+One validated generalized invariant doc at `docs/solutions/<category>/<slug>.md` (or an improved existing doc), optionally a `CONCEPTS.md` entry and a handoff candidate, or a one-line qualification failure. Each doc states a reusable mechanism with supported scope, material consequence, enforcement or independent proof, and necessary counterexample or limits: no incident retellings or session diaries, no speculative universal truths, no quota-driven output. In refresh mode, a bounded report classifying every in-scope doc into Keep, Update, Consolidate, Replace, Delete, or stale with applied and recommended actions; refresh records only invariants and never implicitly deletes or migrates stored records.
 
-Done when: the commit is made with only this skill's surfaces staged, or skipped when nothing was modified.
-
-## Failure and recovery
-- Nothing qualifies: if no fix clears the reject-by-default gate, state "nothing worth capturing here" in one line and exit. This is a valid result, not a failure.
-- Validation failure: `scripts/validate-frontmatter.py` exits 1 naming the offending field. Quote the value, re-write the file, re-run until exit 0. Do not declare success while validation fails.
-- Overlap collision: High overlap with an existing doc → update the existing doc, do not create a duplicate. Creating a duplicate when an update was warranted is drift, not knowledge.
-- Insufficient evidence for Replace: mark the doc stale in place (`status: stale`, `stale_reason`, `stale_date`) rather than guessing a successor.
-- Late-discovered citation blocks Delete: reclassify to stale-mark or Replace; do not delete.
-- Partial-result rule: if a write fails during refresh, record it as Recommended, do not retry into a mess.
-- Rollback: all writes are to local files under version control. Revert the commit or restore the file from git history.
-
-## Output
-One validated learning doc at `docs/solutions/<category>/<slug>.md` (or updated existing doc), optionally a CONCEPTS.md entry and a memory-handoff candidate, or a one-line "nothing qualifies" determination: in refresh mode, a report classifying every scanned doc into Keep/Update/Consolidate/Replace/Delete/stale with applied and recommended actions.
-
-## Solution schema
-
-Owner of the field contract is references/schema.md. Do not recopy.
-
-Canonical frontmatter contract for `docs/solutions/` learning docs. The validator (`scripts/validate-frontmatter.py`) only catches silent YAML corruption; the field and enum rules below remain binding.
-
-### Two tracks
-
-`problem_type` picks the track. The track decides which extra fields are required. Pick the narrowest value; `best_practice` is the Knowledge fallback.
-
-| Track | problem_types |
-|-------|---------------|
-| Bug | `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error` |
-| Knowledge | `best_practice`, `documentation_gap`, `workflow_issue`, `developer_experience`, `architecture_pattern`, `design_pattern`, `tooling_decision`, `convention` |
-
-### Required fields (both tracks)
-
-- `title`: clear problem/topic title (string).
-- `date`: `YYYY-MM-DD`.
-- `category`: the `docs/solutions/` subdirectory (see Category map).
-- `module`: module or area affected (string).
-- `problem_type`: one enum value from the tracks table; determines the track.
-- `component`: component or subsystem involved (free-form string; keep consistent within a repo so frontmatter search works).
-- `severity`: one of `critical`, `high`, `medium`, `low`.
-
-### Bug-track required fields
-
-- `symptoms`: array, 1-5 observable symptoms (errors, broken behavior).
-- `root_cause`: one of: `missing_association`, `missing_include`, `missing_index`, `wrong_api`, `scope_issue`, `thread_violation`, `async_timing`, `memory_leak`, `config_error`, `logic_error`, `test_isolation`, `missing_validation`, `missing_permission`, `missing_workflow_step`, `inadequate_documentation`, `missing_tooling`, `incomplete_setup`.
-- `resolution_type`: one of: `code_fix`, `migration`, `config_change`, `test_fix`, `dependency_update`, `environment_setup`, `workflow_improvement`, `documentation_update`, `tooling_addition`, `seed_data_update`.
-
-### Knowledge-track fields
-
-No required fields beyond the shared core. All optional:
-
-- `applies_when`: array (≤5), conditions where the guidance applies.
-- `symptoms`: array (≤5), the gap or friction that prompted the guidance.
-- `root_cause`: from the bug-track enum, if there is a specific one.
-- `resolution_type`: from the bug-track enum, if a change was applied.
-
-### Optional fields (both tracks)
-
-- `related_components`: array of other components involved.
-- `tags`: array (≤8) of search keywords, lowercase and hyphen-separated.
-
-### Category map (problem_type → directory)
-
-| problem_type | directory |
-|---|---|
-| `build_error` | `docs/solutions/build-errors/` |
-| `test_failure` | `docs/solutions/test-failures/` |
-| `runtime_error` | `docs/solutions/runtime-errors/` |
-| `performance_issue` | `docs/solutions/performance-issues/` |
-| `database_issue` | `docs/solutions/database-issues/` |
-| `security_issue` | `docs/solutions/security-issues/` |
-| `ui_bug` | `docs/solutions/ui-bugs/` |
-| `integration_issue` | `docs/solutions/integration-issues/` |
-| `logic_error` | `docs/solutions/logic-errors/` |
-| `developer_experience` | `docs/solutions/developer-experience/` |
-| `workflow_issue` | `docs/solutions/workflow-issues/` |
-| `best_practice` | `docs/solutions/best-practices/` |
-| `documentation_gap` | `docs/solutions/documentation-gaps/` |
-| `architecture_pattern` | `docs/solutions/architecture-patterns/` |
-| `design_pattern` | `docs/solutions/design-patterns/` |
-| `tooling_decision` | `docs/solutions/tooling-decisions/` |
-| `convention` | `docs/solutions/conventions/` |
-
-Filename: `[sanitized-problem-slug].md`, no date suffix (the `date` field carries that).
-
-### Validation rules
-
-Track from `problem_type`; shared required fields always present; bug track also requires `symptoms`, `root_cause`, `resolution_type`; knowledge track adds none. Enums match allowed values exactly, arrays respect item counts, `date` matches `YYYY-MM-DD`.
-
-### YAML safety (array items)
-
-Strict YAML parsers misread array items that start with a reserved indicator as unquoted scalars. For any array-of-strings field (`symptoms`, `applies_when`, `tags`, `related_components`), wrap the value in double quotes when it starts with any of: `` ` `` `[` `]` `{` `}` `,` `*` `&` `!` `|` `>` `%` `@` `?`. Also quote when the value contains `": "`. Scalar fields (`title:`, `module:`) have a separate failure mode: an unquoted ` #` truncates at the comment, an unquoted `: ` reframes as a mapping. `scripts/validate-frontmatter.py` catches those; quote and re-run until it exits 0.
+This procedure extends the prior `dstack-knowledge` autolearn flow (evaluation gate, three read-only researchers, overlap discipline, Bug and Knowledge tracks, refresh loop, memory provenance and handoff, local commits) onto the canonical `odin-learning/v1` union owned by compound. Upstream MIT attributions remain in `licenses/NOTICE`.

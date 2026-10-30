@@ -5,38 +5,29 @@ description: 'Use when work has distinct modes and the user wants states, events
 
 # State machine workflow
 
-## Contract
+Some work is not a todo list. The system sits in one mode at a time and moves between modes on events. When that is the shape of the problem, write it down as a state machine: every mode named, every move guarded, every forbidden shortcut called out, so the result can be encoded directly in types, a state-machine library, or a runtime enum.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Work has distinct modes and the user wants states, events, guards, outcomes, and illegal transitions instead of a prose todo list. |
-| Authority | Reversible local: writes only the specification file; rollback is deleting it. No remote mutation. |
-| Side effect | Writes one state-machine specification file to the project. |
-| Done | A runnable/codable state-machine specification exists with all states, events, guards, outcomes, and illegal transitions defined. |
+This skill writes one specification file to the project and nothing else. It never touches remote systems. Rolling back is deleting that file.
 
-## Inputs
+## What you need before you start
 
-- Required: a description of the domain, process, or system whose states are being modeled.
-- Optional: an existing list of states or transitions to refine, or an existing state-machine file to extend.
+You need a description of the domain, process, or system being modeled: who owns the states and where the boundary sits. Optionally, an existing list of states or transitions to refine, or an existing state-machine file to extend. If the domain is too vague to enumerate states from (no named entity, no boundary, no modes), stop and ask the user to supply them. Do not invent scope.
 
-## Refusal
+## Building the machine
 
-- Domain too vague to enumerate states: stop. Ask the user to name the entity, the boundary, or the modes. Do not invent scope.
-- User rejects the state enumeration: revise based on feedback. Do not write a specification the user has not approved.
-- Contradictory guards or unreachable states: surface the contradiction. Propose a resolution. Do not write until resolved.
-- Partial specification: write only what is complete and approved. Mark remaining states or transitions as open, never as stubs or placeholders.
+Work through these in order. Each step has a bar for moving on. Do not skip ahead past an unresolved step.
 
-## Procedure
+1. Confirm the scope with the user first. Name the system boundary and the entity or process that owns the states, and move on once the user confirms the boundary.
+2. List every distinct mode the system can occupy. Name each state as a noun or adjective-noun pair describing the mode, not the action that caused it. Give each an entry condition and at least one outgoing transition, and move on once every state has both.
+3. For each state, list every valid move to another state with all five fields: source state, destination state, triggering event, the guard condition that must hold for it to fire, and the outcome or side effect it produces. If two guards contradict each other or a state turns out unreachable, surface the contradiction with a proposed resolution and do not write until it is resolved.
+4. For terminal and milestone states, name the concrete observable result: a file written, a decision recorded, a value returned, a signal emitted. Vague outcomes do not count.
+5. For every pair of states where a direct transition must never occur, name the pair and say why it is forbidden. These guard against invalid shortcuts.
+6. Check four things: every state has at least one outgoing transition (no dead states except explicit terminal states); every path from the initial state reaches a terminal or outcome state; no two transitions from the same state share an identical event and guard; every guard references a condition observable within the scoped domain. Fix failures before continuing.
+7. Show the full specification as a structured table or diagram (states, transitions, guards, illegal transitions) and ask the user to confirm. If the user rejects the enumeration, revise from their feedback. Never write a specification the user has not approved.
+8. Write the specification to the project using the format it already prefers (Markdown table, Mermaid diagram, or code). With no preference, write a Markdown file with sections for states, transitions, guards, outcomes, and illegal transitions.
 
-1. **Scope the domain.** Name the system boundary. Identify what entity or process owns the states. Confirm the scope with the user before enumerating. Done when: the user confirms the system boundary.
-2. **Enumerate states.** List every distinct mode the system can occupy. Each state has a unique name, a clear entry condition, and at least one outgoing transition. Name states as nouns or adjective-noun pairs that describe the mode, not the action that caused it. Done when: every state is named with an entry condition and outgoing transition.
-3. **Enumerate transitions.** For each state, list every valid transition to another state. Each transition names the source state, destination state, triggering event, guard condition that must hold for the transition to fire, and outcome or side effect produced. Done when: every transition is enumerated with all five fields.
-4. **Define outcomes.** For terminal or milestone states, name the concrete observable result. Outcomes are verifiable: a file written, a decision recorded, a value returned, a signal emitted. Done when: every terminal or milestone state has a verifiable outcome.
-5. **Identify illegal transitions.** For every pair of states where a direct transition must never occur, name the pair and state why it is forbidden. Illegal transitions guard against invalid shortcuts. Done when: every forbidden pair is named with rationale.
-6. **Validate completeness.** Check: every state has at least one outgoing transition (no dead states except explicit terminal states); every path from the initial state reaches a terminal or outcome state; no two transitions from the same state share an identical event and guard; every guard references a condition observable within the scoped domain. Done when: all four checks pass.
-7. **Present for approval.** Show the complete specification as a structured table or diagram. Ask the user to confirm states, transitions, guards, and illegal transitions before writing. Done when: the user approves the specification.
-8. **Write the specification.** After approval, write the state-machine specification to the project. Use the format the project already prefers (Markdown table, Mermaid diagram, or code). If no preference exists, write a Markdown file with sections for states, transitions, guards, outcomes, and illegal transitions. Done when: the specification file is written.
+If only part of the machine is complete and approved, write only that part and mark the rest as open. Never present unfinished states or transitions as stubs or placeholders.
 
-## Output
+## What you hand back
 
-A state-machine specification file: all states with entry conditions, all transitions with source/destination/event/guard/outcome, all terminal outcomes, all illegal transitions with rationale, sufficient to encode in types, a state-machine library, or a runtime enum.
+The specification file: all states with entry conditions, all transitions with source, destination, event, guard, and outcome, all terminal outcomes, and all illegal transitions with rationale. It should be sufficient to encode directly.

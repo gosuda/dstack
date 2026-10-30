@@ -1,10 +1,8 @@
 # Implementation reference
 
-Code templates for C++ CPU kernels with AVX2 and AVX512 intrinsics.
+Copyable C++ templates for CPU kernels with AVX2 and AVX512 intrinsics. Pick the template that matches the kernel type, lay out the files as shown below, detect the host CPU at run time, and register the op for Torch dispatch.
 
-## Template selection
-
-Start from the template that matches the kernel type:
+## Pick the template that matches the kernel
 
 | Kernel type | Examples | Template |
 |---|---|---|
@@ -12,9 +10,7 @@ Start from the template that matches the kernel type:
 | GEMM | quantized GEMM, MoE | tinygemm and brgemm dual path, `Unroll<N>` template |
 | Attention | Flash-Attention | Tiled attention with brgemm for the matmul blocks |
 
-## Core file structure
-
-Every CPU kernel uses this layout:
+## Files every kernel carries
 
 ```
 my_kernel/
@@ -30,7 +26,7 @@ my_kernel/
 └── build.toml                    # Multi-target compilation
 ```
 
-## cpu_features.hpp (per kernel, own namespace)
+## Detect the CPU in the kernel's own namespace
 
 Each kernel carries its own copy of `cpu_features.hpp` in its own namespace. Two kernels loaded into one process with the same symbol names would violate the one-definition rule:
 
@@ -80,7 +76,9 @@ public:
 }  // namespace my_kernel_cpu
 ```
 
-## Dispatcher pattern (my_kernel_cpu.cpp)
+The AVX512 check is threefold for a reason. The CPUID bit says the silicon has it, the XCR0 check says the OS preserves the ZMM registers across context switches, and the sub-leaf 1 check confirms bf16 arithmetic. Skipping the OS check risks faults on machines where the kernel disables wide state.
+
+## Dispatch to the best tier at run time
 
 Most kernels have two tiers: AVX512, then the ATen fallback:
 
@@ -109,9 +107,11 @@ void my_kernel_forward(
 }  // namespace my_kernel_cpu
 ```
 
-## Bridge file (my_kernel_cpu_torch.cpp)
+The fallback keeps the kernel usable on machines without AVX512. It runs plain ATen ops, so it is slow but always correct, and it doubles as the reference when checking the vectorized tier for numeric agreement.
 
-Bridges Python-facing tensor API to internal C++ implementation:
+## Bridge tensors between Python and C++
+
+The bridge file converts the Python-facing call into the internal out-parameter form:
 
 ```cpp
 #include <torch/torch.h>
@@ -128,7 +128,9 @@ torch::Tensor my_kernel_cpu_forward(
 }
 ```
 
-## Element-wise kernel template (AVX512)
+## Element-wise AVX512 loop
+
+One pass accumulates sum of squares in a 16-wide vector, a scalar tail covers hidden sizes that are not multiples of 16, then a second pass normalizes and scales by the weight row. Both passes thread over rows with OpenMP:
 
 ```cpp
 #include <immintrin.h>
@@ -194,9 +196,11 @@ void rmsnorm_impl(
 }  // namespace my_kernel_cpu
 ```
 
-## GEMM kernel patterns
+Loads and stores use the unaligned forms because PyTorch does not guarantee 64-byte alignment of a tensor data pointer. The `rsqrt` stays scalar on purpose: one reciprocal square root per row costs nothing next to the two vector passes, and broadcasting it keeps the hot loop free of slow transcendental ports.
 
-### Unroll<N> template (used in all GEMM kernels)
+## GEMM pieces
+
+### Unroll loops at compile time
 
 Compile-time loop unrolling via template recursion. Uses `std::integral_constant` for compile-time index:
 
@@ -224,7 +228,9 @@ struct Unroll<1> {
 // The lambda receives std::integral_constant<int, i> as first arg.
 ```
 
-### tinygemm_kernel_nn (small-M GEMM micro-kernel)
+The index arrives as a compile-time constant, so register blocking and address arithmetic fold away instead of surviving as loop overhead.
+
+### Fused dequant micro-kernel for small M
 
 A struct template with static `apply()` method. For M ≤ 4 with bf16, uses fused dequant + _mm512_dpbf16_ps:
 
@@ -271,7 +277,9 @@ struct tinygemm_kernel_nn<at::BFloat16, BLOCK_M, BLOCK_N> {
 };
 ```
 
-### parallel_2d threading (GEMM kernels)
+Accumulators stay in fp32 across the K loop and convert to bf16 once at the end, which is what keeps quantized GEMM within tolerance. One `_mm512_dpbf16_ps` consumes two bf16 pairs per step, hence the halved loop bound.
+
+### Split threads across both matrix dimensions
 
 Custom 2D thread decomposition for matrix operations. Template function (not std::function):
 
@@ -313,7 +321,9 @@ inline void parallel_2d(
 }
 ```
 
-### tinygemm vs brgemm selection
+Splitting on one dimension starves threads when that dimension is small (batch 1 decoding leaves M at 1). Factoring the pool across both dimensions keeps every core fed, and the single-row shortcut avoids paying for a parallel region that cannot parallelize.
+
+### Choose tinygemm or brgemm by M
 
 The `tinygemm_kernel` function wraps both paths with `parallel_2d`:
 
@@ -353,7 +363,9 @@ const bool use_brgemm_dequant_out = M > 100;  // pre-dequant all B
 tinygemm_kernel<scalar_t>(..., use_brgemm, use_brgemm_dequant_out);
 ```
 
-## torch_binding.cpp registration
+Small M cannot amortize brgemm packing, so the fused micro-kernel wins at M ≤ 4. Past that the oneDNN path wins, and past M 100 pre-dequantizing all of B beats per-block dequant. The trailing `brgemm_release` returns the thread-local blocking buffers.
+
+## Register the op with Torch
 
 Located at `torch-ext/torch_binding.cpp`:
 
@@ -374,7 +386,7 @@ REGISTER_EXTENSION(TORCH_EXTENSION_NAME)
 
 Note: rmsnorm registers with `c10::DispatchKey::CompositeExplicitAutograd` instead of `torch::kCPU`.
 
-## Vector type abstractions (cpu_types_avx512.hpp)
+## Vector wrappers for element-wise kernels
 
 Used by element-wise kernels (rmsnorm). Not used by GEMM kernels or flash-attn2.
 

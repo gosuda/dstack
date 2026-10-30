@@ -12,7 +12,7 @@ Determine the diff to review using this priority order:
 
 The scope step in the SKILL.md handles discovery and passes you the resolved diff.
 
-## Finding classification tiers
+## Which findings are yours
 
 Every finding you report falls into one of three tiers based on its relationship to the diff:
 

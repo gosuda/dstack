@@ -1,3 +1,0 @@
-interface:
-  display_name: "Fastify Production Hardening"
-  short_description: "Use when asked to prepare a Fastify service for production load and exposure."

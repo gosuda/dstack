@@ -28,13 +28,14 @@ fp16_on_cpu:
     FP16 has better precision than BF16 (10-bit mantissa vs 7-bit)
     but narrower dynamic range (5-bit exponent vs 8-bit).
   support:
-    avx2: "F16C extension: _mm256_cvtph_ps / _mm256_cvtps_ph"
-    avx512: "_mm512_cvtph_ps / _mm512_cvtps_ph"
-    avx512_fp16: "AVX512-FP16: Native FP16 vector compute (_mm512_add_ph, _mm512_fmadd_ph)"
-    amx_fp16: "AMX-FP16 (Intel Xeon 6+): Native FP16 tile compute (_tile_dpfp16ps)"
+    avx2: "F16C extension: _mm256_cvtph_ps / _mm256_cvtps_ph (conversion only; compute in fp32)"
+    avx512: "_mm512_cvtph_ps / _mm512_cvtps_ph (conversion only; compute in fp32)"
+    avx512_fp16: "AVX512-FP16: Native 512-bit vector SIMD compute in ZMM registers (_mm512_add_ph, _mm512_mul_ph, _mm512_fmadd_ph), compiler flag -mavx512fp16"
+    amx_fp16: "AMX-FP16: Native 2D tile matrix compute in TMM registers (_tile_dpfp16ps into fp32 tiles), compiler flags -mamx-fp16 and -march=graniterapids"
   note: |
-    Some older Intel architectures lack native FP16 compute and require converting to fp32 for calculation.
-    Newer architectures support AVX512-FP16 for vector operations, and Intel Xeon 6 (Granite Rapids) and newer support AMX-FP16 for matrix multiplication.
+    Architectures lacking native FP16 compute (F16C and base AVX-512) require converting to fp32 for calculation.
+    Native FP16 compute distinguishes vector SIMD from matrix tile acceleration: AVX512-FP16 operates on 32-element 512-bit ZMM vector registers (-mavx512fp16), whereas AMX-FP16 operates on 2D TMM tile registers (-mamx-fp16).
+    Never infer hardware capabilities from marketing family names alone: for example, Intel Xeon 6 includes both Sierra Forest (E-cores lacking AVX-512 and AMX) and Granite Rapids (P-cores supporting AVX512-FP16 and AMX-FP16). Verify capability through CPUID flags (avx512_fp16, amx_fp16) or specific microarchitecture targets.
     BF16 remains highly prevalent in the ecosystem because AMX-BF16 support was adopted earlier.
 
 int8_quantization:

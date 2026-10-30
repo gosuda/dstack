@@ -1,3 +1,0 @@
-interface:
-  display_name: "Flamegraphs"
-  short_description: "Use when turning perf, DTrace, pprof, or async-profiler stacks into an SVG flamegraph with the FlameGraph scripts, reading one, or diffing two profiles."

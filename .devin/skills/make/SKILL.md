@@ -5,26 +5,13 @@ description: 'Use when writing or debugging Makefiles, understanding pattern rul
 
 # GNU Make
 
-Idiomatic Makefile patterns for C/C++ projects: phony targets, pattern rules, automatic dependency generation, and incremental-build hygiene. Grounded against GNU Make 4.4.
+Idiomatic Makefile patterns for C/C++ projects: phony targets, pattern rules, automatic dependency generation, and incremental build hygiene. Grounded against GNU Make 4.4.1.
 
-## Contract
+Tell me the source layout (where `.c`/`.cpp` files and headers live). Name the compiler and flags (`CC`, `CFLAGS`, `LDFLAGS`, `LDLIBS`) when they cannot be inferred, and any build variants or install prefix. Everything here stays local: the skill writes `Makefile`/`*.mk` files and local build outputs, and rollback is version control plus `make clean`.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The task writes or debugs a Makefile, sets up pattern rules or automatic dependency generation, manages `CFLAGS`/`LDFLAGS`, converts ad-hoc compile commands into a Makefile, or diagnoses incremental build failures. |
-| Authority | Reversible local: writes only `Makefile`/`*.mk` files and local build outputs; rollback is version control plus `make clean`. No remote mutation. |
-| Side effect | `make` runs the compiler and writes objects and binaries into the tree or build directory. |
-| Done | `make` builds the target incrementally (a second run reports nothing to do) and `make clean` removes the outputs. |
+## Write a minimal correct Makefile
 
-## Inputs
-
-- Source layout (required): where `.c`/`.cpp` files and headers live.
-- Compiler and flags (required if not inferrable): `CC`, `CFLAGS`, `LDFLAGS`, `LDLIBS`.
-- Build variants (optional): debug/release split, install prefix.
-
-## Procedure
-
-1. Write the minimal correct Makefile. Recipes start with a tab, not spaces. Done when: `make` builds and `make clean` removes outputs.
+Recipes start with a tab, never spaces. `make` should build and `make clean` should remove outputs.
 
 ```makefile
 CC      := gcc
@@ -53,9 +40,11 @@ clean:
 	rm -rf build
 ```
 
-Automatic variables: `$@` is the target, `$<` the first prerequisite, `$^` all prerequisites deduplicated, `$*` the pattern stem, `$(@D)` the target's directory part.
+Automatic variables used above: `$@` is the target, `$<` the first prerequisite, `$^` all prerequisites deduplicated, `$*` the pattern stem, `$(@D)` the target directory part.
 
-2. Add automatic dependency generation. Without it, editing a header rebuilds nothing. `-MMD` writes a `.d` file per object; `-MP` adds phony targets for headers so deleting one does not break the build. Done when: touching a header rebuilds exactly its dependents.
+## Track header dependencies automatically
+
+Without dependency files, editing a header rebuilds nothing. `-MMD` writes a `.d` file per object. `-MP` adds phony targets for headers so deleting one does not break the build.
 
 ```makefile
 DEPFLAGS = -MMD -MP
@@ -67,7 +56,9 @@ build/%.o: src/%.c | build
 -include $(DEPS)   # leading - ignores missing .d files on first build
 ```
 
-3. Use pattern rules for repeated transforms. Done when: one rule covers each source-to-output shape.
+Touch a header and confirm exactly its dependents rebuild.
+
+## Cover repeated transforms with pattern rules
 
 ```makefile
 %.o: %.c
@@ -80,7 +71,9 @@ build/%.o: src/%.c | build
 	$(CC) $(CFLAGS) -S -o $@ $<
 ```
 
-4. Add build variants and quiet output. Done when: `make BUILD=debug` switches flags and `make V=1` shows full commands.
+One rule should cover each source to output shape.
+
+## Split debug and release builds
 
 ```makefile
 BUILD ?= release
@@ -96,7 +89,9 @@ build/%.o: src/%.c | build
 	$(Q)$(CC) $(CFLAGS) -c -o $@ $<
 ```
 
-5. Add an install target with `DESTDIR` and `PREFIX`. Done when: `make install DESTDIR=/tmp/stage` stages the tree.
+`make BUILD=debug` should switch flags and `make V=1` should show full commands.
+
+## Stage installs with prefix variables
 
 ```makefile
 PREFIX ?= /usr/local
@@ -106,7 +101,11 @@ install: $(TARGET)
 	install -m 0755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/
 ```
 
-6. Structure multi-directory projects with included `.mk` files, not recursive make. Recursive make fragments the dependency graph and breaks parallelism. Done when: one top-level Makefile sees every prerequisite.
+`make install DESTDIR=/tmp/stage` should stage the tree.
+
+## Include fragments instead of recursing
+
+Recursive make fragments the dependency graph and breaks parallelism. One top level Makefile should see every prerequisite.
 
 ```makefile
 # Makefile
@@ -124,7 +123,9 @@ build/lib_%.o: lib/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 ```
 
-7. Diagnose failures against this table. Done when: the error maps to a cause and a fix.
+A tree already using `$(MAKE) -C` converts by including the child `.mk` files from the top Makefile.
+
+## Diagnose failures against the table
 
 | Error | Cause | Fix |
 |---|---|---|
@@ -136,18 +137,8 @@ build/lib_%.o: lib/%.c
 | Rebuilds everything | Wrong timestamps or missing `.PHONY` | Check `date`; mark `all` and `clean` phony |
 | Header edit rebuilds nothing | No dependency tracking | Add `-MMD -MP` and `-include $(DEPS)` |
 
-Useful flags: `make -j"$(nproc)"` parallel, `make -O` synchronizes output, `make -n` dry run, `make -B` force rebuild, `make -k` keep going, `make -p` print the rule database, `make --warn-undefined-variables` catch typos.
+Useful flags: `make -j"$(nproc)"` for parallel builds, `make -O` to synchronize output, `make -n` for a dry run, `make -B` to force rebuild, `make -k` to keep going, `make -p` to print the rule database, `make --warn-undefined-variables` to catch typos. The full variable, function, and special target reference lives in `references/cheatsheet.md`.
 
-For the full variable, function, and special-target reference see `references/cheatsheet.md`.
+Parallel build races come from a missing order only prerequisite or an undeclared generated header. Declare the real dependency and never serialize to hide it. A variable expanding empty is usually `=` against `:=`: `=` defers expansion to use time while `:=` expands at definition, so pick `:=` unless late expansion is the point. `::=` is the POSIX immediate form, available in GNU Make 4.4 and later.
 
-## Failure and recovery
-
-- `make` does nothing after a header edit: dependency files are missing; add `-MMD -MP` and `-include $(DEPS)`.
-- Parallel build races: a missing order-only prerequisite or an undeclared generated header; declare the real dependency, never serialize to hide it.
-- `missing separator`: convert the recipe's leading spaces to a tab.
-- Variable expands empty: `=` defers expansion to use time, `:=` expands at definition; pick `:=` unless late expansion is the point. `::=` is the POSIX immediate form, available in GNU Make 4.4 and later.
-- Recursive make is already present: include the child `.mk` files from the top Makefile instead of `$(MAKE) -C`.
-
-## Output
-
-A Makefile that builds incrementally, tracks header dependencies, supports `clean` and `install`, and survives `make -j`. For debugging tasks, the diagnosed cause and the minimal fix.
+Hand back a Makefile that builds incrementally, tracks header dependencies, supports `clean` and `install`, and survives `make -j`. A second run should report nothing to do. For debugging tasks, hand back the diagnosed cause and the minimal fix.

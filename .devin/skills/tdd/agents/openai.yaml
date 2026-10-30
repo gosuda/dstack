@@ -1,3 +1,0 @@
-interface:
-  display_name: "Tdd"
-  short_description: "Use when developing a fix or feature test-first, plan a TDD build, or work red-to-green in slices."

@@ -4,7 +4,7 @@
 
 ## Preview deployments
 
-Every PR gets a preview deployment for manual testing:
+When the user requests manual testing on pull or merge requests, add a preview deployment (GitHub example first, GitLab review app second):
 
 ```yaml
 # Deploy preview on PR (Vercel/Netlify/etc.)
@@ -14,8 +14,24 @@ deploy-preview:
   steps:
     - uses: actions/checkout@v7
     - name: Deploy preview
-      run: npx vercel --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      run: npx vercel --token="$VERCEL_TOKEN"
 ```
+
+```yaml
+# Review app on MR (.gitlab-ci.yml)
+review:
+  stage: deploy
+  script: ./deploy-review.sh "$CI_ENVIRONMENT_SLUG"
+  environment:
+    name: review/$CI_COMMIT_REF_SLUG
+    on_stop: stop-review
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+```
+
+Stop the review app with a paired `stop-review` job (`environment: { name: review/$CI_COMMIT_REF_SLUG, action: stop }`, `when: manual`). See https://docs.gitlab.com/ci/review_apps/.
 
 ## Feature flags
 

@@ -1,4 +1,4 @@
-# react.md: React 19.2 + Tailwind v4 + shadcn v4
+# react.md: React 19.3.1 + Tailwind v4 + shadcn v4
 
 Surface reference for React applications. Companion to `references/web.md` for the vanilla CSS baseline; reach for vanilla first, React only when state crosses surface boundaries.
 
@@ -10,15 +10,15 @@ React for state crossing surface boundaries; vanilla CSS for everything else (se
 
 The 2020-era assumption that "React + Tailwind + a UI kit" is the default web surface no longer holds; `:has()`, `@container`, `popover`, and View Transitions cover most of what hooks were once needed for. React earns its weight when shared mutable state crosses two or more surfaces; below that bar, vanilla CSS is shorter and faster. See `references/anti-slop.md` for the slop tell of "reaching for React because it is what the model knows."
 
-## 2. React 19-era surface (as of 19.2)
+## 2. React 19-era surface (as of 19.3)
 
-React 19.2 was released October 1 2025; React Compiler 1.0 stable shipped October 7 2025; the current line is 19.2.x. The six APIs below are the modern surface a designer needs to know; most landed with React 19 GA and are stable through the 19.2.x line.
+React 19.2 was released October 1 2025; React Compiler 1.0 stable shipped October 7 2025; the current line is 19.3.1. The APIs below are the modern surface a designer needs to know; all landed with React 19 GA and are documented stable on react.dev. RSC and Server Actions require an RSC-compatible framework or bundler (e.g. Next.js, React Router); in client-only SPAs, components remain client-rendered.
 
 ### RSC default
 
-Server components are the default; client components opt in via `'use client'` at the top of the file. Component code that does not need browser APIs, event handlers, or state stays on the server; zero JS shipped to the client for that subtree.
+Server components are the default in RSC-compatible frameworks; client components opt in via `'use client'` at the top of the file. Component code that does not need browser APIs, event handlers, or state stays on the server; zero JS shipped to the client for that subtree. There is no directive for Server Components (they are the default environment); `'use server'` is used strictly for Server Actions.
 ```tsx
-// app/page.tsx — RSC by default, no directive needed
+// app/page.tsx — RSC by default in an RSC framework, no directive needed
 export default async function Page() {
   const items = await db.query.items.findMany();
   return <ItemList items={items} />;
@@ -28,7 +28,7 @@ Anti-pattern: `'use client'` on the root layout or page. Defeats RSC streaming; 
 
 ### Server Actions
 
-Server-side mutations callable from client components. Pair with `useFormStatus` for pending state and `useActionState` for the action result.
+Server-side mutations callable from client components, defined with the `'use server'` directive. Pair with `useFormStatus` (from `react-dom`) for pending state and `useActionState` (from `react`) for the action result.
 ```tsx
 // app/actions.ts
 'use server';
@@ -44,9 +44,11 @@ Anti-pattern: a `useEffect` data-fetch with manual loading state. Server Actions
 
 ### `useOptimistic`
 
-Client-side optimistic UI; renders the speculative state until the server confirms or the action errors.
+Client-side optimistic UI; exported from `'react'`. Signature: `const [optimisticState, setOptimistic] = useOptimistic(state, updateFn)`. Renders the speculative state until the server confirms or the action errors.
 ```tsx
 'use client';
+import { useState, useOptimistic } from 'react';
+
 const [items, setItems] = useState(initial);
 const [optimisticItems, addOptimistic] = useOptimistic(items, (state, draft) => [...state, draft]);
 
@@ -60,9 +62,11 @@ Anti-pattern: manual local-state mirrors of server state with rollback logic on 
 
 ### `useFormStatus`
 
-Pending and idle state for forms without local state. Read inside a child of the `<form>`.
+Pending and idle state for forms without local state; exported from `'react-dom'`. Must be called from a component rendered inside the `<form>` (reads status as if the form was a Context provider). Signature: `const { pending, data, method, action } = useFormStatus()`.
 ```tsx
 'use client';
+import { useFormStatus } from 'react-dom';
+
 function Submit() {
   const { pending } = useFormStatus();
   return <button disabled={pending}>{pending ? 'Saving…' : 'Save'}</button>;
@@ -72,13 +76,28 @@ Anti-pattern: passing a `loading` prop down through component layers, or wrappin
 
 ### `useActionState`
 
-Replaces the older `useFormState`; new API surface as of React 19.
+Replaces the older `useFormState` (previously `ReactDOM.useFormState` in Canary, now moved to `'react'`). Signature: `const [state, formAction, isPending] = useActionState(fn, initialState, permalink?)`.
 ```tsx
 'use client';
-const [state, action, pending] = useActionState(createItem, { error: null });
-return <form action={action}>{state.error && <p>{state.error}</p>}<input name="name" /></form>;
+import { useActionState } from 'react';
+
+const [state, formAction, isPending] = useActionState(createItem, { error: null });
+return (
+  <form action={formAction}>
+    {state?.error && <p>{state.error}</p>}
+    <input name="name" />
+    <button disabled={isPending}>{isPending ? 'Saving…' : 'Save'}</button>
+  </form>
+);
 ```
-Anti-pattern: still calling it `useFormState`. The rename is real and the migration is a one-liner; old name is dead.
+Anti-pattern: still calling it `useFormState` or importing from `react-dom`. The hook is in `react`, and the migration is a one-liner.
+
+### `use`, `ref` as prop, and `<Context>`
+
+React 19 GA core ergonomics:
+- `use(resource)`: Exported from `'react'`. Reads promises or context in render. Unlike hooks, `use` can be called conditionally (e.g. after early returns or inside loops).
+- `ref` as prop: Function components accept `ref` directly as a prop (`function MyInput({ ref, ...props })`). `forwardRef` is deprecated and will be removed in future versions.
+- `<Context>`: Render `<ThemeContext value="dark">` directly; `<ThemeContext.Provider>` is deprecated.
 
 ### React Compiler stable
 
@@ -115,11 +134,13 @@ Tailwind v4 stable shipped January 22 2025; the current line is 4.3.x. CSS-first
   --font-text:    'Geist Sans Text', sans-serif;
 }
 ```
+The `Geist Sans` / `Geist Sans Text` stacks above are illustrative, not a default: they are shown because the worked examples anchor on Vercel-derived post-minimalist surfaces, which is the defensible rationale the reflex-reject list in `references/anti-slop.md` asks for. Pick the stack the chosen direction defends; a reflex pick with no rationale behind it fails that gate.
+
 Anti-pattern: keeping `tailwind.config.js` on a v4 install. The JS config is a v3 surface; the v4 surface is the `@theme` block. Pick one; do not bridge.
 
 ## 4. shadcn/ui v4
 
-shadcn/ui v4 with full Tailwind v4 + React 19 support reached stable February 2026. The CLI is on the 4.19.x line. shadcn is a starting point, not a finish line; every component is yours to mold to the picked direction. Use the CLI to install, then derive token-driven variants per the picked paradigm (`references/paradigms.md`).
+shadcn/ui v4 with full Tailwind v4 + React 19 support reached stable February 2026. The CLI is on the 4.23.0 line. shadcn is a starting point, not a finish line; every component is yours to mold to the picked direction. Use the CLI to install, then derive token-driven variants per the picked paradigm (`references/paradigms.md`).
 ```bash
 pnpm dlx shadcn@latest init
 pnpm dlx shadcn@latest add button dialog
@@ -157,7 +178,7 @@ Generic context shape: `{ state, actions, meta }` is the boring-correct triple. 
 
 ## 6. View Transitions
 
-`<ViewTransition>` and `addTransitionType()` are React-side wrappers around the browser View Transitions API. As of this grounding they ship in React's Experimental / Canary channel; they have NOT been promoted to stable in 19.2. Treat them as preview APIs subject to surface changes; the browser primitive is the stable foundation.
+`<ViewTransition>` and `addTransitionType()` are React-side wrappers around the browser View Transitions API. As of this grounding they ship in React's Experimental / Canary channel; they have NOT been promoted to stable through the 19.3 line. Treat them as preview APIs subject to surface changes; the browser primitive is the stable foundation.
 
 `<ViewTransition>` wraps the content that should animate, NOT a sibling of it. The element directly inside the wrapper participates; siblings do not. Common error: putting `<ViewTransition>` next to the changing element instead of around it.
 
@@ -268,4 +289,4 @@ const count = useStore((s) => s.count); // re-renders only when count changes
 
 ## 10. Cite-and-defer
 
-Citations: react.dev (19.2.x), tailwindcss.com (4.3.x), ui.shadcn.com (shadcn 4.19.x). This is starter density; defer to react.dev/learn for the current API surface, tailwindcss.com/docs for v4 directives, and ui.shadcn.com/docs/changelog for component versions before relying on any hook, directive, or component in production.
+Citations: react.dev (19.3.1), tailwindcss.com (4.3.x), ui.shadcn.com (shadcn 4.23.0). This is starter density; defer to react.dev/learn for the current API surface, tailwindcss.com/docs for v4 directives, and ui.shadcn.com/docs/changelog for component versions before relying on any hook, directive, or component in production.

@@ -23,17 +23,17 @@
 | Kotlin | `./gradlew compileKotlin` | `TODO()`, `NotImplementedError` | `!!`, unscoped `lateinit` |
 | Go | `go build ./...` | `panic("not implemented")` | type assertions without ok check |
 | Java 21+ | `./gradlew compileJava` | `throw new UnsupportedOperationException()` | raw types, unchecked casts |
-| C++ | `cmake --build .` | `static_assert(false)`, `throw` stubs | `reinterpret_cast`, C-style casts |
+| C++ | `cmake --build .` | `throw` stubs (`std::logic_error("not implemented")`) | `reinterpret_cast`, C-style casts |
 | C# | `dotnet build` | `throw new NotImplementedException()` | `null!`, suppression `!` |
 | Swift | `swift build` | `fatalError("not implemented")` | `as!` force casts |
 | Scala 3 | `sbt compile` | `???` | `asInstanceOf` |
 
-All commands use the `$CHECK_CMD` variable; override with the project-specific build command when detected.
+Override with the project-specific build command when detected.
 
 ## Notes
 
 - Rust: PhantomData enables zero-cost typestate. Newtypes with private fields enforce validation at construction.
 - TypeScript: Branded types (`string & { readonly [Brand]: typeof Brand }`) provide nominal-like safety in a structural system. Zod v4 bridges runtime validation to static types.
 - Python: `NewType` is lightweight but encapsulation-dependent. `Annotated[int, Gt(0)]` with beartype provides runtime-checked refinements.
-- Kotlin: `@JvmInline value class` wraps primitives at zero allocation cost. Sealed hierarchies enforce exhaustive matching.
-- Scala 3: Opaque types are true zero-cost abstractions (unlike newtype wrappers in Scala 2).
+- Kotlin: `@JvmInline value class` wraps primitives without allocation in the unboxed cases; it boxes when nullable, generic, or used as an interface type. Sealed hierarchies enforce exhaustive matching.
+- Scala 3: Opaque types are zero-cost abstractions (unlike newtype wrappers in Scala 2).

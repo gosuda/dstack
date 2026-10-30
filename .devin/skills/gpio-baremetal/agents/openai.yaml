@@ -1,3 +1,0 @@
-interface:
-  display_name: "Gpio Baremetal"
-  short_description: "Use when configuring GPIO modes, alternate functions, pull resistors, or EXTI interrupts on STM32/nRF/ESP32-class MCUs."

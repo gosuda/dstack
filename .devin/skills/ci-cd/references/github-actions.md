@@ -2,6 +2,8 @@
 
 **Grounded: 2026-08-26**
 
+
+> Scope: GitHub Actions worked example for the parent `ci-cd` skill provider-detect step. The GitLab counterpart is authored at the parent level as `.gitlab-ci.yml`, with MR pipelines scoped by `rules: - if: $CI_PIPELINE_SOURCE == 'merge_request_event'` and validated by `glab ci lint`. The `on: pull_request:` trigger below has no per-file GitLab translation.
 ## Basic CI pipeline
 
 ```yaml

@@ -2,7 +2,7 @@
 
 The post-1.22 story for this topic is **not new containers**: it's GC-integrated primitives that change how you build caches and canonical maps: `unique` interning [1.23], `weak.Pointer` + `runtime.AddCleanup` + `maphash.Comparable` [1.24], and the `sync.Map` HashTrieMap rewrite [1.24]. `container/list`/`ring`/`heap` stayed non-generic; the center of gravity for new generic code is `slices`/`maps`/`iter`/`cmp` + plain `map`/`[]T`. Pick eviction by **admission policy**, not just recency.
 
-> Source horizon: verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06; library versions as of 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to. Triangulated from two deep-research reports + primary `pkg.go.dev`/`go.dev` sources.
+> Source horizon: verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06; library versions as of 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -11,7 +11,7 @@ The post-1.22 story for this topic is **not new containers**: it's GC-integrated
 - `sync.Map` was rewritten on a HashTrieMap [1.24] (faster misses/deletes, prompter shrink; load-hit ~slightly slower). Still `any`-typed, still specialized for (1) grow-only caches or (2) disjoint key sets, *not* a default concurrent map.
 - `container/heap`/`list`/`ring` are still non-generic through 1.26. Generic-heap proposals are open/on-hold/declined; do not represent any as accepted.
 - `singleflight` is duplicate suppression, not a cache: it retains nothing after the call returns, and the shared return value must be treated **read-only**.
-- Eviction moved past LRU: adaptive **W-TinyLFU** (otter v2) and TinyLFU-admission (ristretto v2) win hit ratio; **S3-FIFO** is lock-friendly and scan-resistant. otter **v1 was S3-FIFO; v2 is W-TinyLFU**. Claiming otter is S3-FIFO is stale.
+- Eviction moved past LRU: adaptive **W-TinyLFU** (otter v2.4.0) and TinyLFU-admission (ristretto v2.4.2) win hit ratio; **S3-FIFO** is lock-friendly and scan-resistant. otter **v1 was S3-FIFO; v2 is W-TinyLFU**. Claiming otter is S3-FIFO is stale.
 
 ## Table of Contents
 1. [Quick Decision Table](#decision-table)
@@ -29,7 +29,7 @@ The post-1.22 story for this topic is **not new containers**: it's GC-integrated
 13. [Caching Strategy Patterns](#caching-strategies)
 14. [Library landscape & status](#libraries)
 15. [Version map 1.20→1.27](#versions)
-16. [What models get wrong](#stale)
+16. [Common mistakes](#stale)
 
 ---
 
@@ -40,15 +40,16 @@ The post-1.22 story for this topic is **not new containers**: it's GC-integrated
 | Priority queue / scheduler | `container/heap` behind a typed wrapper | O(log n); call `heap.Push`/`heap.Pop`, never the receiver methods |
 | Simple bounded LRU / 2Q / ARC | `hashicorp/golang-lru/v2` | thread-safe, generic; `expirable` subpkg for TTL |
 | Highest hit ratio + throughput | `maypok86/otter` v2 (adaptive W-TinyLFU) | `Options` API, loaders/refresh, HashDoS protection |
-| Cost/size-based eviction, freq-skewed | `dgraph-io/ristretto` v2 | may drop `Set`s under contention (eventual consistency) |
+| Cost/size-based eviction, freq-skewed | `dgraph-io/ristretto/v2` (v2.4.2) | Advisory `Set` admission (TinyLFU drops low-freq; may drop under contention) |
 | Per-item TTL, loaders, event hooks | `jellydator/ttlcache/v3` | must run `go cache.Start()` for auto-eviction |
-| Millions of entries, GC pause dominates | `allegro/bigcache`/`coocood/freecache` | off-GC byte arenas; you (de)serialize. Re-bench on 1.26 GC |
-| High-contention concurrent map | `puzpuzpuz/xsync` v4 `MapOf`, or sharded map | measure RWMutex contention first |
+| Millions of entries, GC pause dominates | `allegro/bigcache/v3` (v3.2.0) / `coocood/freecache` | On-heap pointer-free byte arenas (noscan); you (de)serialize. Re-bench on 1.26 GC |
+| High-contention concurrent map | `puzpuzpuz/xsync/v4` (v4.5.0) `Map`, or sharded map | `NewMap[K,V]()` (canonical in v4; `MapOf` is deprecated alias); measure RWMutex first |
 | Grow-only cache / disjoint key sets | `sync.Map` | specialized; `any`-typed |
 | Interning of comparable values | `unique` [1.23] | dedup + cheap pointer-compare; GC-reclaimed |
 | Self-evicting cache (drop when unreferenced) | `weak.Pointer` + `runtime.AddCleanup` [1.24] | canonicalization maps not covered by `unique` |
 | Cache stampede prevention | `golang.org/x/sync/singleflight` | + TTL jitter + probabilistic early refresh |
-| Set membership (probabilistic) | `bits-and-blooms/bloom/v3` | false positives, never false negatives |
+| Set membership (probabilistic, dynamic Add/Test) | none grounded: see [Bloom Filters](#bloom-filters) | No compliant dynamic implementation grounded; select against your actual operations before adopting; no hand-rolled fallback |
+| Set membership (probabilistic, static build-once) | `FastFilter/xorfilter` (v0.5.1) | Immutable filter, `Contains` queries only (**no Add**); see [Bloom Filters](#bloom-filters) |
 | Round-robin / sliding window | `container/ring` (or `[]T` with `i=(i+1)%n`) | `ring.Len()` is O(n) |
 | FIFO queue (bounded) | `chan T` | idiomatic producer-consumer |
 
@@ -68,12 +69,12 @@ for _, r := range rows { ids = append(ids, r.ID) }
 **The aliasing trap: `append` may or may not share backing storage.** A sub-slice shares the parent's array until a growth reallocates; an `append` that fits in spare capacity **mutates the parent**:
 
 ```go
-// WRONG — full-slice of a larger array; append clobbers the next element in place.
+// WRONG: full-slice of a larger array, so append clobbers the next element in place.
 buf := make([]int, 3, 10)
 view := buf[:2]
-view = append(view, 99) // writes buf[2], NOT a copy — surprises the owner of buf
+view = append(view, 99) // writes buf[2], not a copy: the owner of buf sees the change
 
-// RIGHT — slices.Clip [1.21] forces the next append to allocate (returns s[:len(s):len(s)]).
+// RIGHT: slices.Clip [1.21] forces the next append to allocate (returns s[:len(s):len(s)]).
 view = slices.Clip(buf[:2])
 view = append(view, 99) // now reallocs; buf untouched
 ```
@@ -91,7 +92,7 @@ For most "I need a data structure" needs, reach for `slices`/`maps` [1.21] + `cm
 ```go
 slices.SortFunc(items, func(a, b Item) int { return cmp.Compare(a.Score, b.Score) })
 i, found := slices.BinarySearchFunc(items, target, func(a Item, t int) int { return cmp.Compare(a.Score, t) })
-// cmp.Or [1.22] — first non-zero; perfect for multi-key/tie-broken comparators:
+// cmp.Or [1.22]: first non-zero; suited to multi-key/tie-broken comparators.
 slices.SortFunc(rows, func(a, b Row) int { return cmp.Or(cmp.Compare(a.Last, b.Last), cmp.Compare(a.First, b.First)) })
 ```
 
@@ -135,7 +136,7 @@ func (p *PQ[T]) Pop() (*Item[T], bool) {
     return heap.Pop(&p.h).(*Item[T]), true
 }
 
-// Update priority in place — O(log n), cheaper than Remove+Push:
+// Update priority in place: O(log n), cheaper than Remove+Push.
 it.Priority = 10
 heap.Fix(&p.h, it.index)
 ```
@@ -192,9 +193,10 @@ func (c *LRU[K, V]) Put(key K, val V) {
         return
     }
     if c.order.Len() >= c.cap {
-        oldest := c.order.Back()
-        c.order.Remove(oldest)
-        delete(c.items, oldest.Value.(*entry[K, V]).key)
+        if oldest := c.order.Back(); oldest != nil {
+            c.order.Remove(oldest)
+            delete(c.items, oldest.Value.(*entry[K, V]).key)
+        }
     }
     c.items[key] = c.order.PushFront(&entry[K, V]{key, val})
 }
@@ -251,7 +253,7 @@ Key facts & traps:
 |---|---|---|
 | `map` + `sync.RWMutex` | **Default**; general read-write, need invariants/type-safety | single lock; contends at high core counts |
 | `sync.Map` | grow-only caches, disjoint key sets | `any`-typed (boxing); specialized, not general |
-| `puzpuzpuz/xsync` v4 `MapOf` | measured RWMutex contention across many cores | external dep; generic |
+| `puzpuzpuz/xsync/v4` (v4.5.0) `Map` | measured RWMutex contention across many cores | external dep; generic; canonical `Map` (`MapOf` deprecated alias) |
 | Sharded map | hot keys, many goroutines | more memory + complexity |
 
 Start with `map` + `RWMutex`. Move only when a mutex profile (`go tool pprof`) shows contention. `sync.Map`'s own docs are blunt: *"The Map type is specialized. Most code should use a plain Go map instead, with separate locking."*
@@ -260,8 +262,8 @@ Start with `map` + `RWMutex`. Move only when a mutex profile (`go tool pprof`) s
 
 ```go
 var m sync.Map // key -> *Client
-// WRONG — Load, then create, then Store: two goroutines both miss and both construct.
-// RIGHT — LoadOrStore picks one winner atomically; the loser's value is GC'd.
+// WRONG: Load, then create, then Store: two goroutines both miss and both construct.
+// RIGHT: LoadOrStore picks one winner atomically; the loser's value is collected.
 func clientFor(key string) *Client {
     if v, ok := m.Load(key); ok { return v.(*Client) } // fast path
     actual, _ := m.LoadOrStore(key, newClient(key))
@@ -269,7 +271,7 @@ func clientFor(key string) *Client {
 }
 ```
 
-Modern `sync.Map` API (more than older tutorials remember): `Load`, `Store`, `Delete`, `LoadOrStore`, `LoadAndDelete` [1.15], `Swap`/`CompareAndSwap`/`CompareAndDelete` [1.20], `Clear` [1.23]. `CompareAndDelete` requires the old value be **comparable**, which is why `weak.Pointer` (comparable) plugs into it ([§10](#weak-unique)). The [1.24] HashTrieMap rewrite improved misses/deletes and shrinks promptly; pre-1.24 "sync.Map is always bloated" folklore is stale. Disable the new impl with `GOEXPERIMENT=nosynchashtriemap` if you must. There is **no generic stdlib `sync.Map`** (a `sync/v2` proposal exists); `sync/v2.Map[K,V]` in model output is fantasy.
+Modern `sync.Map` API (more than older tutorials remember): `Load`, `Store`, `Delete`, `LoadOrStore`, `LoadAndDelete` [1.15], `Swap`/`CompareAndSwap`/`CompareAndDelete` [1.20], `Clear` [1.23]. `CompareAndDelete` requires the old value be **comparable**, which is why `weak.Pointer` (comparable) plugs into it ([§10](#weak-unique)). The [1.24] HashTrieMap rewrite improved misses/deletes and shrinks promptly; pre-1.24 "sync.Map is always bloated" folklore is stale. Disable the new impl with `GOEXPERIMENT=nosynchashtriemap` if you must. There is **no generic stdlib `sync.Map`** (a `sync/v2` proposal exists); `sync/v2.Map[K,V]` does not exist, so never import it.
 
 ### Sharded Map
 
@@ -291,7 +293,7 @@ func NewShardedMap[K comparable, V any]() *ShardedMap[K, V] {
     return sm
 }
 func (sm *ShardedMap[K, V]) idx(key K) uint64 {
-    return maphash.Comparable(sm.seed, key) % numShards // [1.24] — no fmt.Sprint, no reflection
+    return maphash.Comparable(sm.seed, key) % numShards // [1.24]: no fmt.Sprint, no reflection
 }
 func (sm *ShardedMap[K, V]) Get(key K) (V, bool) {
     s := &sm.shards[sm.idx(key)]
@@ -301,7 +303,7 @@ func (sm *ShardedMap[K, V]) Get(key K) (V, bool) {
 }
 ```
 
-`maphash.Comparable[T comparable](seed, v) uint64` [1.24] (with `WriteComparable`) finally hashes arbitrary comparable keys without unsafe tricks or `fmt.Sprint(key)` (which the old version of this pattern used, slow and lossy). For a turnkey generic concurrent map, `xsync` v4 `MapOf` (SwissTable meta-bytes + obstruction-free reads, per-instance `maphash` seed) generally outscales `sync.Map`; `orcaman/concurrent-map/v2` is the older sharded pattern.
+`maphash.Comparable[T comparable](seed, v) uint64` [1.24] (with `WriteComparable`) finally hashes arbitrary comparable keys without unsafe tricks or `fmt.Sprint(key)` (which the old version of this pattern used, slow and lossy). For a turnkey generic concurrent map, `xsync/v4` (v4.5.0) `Map` via `NewMap[K, V]()` (SwissTable meta-bytes + obstruction-free reads, per-instance `maphash` seed) generally outscales `sync.Map` (note: type `MapOf` and `NewMapOf` are deprecated aliases retained for backwards compatibility); `orcaman/concurrent-map/v2` is the older sharded pattern.
 
 ---
 
@@ -315,7 +317,7 @@ The highest-value delta. Three GC-integrated primitives replace `SetFinalizer` a
 type Label struct{ Key, Value string }
 h1 := unique.Make(Label{"env", "prod"})
 h2 := unique.Make(Label{"env", "prod"})
-_ = h1 == h2 // true — and the comparison is O(1) pointer-equal, not field-by-field
+_ = h1 == h2 // true, and the comparison is O(1) pointer equality, not field-by-field
 ```
 
 Defensive `strings.Clone` before interning substrings: `unique.Make` of a substring can retain the (possibly huge) parent backing string until reclamation; clone first to break the share. `[verify]`: a specific 1.24.0/1.24.1 substring-retention *bug* was reported in one source but I could not corroborate the exact version/fix against primary docs; the `strings.Clone` defensive pattern is sound regardless.
@@ -323,7 +325,7 @@ Defensive `strings.Clone` before interning substrings: `unique.Make` of a substr
 `weak.Pointer` + `runtime.AddCleanup` [1.24]: self-evicting caches & canonical maps not covered by `unique` (non-comparable or large objects). `weak.Make[T any](*T) weak.Pointer[T]`; `(p) Value() *T` returns the strong pointer or `nil` after reclamation. The weak pointer is **comparable** and keeps a **stable identity even after the pointee is gone**: the property that makes the cleanup-CAS pattern correct.
 
 ```go
-// Canonicalization cache — the Go-team pattern (sync.Map + weak value + AddCleanup CAS):
+// Canonicalization cache: the Go-team pattern (sync.Map plus weak value plus AddCleanup CAS).
 type Cache[K comparable, V any] struct {
     create func(K) (*V, error)
     m      sync.Map // K -> weak.Pointer[V]
@@ -333,7 +335,7 @@ func (c *Cache[K, V]) Get(key K) (*V, error) {
     for {
         if v, ok := c.m.Load(key); ok {
             if p := v.(weak.Pointer[V]).Value(); p != nil { return p, nil }
-            c.m.CompareAndDelete(key, v) // dead entry — drop the exact weak ptr we saw
+            c.m.CompareAndDelete(key, v) // dead entry: drop the exact weak pointer seen above
             continue
         }
         if fresh == nil {
@@ -366,16 +368,13 @@ Common WRONG versions: `weak.New(v)`/`.Get()` (names don't exist); forgetting th
 
 Probabilistic set membership: false positives possible, false negatives never. Use for dedup, cache-prefetch filtering, "definitely-not-present" fast paths.
 
-```go
-import "github.com/bits-and-blooms/bloom/v3"
-f := bloom.NewWithEstimates(1_000_000, 0.01) // 1M items, 1% FP rate
-f.AddString("apple")
-f.TestString("apple")  // true
-f.TestString("cherry") // false (probably)
-```
+The invariants any filter in this role must preserve: a negative answer is always correct (no false negatives); the false-positive rate is a configured budget, and the real rate can only drift upward as the filter fills; capacity is fixed at construction, so an under-sized or over-filled filter quietly exceeds that budget; and a standard Bloom filter cannot remove elements. Variants that do support deletion or growth (counting, cuckoo, scalable) each trade something for it: a full cuckoo filter can evict an existing entry under add pressure and start producing false negatives, so deletion support comes with strict capacity handling.
 
-`NewWithEstimates(n, fp)` computes optimal bit-array size and hash count. Sizing is fixed at construction; over-fill and the FP rate degrades sharply. For deletions or counting, use a counting/cuckoo variant (separate libs); a standard Bloom filter cannot remove elements.
+**No compliant dynamic implementation is grounded here.** The previously recommended default, `bits-and-blooms/bloom/v3`, last published stable release v3.7.1 (2025-10-26), falls outside the 12-month release recency policy and has no later published release or security fix, so it is not carried as the default. Maintenance commits exist on its default branch, but a commit timestamp is not a release. Do not adopt a pseudo-version or untagged commit as if it were a stable release, and do not hand-roll a filter as a fallback: Bloom filters are easy to sketch and easy to get subtly wrong (hash seeding, budget math, growth policy). Select a library against your actual operation set (Add/Test only, deletion, known vs growing capacity, concurrency; note v3.7.1 itself is documented as not safe for concurrent use) and verify the pick against current releases before adopting.
 
+If the set is genuinely static, built once and queried many times with no additions, `github.com/FastFilter/xorfilter` (v0.5.1, maintained) fits: an immutable BinaryFuse filter with `Contains` and no Add operation, roughly 0.4% false positives at 9 bits/key (8-bit) or 0.0015% at 18 bits/key (16-bit), safe for concurrent reads. Construction takes `[]uint64` keys (hash your objects first), may mutate the input slice, and the result cannot grow. It is not a Bloom replacement for a dynamic workload.
+
+If false positives are unacceptable, use an exact `map[K]struct{}`. That is an explicit capability/memory trade: it keeps full keys plus map overhead instead of a compact fingerprint, so it is not a memory-equivalent substitute and must not be swapped in silently. There is also no stored-filter migration path: serialized bitsets and fingerprints are implementation-specific, so changing implementation means rebuilding from the source data, not converting the stored filter.
 ---
 
 ## Cache eviction libraries & algorithms {#eviction-libraries}
@@ -387,23 +386,23 @@ The algorithm story moved past "LRU or Ristretto." Three policies matter:
 - S3-FIFO (SOSP'23): three FIFO queues: small `S` (~10%, filters one-hit-wonders), main `M` (~90%, lazy promotion via reinsertion), ghost `G` (metadata-only, readmits recently-evicted). 1-2 bits/object, **lock-friendly** (no per-hit global update) and **scan-resistant**; ~6× LRU throughput at 16 threads in the paper. `scalalang2/golang-fifo/v2`. (otter **v1** used S3-FIFO; **v2 switched to W-TinyLFU**.)
 
 ```go
-// otter v2 — Options API, MaximumSize/MaximumWeight, GetIfPresent is the present-only lookup:
+// otter v2: Options API with MaximumSize/MaximumWeight; GetIfPresent is the present-only lookup.
 cache := otter.Must(&otter.Options[string, []byte]{MaximumSize: 10_000})
 cache.Set("k", v)
 if got, ok := cache.GetIfPresent("k"); ok { _ = got }
 
-// ristretto v2 — generic; Set is ADVISORY (admission policy may reject even on Set==true):
+// ristretto/v2 (v2.4.2) is generic; Set is ADVISORY (admission policy may reject even when Set returns true).
 c, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
     NumCounters: 1e6, MaxCost: 1 << 28, BufferItems: 64,
 })
 if err != nil { panic(err) }
 defer c.Close()
-c.Set("k", v, 1)        // may be dropped under contention — not a write-through guarantee
+c.Set("k", v, 1)        // advisory: TinyLFU may reject or drop under contention; not a write-through guarantee
 got, ok := c.Get("k")
 _ = got; _ = ok
 ```
 
-Picks (see [decision table](#decision-table) for the full grid): hit ratio + throughput → **otter v2**; cost/size-based, freq-skewed → **ristretto v2**; simple bounded LRU/ARC/2Q → **golang-lru v2**; per-item TTL + loaders → **ttlcache v3**; GBs where GC pause dominates → **bigcache**/**freecache** (off-GC byte arenas; re-benchmark on the [1.26] Green Tea GC, which weakened "byte arenas always win"). **Avoid `patrickmn/go-cache`** (no release since 2017).
+Picks (see [decision table](#decision-table) for the full grid): hit ratio + throughput: **otter v2.4.0**; cost/size-based, freq-skewed: **ristretto/v2 (v2.4.2, advisory Set admission)**; simple bounded LRU/ARC/2Q: **golang-lru v2**; per-item TTL + loaders: **ttlcache v3.4.1**; GBs where GC pause dominates: **bigcache/v3 (v3.2.0)** or **freecache** (on-heap pointer-free byte ring buffers in noscan arenas, not off-heap; re-benchmark on the [1.26] Green Tea GC, which weakened "byte arenas always win"). **Avoid `patrickmn/go-cache`** (no release since 2017).
 
 ---
 
@@ -414,7 +413,7 @@ For library picks and Redis examples see [performance.md#caching](performance.md
 | Pattern | Consistency | Write | Read | Best for |
 |---|---|---|---|---|
 | **Cache-aside** (lazy) | Eventual | normal | fast on hit | general, read-heavy (most common in Go) |
-| **Read-through** | Eventual | normal | fast on hit | cache library loads on miss (otter/ttlcache loaders, groupcache) |
+| **Read-through** | Eventual | normal | fast on hit | cache library loads on miss (otter/ttlcache loaders, groupcache/groupcache-go/v3) |
 | **Write-through** | Strong | slower (both) | fast on hit | must read fresh immediately after write |
 | **Write-behind** | Eventual | fast (async) | fast on hit | write-heavy, tolerates loss/staleness |
 
@@ -425,7 +424,7 @@ func (s *Service) GetProduct(ctx context.Context, id string) (*Product, error) {
     v, err, _ := s.sf.Do("product:"+id, func() (any, error) {
         p, err := s.db.GetProduct(ctx, id)
         if err != nil { return nil, err }
-        s.cache.Set(id, p, jitter(5*time.Minute)) // jitter TTL — see below
+        s.cache.Set(id, p, jitter(5*time.Minute)) // jittered TTL (explained below)
         return p, nil
     })
     if err != nil { return nil, err }
@@ -446,17 +445,18 @@ Stampede defense is three layers, not one: (1) **`singleflight`** collapses conc
 | stdlib `slices`/`maps`/`cmp`/`unique`/`weak`/`container/*` | **Default** | Almost always; `unique`/`weak` for interning & self-evicting caches |
 | `hashicorp/golang-lru/v2` (`v2.0.7`) | Active; v1 frozen | Simple bounded LRU / 2Q / ARC; `expirable` for TTL |
 | `maypok86/otter` v2 | Active, best-in-class | High hit ratio + throughput (adaptive W-TinyLFU), loaders/refresh |
-| `dgraph-io/ristretto` v2 (`v2.x`) | Active | Cost/size-based eviction, freq-skewed; tolerate dropped Sets |
+| `dgraph-io/ristretto/v2` (`v2.4.2`) | Active (2026-07-07) | Cost/size-based eviction, freq-skewed; advisory Set admission (TinyLFU drops) |
 | `jellydator/ttlcache/v3` | Active | Per-item TTL, loaders, event hooks (run `go Start()`) |
-| `allegro/bigcache/v3`, `coocood/freecache` | Active | Off-GC byte arenas; millions of entries, GC pause dominates |
-| `puzpuzpuz/xsync` v4 | Active | Generic high-contention concurrent map (`MapOf`); requires [1.24] |
+| `allegro/bigcache/v3` (`v3.2.0`), `coocood/freecache` | Active (2026-08-14) | On-heap pointer-free byte arenas (noscan); millions of entries, GC pause dominates (not off-heap) |
+| `puzpuzpuz/xsync/v4` (`v4.5.0`) | Active (2026-04-12) | Generic high-contention concurrent map (`Map`, `NewMap`; `MapOf` deprecated alias); requires [1.24] |
 | `orcaman/concurrent-map/v2` | Active | Older sharded-map pattern; generic |
-| `groupcache/groupcache-go/v3` | Active fork | Peer-aware read-through cache filling (prefer over the pseudo-versioned original) |
+| `groupcache/groupcache-go/v3` (`v3.5.0`) | Active fork (2026-03-30) | Maintained peer-aware read-through cache filling with TTL, OTel, and key removal; original golang/groupcache is dormant/unversioned |
 | `eko/gocache` `lib/v4` | Active | Meta-layer over ristretto/bigcache/redis + tag invalidation (not a cache itself) |
-| `bits-and-blooms/bloom/v3` | Active | Probabilistic set membership |
+| `bits-and-blooms/bloom/v3` (`v3.7.1`) | Outside 12-mo release policy | Last release 2025-10-26; no later published release or security fix. Not a default: see [Bloom Filters](#bloom-filters) |
+| `FastFilter/xorfilter` (v0.5.1) | Maintained (2026-01-26) | Static build-once/query-many sets only: immutable filter, no Add |
 | `patrickmn/go-cache` | **Unmaintained** (no release since 2017) | Avoid for new code: use `ttlcache` v3 / `otter` v2 |
 
-> Migrate stale imports to generic majors: `dgraph-io/ristretto/v2`, `hashicorp/golang-lru/v2`, `puzpuzpuz/xsync` v4, `maypok86/otter/v2`. Bare v1 paths are stale. `[verify]` exact latest tags on `?tab=versions` before pinning: several were not directly confirmable from primary pages (otter v2.x, bigcache v3.x, x/sync, freecache/eko date stamps).
+> Migrate stale imports to generic majors: `dgraph-io/ristretto/v2` (v2.4.2), `hashicorp/golang-lru/v2`, `puzpuzpuz/xsync/v4` (v4.5.0, prefer `Map` over deprecated `MapOf`), `maypok86/otter/v2`, `allegro/bigcache/v3` (v3.2.0), `groupcache/groupcache-go/v3` (v3.5.0). Bare v1 paths and dormant golang/groupcache are stale.
 
 ---
 
@@ -477,7 +477,7 @@ Generic stdlib containers: **none shipped through 1.27.** Heap/list/ring generic
 
 ---
 
-## What models get wrong {#stale}
+## Common mistakes {#stale}
 
 1. **`weak.New`/`.Get()`**: wrong names; the API is `weak.Make(*T)` / `(p) Value() *T` [1.24].
 2. **Recommending `runtime.SetFinalizer`** for cleanup: superseded by `runtime.AddCleanup` [1.24]; stdlib migrated off it [1.25].
@@ -493,7 +493,7 @@ Generic stdlib containers: **none shipped through 1.27.** Heap/list/ring generic
 12. **Hard-coding slice growth factor** or the map load factor: implementation details that changed.
 13. **`fmt.Sprint(key)` to hash a map key**: use `maphash.Comparable(seed, key)` [1.24] (no reflection, DDoS-seeded).
 14. **otter is "S3-FIFO"**: that was v1; v2 is adaptive W-TinyLFU.
-15. **`ristretto.Set==true` means installed/visible**: Set is advisory; admission policy may reject; may drop under contention.
+15. **`ristretto.Set==true` means installed/visible**: Set is advisory; TinyLFU admission policy may reject low-frequency keys; buffer overflow drops under contention.
 16. **Recommending `patrickmn/go-cache`** (unmaintained) or bare `ristretto`/`golang-lru` v1 import paths (stale, use `/v2`).
 17. **Interning substrings without `strings.Clone`**: can retain the parent backing string.
 18. **Relying on TTL as the invalidation strategy**: it's a safety net; delete/update on the write path.
@@ -514,4 +514,4 @@ Generic stdlib containers: **none shipped through 1.27.** Heap/list/ring generic
 - pkg.go.dev: `weak`, `unique`, `hash/maphash`, `sync` (Map/WaitGroup), `runtime` (AddCleanup/SetFinalizer), `slices` (Clip), `container/{heap,list,ring}` @ go1.26.4
 - go.dev/doc/go1.20-go1.27 release notes; go.dev blog "weak pointers" + canonicalization-cache example; go.dev/doc/gc-guide#Finalizers_cleanups_and_weak_pointers
 - Yang et al., "FIFO queues are all you need for cache eviction" (SOSP'23, S3-FIFO); Caffeine/W-TinyLFU; Vattani et al. (XFetch); PlanetScale "Generics can make your Go code slower"
-- Library repos: hashicorp/golang-lru, dgraph-io/ristretto, maypok86/otter, jellydator/ttlcache, allegro/bigcache, coocood/freecache, puzpuzpuz/xsync, bits-and-blooms/bloom, groupcache/groupcache-go, eko/gocache; golang.org/x/sync/singleflight
+- Library repos: hashicorp/golang-lru/v2, dgraph-io/ristretto/v2, maypok86/otter/v2, jellydator/ttlcache/v3, allegro/bigcache/v3, coocood/freecache, puzpuzpuz/xsync/v4, bits-and-blooms/bloom/v3, FastFilter/xorfilter, groupcache/groupcache-go/v3, eko/gocache; golang.org/x/sync/singleflight

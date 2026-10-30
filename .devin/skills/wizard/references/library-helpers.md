@@ -22,4 +22,9 @@ Branch-specific reference for the wizard template library. The `scripts/wizard-t
 
 ## Usage rules
 
-Open a URL before asking for its value. Use `ask_secret` for secrets. Call `write_env` for every persisted value. Call `set_secret` only for values CI needs. Call `confirm` before an irreversible action. A `stage` clears the screen, so keep it to one focused task or the human loses the instructions that scrolled away.
+- Open a URL before asking for the value behind it.
+- Use `ask_secret` for secrets, never `ask`.
+- Call `write_env` for every persisted value.
+- Call `set_secret` only for values CI needs.
+- Call `confirm` before an irreversible action.
+- Keep each `stage` to one focused task: it clears the screen, and anything that scrolls away is lost to the human.

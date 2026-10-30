@@ -1,0 +1,3 @@
+interface:
+  display_name: "Contraint Driven"
+  short_description: "Use when no quality bar is written down, when setting up constraints, or when implementing under non-negotiable budgets, limits, or API rules."

@@ -2,7 +2,7 @@
 
 Surface reference for HTML and vanilla CSS. Companion to `references/anti-slop.md` for slop tells specific to web (uniform `rounded-lg`, `transition: all`, default Tailwind ramp, etc.).
 
-> **Grounded: 2026-08-26.** Every Baseline status below is a snapshot, not a guarantee. Re-verify on https://web.dev/baseline and https://developer.mozilla.org **before** relying on any feature in production code. Baseline promotes a feature from Newly to Widely Available 30 months after the Newly date. Browser-conservative environments (enterprise IT, government, embedded) need an extra confirmation pass even on Widely Available features.
+> **Grounded: 2026-08-26, with the anchor-positioning, scroll-driven, and `popover` rows corrected 2026-10-30.** Every Baseline status below is a snapshot, not a guarantee. Re-verify on https://web.dev/baseline and https://developer.mozilla.org **before** relying on any feature in production code. Baseline promotes a feature from Newly to Widely Available 30 months after the Newly date. Browser-conservative environments (enterprise IT, government, embedded) need an extra confirmation pass even on Widely Available features.
 
 ## 1. Posture
 
@@ -97,7 +97,7 @@ Newly Available with a forward-dated Widely Available milestone, or Chromium-onl
 
 ### `popover` attribute and `<dialog>`
 
-`<dialog>` is Widely Available (2024-09-14). `popover` is Baseline Newly Available (2025-01-27) and is Newly, not Widely, keep the fallback.
+`<dialog>` is Widely Available (2024-09-14). `popover` is Baseline Newly Available (2025-01-27; web.dev announced it 2025-02-07) and is still Newly at this writing, with Widely projecting ~July 2027 by the 30-month rule. Keep the fallback and re-verify the tier on web.dev/baseline before dropping it.
 ```html
 <button popovertarget="menu">Open</button>
 <div id="menu" popover>...</div>
@@ -114,7 +114,7 @@ Anti-pattern: manual `<br>` tags in headlines for visual balance. Browsers balan
 
 ### Anchor positioning
 
-Not Baseline: webstatus.dev reports limited availability. Gate behind `@supports (anchor-name: --x)`; the dependency footprint of fallback libraries is what this feature is meant to eliminate, so swapping the gate for Floating UI on missing support defeats the purpose.
+Baseline Newly Available with partial engine coverage everywhere: Chrome/Edge 125+, Firefox 147+ (2026-01-13), Safari/iOS 26+. Widely pending, so gate behind `@supports (anchor-name: --x)` and keep a plain fixed-position fallback for older or partial engines; the dependency footprint of fallback libraries is what this feature is meant to eliminate, so swapping the gate for Floating UI on missing support defeats the purpose.
 ```css
 .tooltip { position: absolute; position-anchor: --button; top: anchor(bottom); }
 ```
@@ -122,7 +122,7 @@ Anti-pattern: Floating UI or Popper for simple tooltips when the platform suppor
 
 ### Scroll-driven animations
 
-Chrome and Edge 115+, Safari 26+; no Firefox support. Not Baseline, so keep the feature query.
+Chrome and Edge 115+, Safari 26+, Firefox 159+ (unflagged since 2026-10-27). The floors are recent enough that the feature stays benefit-gated, so keep the feature query.
 ```css
 @supports (animation-timeline: scroll()) {
   .progress { animation: grow linear; animation-timeline: scroll(root); }
@@ -166,7 +166,7 @@ Vanilla custom properties under `:root`. One concrete example:
 
 ## 3.5 Motion timing bands
 
-Time scales are perceptual, not arbitrary. Five bands cover production motion needs:
+Time scales are perceptual, not arbitrary. Five tuned-default bands cover production motion needs; they are starting points, not perceptual law:
 
 - ~80ms: perceptual "instant" threshold. Below this, the user does not register a transition; above, motion becomes communication.
 - 100-150ms: instant feedback (button press, hover state, focus ring).
@@ -174,7 +174,7 @@ Time scales are perceptual, not arbitrary. Five bands cover production motion ne
 - 300-500ms: layout changes (modal entrance, card flip, drawer slide).
 - 500-800ms: page entrance, first paint, hero reveal.
 
-Exit durations run ~75% of entrance, quick to leave, deliberate to arrive. Named easing curves only; no bounce, no elastic (these read as 2015-trendy on production surfaces in 2026):
+As a default, exit durations run ~75% of entrance, quick to leave, deliberate to arrive. Named easing curves only; no bounce, no elastic (these read as 2015-trendy on production surfaces in 2026):
 
 ```css
 :root {
@@ -186,9 +186,9 @@ Exit durations run ~75% of entrance, quick to leave, deliberate to arrive. Named
 
 ## 3.6 OKLCH thresholds
 
-Tinted neutrals carry chroma 0.005-0.015 toward the brand hue, pure greys (`oklch(L 0 H)`) read as institutional, not designed. Reduce chroma as lightness approaches 0 or 100; saturated extremes look garish at the boundaries of the lightness range and clip outside common gamuts.
+As a starting default, tinted neutrals carry chroma 0.005-0.015 toward the brand hue, pure greys (`oklch(L 0 H)`) read as institutional, not designed. Reduce chroma as lightness approaches 0 or 100; saturated extremes look garish at the boundaries of the lightness range and clip outside common gamuts.
 
-Dark-mode surface scale uses three steps at lightness 15% / 20% / 25%, sharing the same hue and chroma so the steps read as elevation, not as separate colors. Light-on-dark text needs optical compensation: bump line-height by +0.05-0.1, and step weight up one notch (regular → medium, medium → semibold). The same string of body copy that reads at 16px/regular on light backgrounds needs 16px/medium with looser leading on dark to match perceived density.
+Dark-mode surface scale uses three steps at lightness 15% / 20% / 25%, sharing the same hue and chroma so the steps read as elevation, not as separate colors. Light-on-dark text needs optical compensation: as a starting default, add +0.05-0.1 to line-height, then test the rendered result and adjust the committed token; tune weight and contrast against the committed typeface, size, and background, since the same glyphs can read heavier or lighter depending on rendering. Never ship light-mode metrics verbatim; pick one compensation direction for the surface and hold it.
 
 ## 3.7 Typography vertical rhythm
 
@@ -196,7 +196,7 @@ Within text blocks, line-height is the base unit for vertical spacing between co
 
 For component layout, padding, and inter-section spacing, defer to the `--space-*` tokens declared in §3 (4 / 8 / 12 / 16 / 24 / 32 / 48 / 64). The line-height rhythm and the spacing scale serve different roles, text rhythm is dense and prose-local; layout spacing is coarse and structural. Conflating them produces either airless prose or chunky layouts.
 
-Type size scale: five steps (xs / sm / base / lg / xl) with a single ratio, 1.25 (gentle), 1.333 (default), or 1.5 (loud). Pick one ratio at the start and commit; mid-build ratio swaps cascade through every component and re-break alignment.
+Type size scale: five steps (xs / sm / base / lg / xl) with a single ratio, 1.25 (gentle), 1.333 (default), or 1.5 (loud). Pick one ratio at the start and commit; mid-build ratio swaps cascade through every component and re-break alignment. The ratio choice is a fitted default, not a perceptual constant.
 
 ## 4. Layout patterns
 
@@ -229,7 +229,7 @@ Placeholders end with `…` when they show a pattern (`Search by name…`, `123-
 
 Use `Intl.DateTimeFormat` and `Intl.NumberFormat` for all dates, times, and numbers, never hardcode `MM/DD/YYYY`, `1,000.00`, or currency symbols. Detect locale via `Accept-Language` (server) or `navigator.languages` (client); never IP-based geolocation, which conflates location with language preference (a French speaker in Tokyo wants French, not Japanese). `translate="no"` on brand names, code identifiers, monospace tokens, and proper nouns, Google Translate will otherwise render `Stripe` as `Bande` in French; apply per-element, not site-wide.
 
-Text-expansion budget per locale: German +30%, French +20%, Finnish +30-40%, Chinese -30%. Buttons, labels, and table headers must accommodate the swing without wrapping or truncating; design at the longest expected length and let other locales breathe.
+Plan text-expansion budgets per locale as defaults, not guarantees: German +30%, French +20%, Finnish +30-40%, Chinese -30%. Buttons, labels, and table headers must accommodate the swing without wrapping or truncating; design at the longest expected length and let other locales breathe.
 
 ## 4.10 Input method, breakpoints, responsive images
 
@@ -308,7 +308,7 @@ The browser combines `srcset` widths with the device-pixel-ratio to pick the rig
 
 The values are illustrative defaults; tune per-typeface and per-icon-set. The point of the named tokens is to make optical adjustments *intentional*, a magic `1px` in component CSS reads as a leftover hack; `var(--optical-nudge-icon)` reads as a deliberate optical correction with a system home.
 
-**Touch-target pseudo-element.** Icon buttons can stay visually small while still meeting the 44×44px minimum tap target, via an invisible `::before` that expands the hit area without affecting layout.
+**Touch-target pseudo-element.** Icon buttons can stay visually small while still meeting the 44x44pt Apple HIG target (the WCAG 2.2 AA floor is 24x24 CSS px), via an invisible `::before` that expands the hit area without affecting layout.
 
 ```css
 .icon-button {
@@ -331,8 +331,8 @@ The pseudo-element is invisible but receives pointer / touch events because the 
 - **HSL or RGB for design-token color.** OKLCH-only. HSL lightness is not perceptual and produces uneven ramps across hues.
 - **JS scroll listeners for parallax or progress.** Use `animation-timeline: scroll()` where supported, `IntersectionObserver` otherwise. A `scroll` event handler running every frame is a battery and jank tax.
 - **Layout-driven media queries on component-scoped content.** Container queries are the right axis once a component can appear in multiple containers.
-- **`transition: all`.** Already banned in `design/SKILL.md` (Procedure step 6 charter). Restated here because it is the single most common slop tell on web: animates layout, color, and transform together; jank and unintended re-layouts guaranteed. Name the properties.
-- **`*-system-ui` font stacks as the type system.** Already banned. A direction with no committed family is no direction; system-ui delegates the type pair to whatever the OS shipped.
+- **`transition: all`.** Banned by the anti-slop charter in `design/SKILL.md` (name the transitioned properties so layout and paint never animate together). Restated here because it is the single most common slop tell on web: animates layout, color, and transform together; jank and unintended re-layouts guaranteed. Name the properties.
+- **`*-system-ui` font stacks as the type system.** Banned by the same charter. A direction with no committed family is no direction; system-ui delegates the type pair to whatever the OS shipped.
 - **Default Tailwind `gray-50…900` ramp imported wholesale.** RLHF and template defaults converge on it; the surface reads as preset before the eye finishes scanning.
 - **Hardcoded hex or px values in component CSS.** Tokens precede components; components reference tokens. A `git grep '#[0-9a-f]\{3,8\}'` against component files should be empty.
 

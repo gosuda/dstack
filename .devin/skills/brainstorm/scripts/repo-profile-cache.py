@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared repo-grounding project-profile cache: deterministic get/put.
 
-Owner copy; pov invokes this by relative path.
+Owner copy; the brainstorm skill invokes this by path per references/repo-profile-cache.md.
 
 This helper owns the *deterministic* cache I/O for the question-agnostic
 project profile that repo-grounding skills reuse. The non-deterministic
@@ -25,7 +25,7 @@ stamp, and writes it atomically to the computed cache path. Prints the path
 on success, `NO-CACHE` when the repo/cache is unavailable.
 
 Cache path:
-    /tmp/odin/repo-profile/<root-sha>/<head-sha>.json
+    /tmp/dstack/repo-profile/<root-sha>/<head-sha>.json
   root-sha = lexicographically-first `git rev-list --max-parents=0 HEAD`
              (deterministic even for multi-root histories) — the repo identity,
              shared across worktrees and clones.
@@ -59,7 +59,7 @@ from pathlib import Path
 # entry written under an older (narrower) schema.
 PROFILE_SCHEMA_VERSION = "1"
 
-CACHE_ROOT = "/tmp/odin/repo-profile"
+CACHE_ROOT = "/tmp/dstack/repo-profile"
 
 # --- Profile-input set (the schema-derived superset) -------------------------
 # Any change to one of these — including a NEW untracked file — must invalidate
@@ -215,7 +215,7 @@ def changed_paths() -> "list[str] | None":
 def cache_path(root: str, head: str) -> str:
     return os.path.join(CACHE_ROOT, root, f"{head}.json")
 
-# The first directory in the cache path that we own (e.g. /tmp/odin).
+# The first directory in the cache path that we own (e.g. /tmp/dstack).
 CACHE_ROOT_PATH = Path(CACHE_ROOT)
 CACHE_PREFIX = CACHE_ROOT_PATH.parent
 

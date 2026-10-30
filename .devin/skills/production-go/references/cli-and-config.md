@@ -2,7 +2,7 @@
 
 A CLI's contract is its surface: flags, env, files, exit codes, stdout/stderr split, signal behavior. Get the **precedence** (defaults < file < env < flags), the **process boundary** (one signal owner, one exit-code mapping, defers that actually run), and **testability** (inject args + IO, never reach for globals) right. The framework choice is secondary.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Library versions verified on pkg.go.dev. Version tags `[1.N]` mark the Go release a claim applies to. Deepened from multi-source research.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19). Library versions verified on pkg.go.dev. Version tags `[1.N]` mark the Go release a claim applies to.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -32,7 +32,7 @@ A CLI's contract is its surface: flags, env, files, exit codes, stdout/stderr sp
 15. [Terminal output, color & TUI](#cli-output)
 16. [Library landscape & status](#libraries)
 17. [Version map](#versions)
-18. [What models get wrong](#anti-patterns)
+18. [Common mistakes](#anti-patterns)
 
 ---
 
@@ -55,7 +55,7 @@ A CLI's contract is its surface: flags, env, files, exit codes, stdout/stderr sp
 `flag`'s ceiling is real and worth knowing before you outgrow it: single-dash only (`-v`, `-port 8080` or `-port=8080`), **no** `--long`, **no** short clustering (`-abc`), **no** required flags, **no** subcommands. Parsing **stops at the first non-flag arg**: that's the hook for subcommands via per-command `flag.FlagSet`.
 
 ```go
-// CORRECT — subcommands with FlagSet; each owns its flags, error-handling is ContinueOnError so we control exit.
+// CORRECT: each subcommand owns a FlagSet with ContinueOnError.
 func run(args []string, stdout, stderr io.Writer) error {
     if len(args) < 1 {
         return fmt.Errorf("usage: app <serve|migrate> [flags]")
@@ -63,9 +63,9 @@ func run(args []string, stdout, stderr io.Writer) error {
     switch args[0] {
     case "serve":
         fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-        fs.SetOutput(stderr)                     // don't write usage to os.Stderr directly — testability
+        fs.SetOutput(stderr)                     // usage goes to the injected writer, not os.Stderr
         port := fs.Int("port", 8080, "listen port")
-        if err := fs.Parse(args[1:]); err != nil { // returns flag.ErrHelp on -h
+        if err := fs.Parse(args[1:]); err != nil {
             return err
         }
         return serve(*port, stdout)
@@ -89,7 +89,7 @@ func newRoot() *cobra.Command {
         Use:           "app",
         SilenceUsage:  true,  // don't dump full usage on a runtime RunE error
         SilenceErrors: true,  // we print the error ourselves in main (see below)
-        RunE:          runRoot, // RunE, never Run — Run can't return an error
+        RunE:          runRoot, // RunE, never Run: Run cannot return an error
     }
     cmd.PersistentFlags().Bool("verbose", false, "verbose output")
     return cmd
@@ -106,12 +106,12 @@ func main() {
 ```
 
 ```go
-// WRONG — duplicate error output: cobra prints "Error: ..." itself AND main prints it.
+// WRONG: cobra prints "Error: ..." itself, so printing it again in main duplicates the error.
 cmd := &cobra.Command{Use: "app", SilenceUsage: true} // SilenceErrors NOT set
-// ...main also does fmt.Fprintln(os.Stderr, err)  → the error appears twice.
+// main also prints the error, so it appears twice.
 ```
 
-**Expert points models miss:**
+**Details worth knowing:**
 - `ExecuteContext(ctx)` wires your signal context into every `cmd.Context()`; `Execute()` gives a `context.Background()`. Use `ExecuteContext`.
 - Flag groups [v1.8+]: `MarkFlagsRequiredTogether`, `MarkFlagsMutuallyExclusive`, `MarkFlagsOneRequired`. Combine the last two for "exactly one."
 - `SetErrPrefix` [v1.8] brands errors; `OutOrStdout()`/`ErrOrStderr()` are the *injectable* streams (see [testable CLI](#testable)); never `fmt.Println` inside a command.
@@ -123,7 +123,7 @@ cmd := &cobra.Command{Use: "app", SilenceUsage: true} // SilenceErrors NOT set
 
 ## Kong {#kong}
 
-Kong (**v1.15.0**, Apr 2026) is the declarative struct-tag parser: define commands as structs, attach `Run(...) error` methods, let Kong dispatch with dependency injection. No code-gen, far less plumbing than cobra.
+Kong (**v1.16.1**, Aug 2026) is the declarative struct-tag parser: define commands as structs, attach `Run(...) error` methods, let Kong dispatch with dependency injection. No code-gen, far less plumbing than cobra.
 
 ```go
 type Globals struct {
@@ -143,19 +143,19 @@ func main() {
     var cli CLI
     ctx := kong.Parse(&cli, kong.Name("app"))
     err := ctx.Run(&cli.Globals)     // dispatches to the selected command's Run, injecting bound values
-    ctx.FatalIfErrorf(err)           // exits non-zero; honors the ExitCoder interface
+    ctx.FatalIfErrorf(err)
 }
 ```
 
 ```go
-// WRONG — treating Kong as a stringly switch throws away its typed graph + DI:
+// WRONG: a string switch bypasses the typed Run methods, bound values, and resolvers.
 ctx := kong.Parse(&cli)
 switch ctx.Command() {
-case "serve": _ = serve(cli.Serve.Port) // bypasses Run() methods, kong.Bind, resolvers
+case "serve": _ = serve(cli.Serve.Port)
 }
 ```
 
-**Expert points:** `kong.Bind`/`BindTo` inject dependencies (a `*sql.DB`, a `context.Context`) into `Run` signatures by type. `kong.Configuration(loader, paths...)` + the `ConfigFlag` type layer config-file defaults *under* flags natively. `FatalIfErrorf` honors `ExitCoder` (`ExitCode() int`): **entrypoint only**; library code returns errors. `type:"path"`/`type:"existingfile"` give validated path args for free.
+`kong.Bind`/`BindTo` inject dependencies (a `*sql.DB`, a `context.Context`) into `Run` signatures by type. `kong.Configuration(loader, paths...)` + the `ConfigFlag` type layer config-file defaults *under* flags natively. `FatalIfErrorf` honors `ExitCoder` (`ExitCode() int`): **entrypoint only**; library code returns errors. `type:"path"`/`type:"existingfile"` give validated path args for free.
 
 ---
 
@@ -168,7 +168,7 @@ import (
     "github.com/knadh/koanf/v2"
     "github.com/knadh/koanf/providers/confmap"
     "github.com/knadh/koanf/providers/file"
-    "github.com/knadh/koanf/providers/env/v2"   // env/v2 — the v1 env provider is superseded
+    "github.com/knadh/koanf/providers/env/v2"   // env/v2: the v1 env provider is superseded
     "github.com/knadh/koanf/providers/posflag"
     "github.com/knadh/koanf/parsers/yaml"
 )
@@ -188,7 +188,7 @@ func Load(flags *pflag.FlagSet) (*Config, error) {
             return key, val
         },
     }), nil)
-    k.Load(posflag.Provider(flags, ".", k), nil)    // 4. flags win (only flags the user actually set)
+    k.Load(posflag.Provider(flags, ".", k), nil)    // 4. flags win
 
     var cfg Config
     if err := k.Unmarshal("", &cfg); err != nil { return nil, fmt.Errorf("unmarshal config: %w", err) }
@@ -197,9 +197,9 @@ func Load(flags *pflag.FlagSet) (*Config, error) {
 ```
 
 ```go
-// WRONG — order is the precedence; loading env then file makes the FILE win over env:
+// WRONG: load order is the precedence, so a file loaded last wins over env.
 k.Load(env.Provider(".", env.Opt{Prefix: "APP_"}), nil)   // env
-k.Load(file.Provider("config.yml"), yaml.Parser())        // file LAST → clobbers env. Backwards.
+k.Load(file.Provider("config.yml"), yaml.Parser())        // file LAST: wins over env, which is backwards.
 ```
 
 **Traps:** `posflag.Provider` only overrides keys whose flags were **explicitly set** (it respects `Changed`), so flag *defaults* don't stomp file/env; this is why you put defaults in `confmap`, not in `pflag` defaults. Treat "config file absent" as non-fatal (`errors.Is(err, os.ErrNotExist)`) but a malformed file as fatal. Durations as strings (`"5s"`) need a decode hook in viper; koanf's `Unmarshal` handles `time.Duration` via mapstructure but verify with `UnmarshalWithConf` + `mapstructure.StringToTimeDurationHookFunc` for edge formats.
@@ -208,7 +208,7 @@ k.Load(file.Provider("config.yml"), yaml.Parser())        // file LAST → clobb
 
 ## koanf vs viper {#koanf-viper}
 
-| | **koanf/v2** (v2.3.4) | **viper** (v1.21.0) |
+| | **koanf/v2** (v2.4.1) | **viper** (v1.21.0) |
 |---|---|---|
 | Core size | tiny; providers/parsers are separate modules | monolithic; pulls afero, fsnotify, codecs |
 | Key case | **case-sensitive** (honors JSON/YAML/TOML) | **lowercases everything** (breaks specs) |
@@ -217,22 +217,22 @@ k.Load(file.Provider("config.yml"), yaml.Parser())        // file LAST → clobb
 | Remote K/V | providers: `consul/v2`, `etcd/v2`, `vault/v2`, `s3`, `parameterstore/v2`, `appconfig/v2` | built-in remote providers |
 | mapstructure | uses `mitchellh/mapstructure` internally | moved to **`go-viper/mapstructure/v2`** (v1.20+) |
 
-viper footguns models reproduce:
+Viper traps:
 - `AutomaticEnv()` does NOT slurp arbitrary env vars: it only checks env for keys that *already exist* from defaults/config/flags. Nested env still needs `SetEnvPrefix` + `SetEnvKeyReplacer(strings.NewReplacer(".", "_"))` and often explicit `BindEnv`. Empty env vars are ignored unless `AllowEmptyEnv(true)`.
 - `Unmarshal` silently ignores unknown keys: use **`UnmarshalExact`** to catch typos/dead config in production.
-- `mitchellh/mapstructure` is archived: if you reference it directly (custom decode hooks), switch to `github.com/go-viper/mapstructure/v2` (viper v1.21 pins v2.4.x). v1.20 also **removed HCL/INI/Java-properties from core** → `github.com/go-viper/encoding`.
+- `mitchellh/mapstructure` is archived: if you reference it directly (custom decode hooks), switch to `github.com/go-viper/mapstructure/v2` (v2.5.0; viper v1.21 pins v2.4.x). v1.20 also **removed HCL/INI/Java-properties from core** → `github.com/go-viper/encoding`.
 - Key lowercasing is the headline reason new code picks koanf; it's been punted to "maybe v2" for years.
 
 ```go
-// viper: production-correct env mapping + strict unmarshal
+// viper: env mapping plus strict unmarshal done right
 v := viper.New()
 v.SetEnvPrefix("APP")
 v.SetEnvKeyReplacer(strings.NewReplacer(".", "_")) // server.port ← APP_SERVER_PORT
 v.AutomaticEnv()
 v.BindPFlags(flags)
-_ = v.ReadInConfig()                  // tolerate absence at the call site
+_ = v.ReadInConfig()
 var cfg Config
-err := v.UnmarshalExact(&cfg)         // not Unmarshal — reject unknown keys
+err := v.UnmarshalExact(&cfg)
 ```
 
 Pick: **koanf** for new code (smaller tree, case-sensitive, explicit). **viper** when already invested or you need its all-in-one + cobra `BindPFlags` + remote providers out of the box. For pure 12-factor env, use neither (below).
@@ -241,22 +241,22 @@ Pick: **koanf** for new code (smaller tree, case-sensitive, explicit). **viper**
 
 ## Env-only config {#env-config}
 
-For 12-factor apps that configure entirely from environment, a full config lib is overkill. **`caarlos0/env`** (v11) is struct-tag + generics; **`sethvargo/go-envconfig`** is context-based with a `Lookuper` (testable/parallel, no global env mutation).
+For 12-factor apps that configure entirely from environment, a full config lib is overkill. **`caarlos0/env`** (v11, pinned to `v11.4.1`) is struct-tag + generics; **`sethvargo/go-envconfig/v2`** (v2.0.0, Go ≥1.25) is context-based with a `Lookuper` (testable/parallel, no global env mutation).
 
 ```go
 import "github.com/caarlos0/env/v11"
 
 type Config struct {
     Port    int           `env:"PORT" envDefault:"8080"`
-    DBURL   string        `env:"DATABASE_URL,required"`           // missing → error
-    Token   string        `env:"API_TOKEN,unset"`                 // cleared from env after read
+    DBURL   string        `env:"DATABASE_URL,required"`
+    Token   string        `env:"API_TOKEN,unset"`
     Timeout time.Duration `env:"TIMEOUT" envDefault:"5s"`
     Hosts   []string      `env:"HOSTS" envSeparator:","`
 }
-cfg, err := env.ParseAs[Config]()   // [generics] one call, typed result
+cfg, err := env.ParseAs[Config]()
 ```
 
-**Expert points:** `,required` fails loudly on missing critical config (fail-fast at boot beats a nil deref at request time). `,unset` clears a secret from the process environment after parsing so it doesn't leak to child processes via `os.Environ()`. `,file` reads the value from the file *named* by the env var (Docker/K8s secret-mount pattern: `API_TOKEN_FILE=/run/secrets/token`). go-envconfig's `Lookuper` lets tests inject a fake env map without `t.Setenv`, enabling `t.Parallel()`.
+`,required` fails loudly on missing critical config (fail-fast at boot beats a nil deref at request time). `,unset` clears a secret from the process environment after parsing so it doesn't leak to child processes via `os.Environ()`. `,file` reads the value from the file *named* by the env var (Docker/K8s secret-mount pattern: `API_TOKEN_FILE=/run/secrets/token`). In `sethvargo/go-envconfig/v2`, custom decoders implement `DecoderCtx` (`EnvDecode(ctx context.Context, val string) error`) and decoders do not run on unset variables unless opted in via `,decodeunset`; its `Lookuper` lets tests inject a fake env map via `envconfig.ProcessWith` without `t.Setenv`, enabling `t.Parallel()`.
 
 ---
 
@@ -273,7 +273,7 @@ func (c *Config) Validate() error {
     if c.Database.URL == "" {
         errs = append(errs, errors.New("database.url is required"))
     }
-    return errors.Join(errs...) // [1.20] report ALL problems at once, not the first
+    return errors.Join(errs...)
 }
 ```
 
@@ -296,7 +296,7 @@ func (c *Config) Validate() error {
 ```go
 dir, err := os.UserConfigDir()
 if err != nil { return err }                       // errors if $HOME unset OR $XDG_CONFIG_HOME is relative
-cfgPath := filepath.Join(dir, "myapp", "config.yml") // create your app subdir; spec requires it
+cfgPath := filepath.Join(dir, "myapp", "config.yml")
 ```
 
 **Traps:** all three return an error when the location can't be determined (e.g. `$HOME` undefined in a minimal container) or when the XDG var is a **relative** path; handle it, don't ignore. The spec mandates an **app-specific subdirectory**: `os.UserConfigDir()` returns the *root*, you must append your app name. For multi-source config-file discovery, `github.com/adrg/xdg` adds `XDG_CONFIG_DIRS` search-path support that stdlib omits.
@@ -313,15 +313,15 @@ func run(ctx context.Context, cfg *Config) error {
     errCh := make(chan error, 1)
     go func() {
         if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-            errCh <- err // ErrServerClosed is the EXPECTED return from Shutdown — not an error
+            errCh <- err // ErrServerClosed is the normal Shutdown return, not an error
         }
     }()
     select {
     case err := <-errCh:
         return err
-    case <-ctx.Done():    // SIGINT/SIGTERM delivered → ctx cancelled
+    case <-ctx.Done():
     }
-    shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second) // FRESH ctx
+    shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
     defer cancel()
     return srv.Shutdown(shutdownCtx)
 }
@@ -339,11 +339,11 @@ Second Ctrl-C / force-quit: `NotifyContext` traps only the *first* signal. Call 
 
 ```go
 <-ctx.Done()
-stop() // restore default disposition; a second Ctrl-C now force-quits
+stop()
 slog.Info("shutting down; press Ctrl+C again to force")
 ```
 
-Traps models reproduce:
+Traps:
 - Unbuffered signal channel: `signal.Notify(make(chan os.Signal), …)` can **drop** the signal (runtime sends non-blocking). Always `make(chan os.Signal, 1)`. (`NotifyContext` handles this for you; prefer it.)
 - `Shutdown` with the cancelled signal context: its deadline is already past; in-flight requests get no drain. Use a fresh `context.WithTimeout(context.Background(), …)`.
 - Treating `http.ErrServerClosed` as a failure: it's the normal return from a clean `Shutdown`.
@@ -357,10 +357,10 @@ Traps models reproduce:
 ## Exit codes {#exit-codes}
 
 ```go
-// CORRECT — defers run because os.Exit lives only in main.
+// CORRECT: os.Exit lives only in main, so defers run.
 func main() { os.Exit(run()) }
 func run() (code int) {
-    defer cleanup()                  // RUNS — main never calls os.Exit before this returns
+    defer cleanup()
     if err := doWork(); err != nil {
         fmt.Fprintln(os.Stderr, "app:", err)
         return 1
@@ -368,9 +368,9 @@ func run() (code int) {
     return 0
 }
 
-// WRONG — defer SKIPPED; files/connections leak, buffers unflushed.
+// WRONG: os.Exit skips the deferred cleanup.
 func main() {
-    defer cleanup()                  // never runs
+    defer cleanup()
     if bad { os.Exit(1) }            // os.Exit doc: "No deferred functions are run."
 }
 ```
@@ -411,14 +411,14 @@ cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete strin
     return []cobra.Completion{
         cobra.CompletionWithDesc("dev", "development environment"),
         cobra.CompletionWithDesc("prod", "production environment"),
-    }, cobra.ShellCompDirectiveNoFileComp // suppress filename completion
+    }, cobra.ShellCompDirectiveNoFileComp
 }
 // Enum flag: prefer the helper over a hand-rolled closure.
 cmd.RegisterFlagCompletionFunc("env", cobra.FixedCompletions(
     []cobra.Completion{"dev", "staging", "prod"}, cobra.ShellCompDirectiveNoFileComp))
 ```
 
-**Traps:** models return bare `[]string` and miss `CompletionWithDesc`/`FixedCompletions` [v1.9]; they assume legacy bash V1 completion: **`GenBashCompletionV2` is the default** (V1 is legacy). `ShellCompDirectiveNoFileComp` matters: without it the shell falls back to filename completion. kong supports completion via `github.com/willabides/kongplete`; urfave/cli has built-in `EnableShellCompletion`.
+**Traps:** returning bare `[]string` misses `CompletionWithDesc`/`FixedCompletions` [v1.9]; assuming legacy bash V1 completion: **`GenBashCompletionV2` is the default** (V1 is legacy). `ShellCompDirectiveNoFileComp` matters: without it the shell falls back to filename completion. kong supports completion via `github.com/willabides/kongplete`; urfave/cli has built-in `EnableShellCompletion`.
 
 ---
 
@@ -427,30 +427,41 @@ cmd.RegisterFlagCompletionFunc("env", cobra.FixedCompletions(
 The two rules that make a CLI testable: **inject args and IO** (never read `os.Args`/`os.Stdout` deep in the code), and **return errors** (never `os.Exit` outside `main`). This turns the whole program into a table-testable function.
 
 ```go
-// CORRECT — run() takes everything it touches; main is the only impure shell.
+// CORRECT: run takes everything it touches; only main is impure.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error { /* ... */ }
 func main() {
     if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil { os.Exit(1) }
 }
 
 func TestRun(t *testing.T) {
-    var out, errb bytes.Buffer
-    err := run([]string{"serve", "-port", "0"}, strings.NewReader(""), &out, &errb)
-    if err != nil { t.Fatalf("run: %v", err) }
-    if !strings.Contains(out.String(), "listening") { t.Errorf("got %q", out.String()) }
+    t.Run("serve reports on stdout with stderr silent", func(t *testing.T) {
+        var out, errb bytes.Buffer
+        if err := run([]string{"serve", "-port", "0"}, strings.NewReader(""), &out, &errb); err != nil {
+            t.Fatalf("run: %v", err)
+        }
+        if out.Len() == 0 { t.Error("success must emit primary output on stdout") }
+        if errb.Len() != 0 { t.Errorf("stderr must stay empty on success, got %q", errb.String()) }
+    })
+    t.Run("unknown command returns error and keeps usage off stdout", func(t *testing.T) {
+        var out, errb bytes.Buffer
+        if err := run([]string{"bogus"}, strings.NewReader(""), &out, &errb); err == nil {
+            t.Fatal("expected an error for an unknown command")
+        }
+        if out.Len() != 0 { t.Errorf("usage must not pollute stdout, got %q", out.String()) }
+    })
 }
 ```
 
 ```go
-// WRONG — untestable: globals + direct os access + os.Exit.
-var verbose bool                    // package global flag → tests can't isolate
+// WRONG: globals, direct os access, and os.Exit make this untestable.
+var verbose bool
 func doThing() {
-    fmt.Println("result")           // hard-wired to os.Stdout
-    if bad { os.Exit(1) }           // kills the test binary
+    fmt.Println("result")
+    if bad { os.Exit(1) }
 }
 ```
 
-**Expert points:** cobra exposes `cmd.SetArgs([]string{...})`, `cmd.SetOut`/`SetErr`/`SetIn` for exactly this: set them in tests, assert on the buffers. kong takes `kong.Parse(&cli, kong.Writers(out, err), kong.Exit(func(int){}))` to capture output and neutralize exit. Avoid `flag`'s global `CommandLine`/`ExitOnError` in tested code; use a `FlagSet` with `ContinueOnError`. For env-dependent code, `t.Setenv` [1.17] auto-restores and **forbids `t.Parallel()`** in that test; go-envconfig's `Lookuper` sidesteps that.
+cobra exposes `cmd.SetArgs([]string{...})`, `cmd.SetOut`/`SetErr`/`SetIn` for exactly this: set them in tests and assert the exit mapping and stream split (primary output on stdout, errors and usage on stderr, adversarial inputs such as an unknown command or a bad flag returning an error instead of exiting). kong takes `kong.Parse(&cli, kong.Writers(out, err), kong.Exit(func(int){}))` to capture output and neutralize exit. Avoid `flag`'s global `CommandLine`/`ExitOnError` in tested code; use a `FlagSet` with `ContinueOnError`. For env-dependent code, `t.Setenv` [1.17] auto-restores and **forbids `t.Parallel()`** in that test; go-envconfig's `Lookuper` sidesteps that.
 
 ---
 
@@ -463,13 +474,13 @@ ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 defer cancel()
 cmd := exec.CommandContext(ctx, "git", "status", "--porcelain")
 cmd.WaitDelay = 5 * time.Second           // [1.20] grace for the child to exit after ctx cancel before SIGKILL
-out, err := cmd.CombinedOutput()           // stdout+stderr; INCLUDE output in the error
+out, err := cmd.CombinedOutput()
 if err != nil {
     return fmt.Errorf("git status: %w (%s)", err, bytes.TrimSpace(out))
 }
 ```
 
-**Expert points:** an `*exec.ExitError` carries the child's exit code (`exitErr.ExitCode()`) and, on Unix, `exitErr.Stderr` when you used `Output()` (not `CombinedOutput`). [1.19] `exec.LookPath` no longer resolves a program in the **current directory** on Windows (a security fix); pass an explicit path or it errors. **Stream** large output via `cmd.StdoutPipe()` + `bufio.NewScanner` with `cmd.Start()` then `cmd.Wait()` (never `Wait` before draining the pipe → deadlock). **`WaitDelay` [1.20]** bounds how long `Wait` blocks on a child still holding stdio after the context is done. Windows: `cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}` hides console windows ([platform-and-build.md](platform-and-build.md#windows)).
+An `*exec.ExitError` carries the child's exit code (`exitErr.ExitCode()`) and, on Unix, `exitErr.Stderr` when you used `Output()` (not `CombinedOutput`). [1.19] `exec.LookPath` no longer resolves a program in the **current directory** on Windows (a security fix); pass an explicit path or it errors. **Stream** large output via `cmd.StdoutPipe()` + `bufio.NewScanner` with `cmd.Start()` then `cmd.Wait()` (never `Wait` before draining the pipe → deadlock). **`WaitDelay` [1.20]** bounds how long `Wait` blocks on a child still holding stdio after the context is done. Windows: `cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}` hides console windows ([platform-and-build.md](platform-and-build.md#windows)).
 
 ---
 
@@ -477,16 +488,16 @@ if err != nil {
 
 Stream discipline: primary/machine output to **stdout**, logs and errors to **stderr**, so `app | jq` stays clean. Offer a `--json` flag that suppresses spinners/color and emits machine-readable stdout.
 
-TTY detection: `golang.org/x/term`'s `term.IsTerminal(int(os.Stdout.Fd()))` (and `term.GetSize(fd)`); gate color/spinners/progress on it. **Color precedence** experts honor: `NO_COLOR` *present* (any value, even empty; use `os.LookupEnv`, **not** `== "1"`) disables; `CLICOLOR_FORCE`/`FORCE_COLOR ≠ 0` forces even when piped; `TERM=dumb` disables; an explicit `--color`/`--no-color` flag overrides all env.
+TTY detection: `golang.org/x/term`'s `term.IsTerminal(int(os.Stdout.Fd()))` (and `term.GetSize(fd)`); gate color/spinners/progress on it. **Color precedence** to honor: `NO_COLOR` *present* (any value, even empty; use `os.LookupEnv`, **not** `== "1"`) disables; `CLICOLOR_FORCE`/`FORCE_COLOR ≠ 0` forces even when piped; `TERM=dumb` disables; an explicit `--color`/`--no-color` flag overrides all env.
 
-Charm v2 stack (Feb-Mar 2026, first breaking changes in ~6 years): moved to **vanity import paths** `charm.land/{bubbletea,bubbles,lipgloss,huh}/v2`; models trained earlier emit the old `github.com/charmbracelet/*` paths for new code.
+Charm v2 stack (Feb-Mar 2026, first breaking changes in ~6 years): moved to **vanity import paths** `charm.land/{bubbletea,bubbles,lipgloss,huh}/v2`; older examples still show the old `github.com/charmbracelet/*` paths for new code, so use the vanity paths.
 
 - Bubble Tea v2 (`charm.land/bubbletea/v2`): `View()` now returns **`tea.View`** (not `string`) via `tea.NewView(s)`; key messages are **`tea.KeyPressMsg`** (not `tea.KeyMsg`), space is the named key `"space"`. `WindowSizeMsg` fires once initially and on every resize; never hardcode width/height. When the outer app owns signals, run with `tea.WithContext(ctx)` + `tea.WithoutSignalHandler()` so you don't double-own Ctrl-C; `Run()` returns `tea.ErrInterrupted` on SIGINT, `tea.ErrProgramKilled` on kill. Never block in `Update`; return a `tea.Cmd`.
 - Lip Gloss v2 standalone: use `lipgloss.Println`/`Fprint`, **not** `fmt.Println(style.Render(...))`, or color isn't downsampled/stripped on non-TTY. `AdaptiveColor` moved to the `compat` subpackage; the `termenv` dependency was dropped for `charmbracelet/colorprofile`.
 - Huh v2 (forms): accessible mode is now **form-level only**: `form.WithAccessible(os.Getenv("ACCESSIBLE") != "")` (the per-field `WithAccessible` was removed); generic constructors `huh.NewSelect[string]()`.
 - Fang v2 is an experimental styled-cobra starter (styled help/errors, auto `--version`, completion); `DefaultTheme`/`WithTheme` deprecated → `DefaultColorScheme`/`WithColorSchemeFunc`.
 
-`[verify]` exact charm patch tags (lipgloss v2.0.3 vs v2.0.4 reported across sources; bubbletea ~v2.0.7); pin against pkg.go.dev before locking `go.mod`.
+Charm v2 grounded pins: `charm.land/bubbletea/v2` v2.1.1, `charm.land/lipgloss/v2` v2.0.6, `charm.land/bubbles/v2` v2.2.1, `charm.land/huh/v2` v2.0.3.
 
 ---
 
@@ -496,21 +507,21 @@ Charm v2 stack (Feb-Mar 2026, first breaking changes in ~6 years): moved to **va
 |---|---|---|---|
 | stdlib `flag` | 1.26 | `flag` | Tiny tools; `FlagSet` for subcommands; no POSIX/long flags |
 | `spf13/cobra` | v1.10.2 | `github.com/spf13/cobra` | **Default** for command trees; needs pflag ≥ v1.0.9 (build break otherwise) |
-| `spf13/pflag` | v1.0.x | `github.com/spf13/pflag` | POSIX flags; `ParseErrorsWhitelist`→`Allowlist` rename; `[verify]` patch |
+| `spf13/pflag` | v1.0.10 | `github.com/spf13/pflag` | POSIX flags; `ParseErrorsWhitelist`→`Allowlist` rename; `[verify]` patch |
 | `spf13/cobra-cli` | separate | `github.com/spf13/cobra-cli` | Split from cobra at v1.3.0; `init`/`add` only |
-| `alecthomas/kong` | v1.15.0 | `github.com/alecthomas/kong` | Declarative struct tags + DI; no code-gen |
-| `urfave/cli` | v3.8.0 | `github.com/urfave/cli/v3` | v3 current (context-first); v2 maint-only, v1 security-only |
-| `knadh/koanf/v2` | v2.3.4 | `github.com/knadh/koanf/v2` | **Default** config; modular, case-sensitive, explicit precedence |
-| koanf env provider | env/v2 | `…/koanf/providers/env/v2` | v1 env provider superseded |
+| `alecthomas/kong` | v1.16.1 | `github.com/alecthomas/kong` | Declarative struct tags + DI; no code-gen |
+| `urfave/cli` | v3.14.0 | `github.com/urfave/cli/v3` | v3 current (context-first); v2 maint-only, v1 security-only |
+| `knadh/koanf/v2` | v2.4.1 | `github.com/knadh/koanf/v2` | **Default** config; modular, case-sensitive, explicit precedence |
+| koanf env provider | v2.0.2 | `github.com/knadh/koanf/providers/env/v2` | v1 env provider superseded |
 | `spf13/viper` | v1.21.0 | `github.com/spf13/viper` | **No v2**; lowercases keys; not concurrency-safe; `AutomaticEnv` ≠ slurp |
-| `go-viper/mapstructure/v2` | v2.4.x | `github.com/go-viper/mapstructure/v2` | Replaces archived `mitchellh/mapstructure` |
+| `go-viper/mapstructure/v2` | v2.5.0 | `github.com/go-viper/mapstructure/v2` | Replaces archived `mitchellh/mapstructure` |
 | `mitchellh/mapstructure` | archived | none | Dead; use the go-viper fork |
-| `caarlos0/env` | v11.x | `github.com/caarlos0/env/v11` | Env-only, generics `ParseAs[T]`, `,required`/`,file`/`,unset` |
-| `sethvargo/go-envconfig` | current | `github.com/sethvargo/go-envconfig` | Env-only, context + `Lookuper` (testable/parallel) |
+| `caarlos0/env` | v11.4.1 | `github.com/caarlos0/env/v11` | Env-only, generics `ParseAs[T]`, `,required`/`,file`/`,unset` |
+| `sethvargo/go-envconfig/v2` | v2.0.0 | `github.com/sethvargo/go-envconfig/v2` | Env-only, context + `Lookuper` (testable/parallel); requires Go ≥1.25 |
 | `go-playground/validator` | v10 | `github.com/go-playground/validator/v10` | Tag-driven config/struct validation |
 | `adrg/xdg` | current | `github.com/adrg/xdg` | XDG search paths (`XDG_CONFIG_DIRS`) beyond stdlib |
 | `golang.org/x/term` | current | `golang.org/x/term` | `IsTerminal`, `GetSize` |
-| Charm stack v2 | v2 | `charm.land/{bubbletea,bubbles,lipgloss,huh}/v2` | Vanity paths; old `charmbracelet/*` superseded; `[verify]` patches |
+| Charm stack v2 | v2.0-v2.1 | `charm.land/{bubbletea,bubbles,lipgloss,huh}/v2` | Vanity paths; old `charmbracelet/*` superseded; bubbletea v2.1.1, lipgloss v2.0.6 |
 | `fatih/color` | current | `github.com/fatih/color` | `NO_COLOR`/TTY-aware; standalone alternative to colorprofile |
 
 ---
@@ -527,11 +538,11 @@ Charm v2 stack (Feb-Mar 2026, first breaking changes in ~6 years): moved to **va
 | **1.22** | `math/rand/v2`; range-over-int (used in CLI loops) |
 | **1.24** | `tool` directives in `go.mod` supersede the `tools.go` blank-import pattern for CLI/dev tools |
 | **1.26** | `errors.AsType[E]` (cleaner exit-code extraction); `signal.NotifyContext` cancels with a signal-named `Cause`; `go fix` modernizer framework |
-| **1.27 (RC)** | No CLI/config-relevant breaking changes confirmed; re-verify `os/signal` and toolchain notes at GA (~Aug 2026). Treat as draft. |
+| **1.27** | GA 2026-08-19. No os/signal changes. `stdversion` vet check runs by default in `go test`; `go doc pkg@version` and `go doc -ex`; new `go fix` modernizers (`atomictypes`, `embedlit`, `slicesbackward`, `unsafefuncs`; `fmtappendf` removed, `waitgroup` renamed `waitgroupgo`); `go mod tidy` merges duplicate require blocks; generic methods (interface methods still may not declare type parameters nor be implemented by generic methods); `encoding/json/v2` + `encoding/json/jsontext` stable; `bzr` VCS support dropped. `os.Root` containment shipped in 1.24, not new in 1.27. |
 
 ---
 
-## What models get wrong {#anti-patterns}
+## Common mistakes {#anti-patterns}
 
 1. **`os.Exit`/`log.Fatal` after a `defer`**: defers skipped; cleanup/flush lost. Use `func main(){ os.Exit(run()) }`. And never `os.Exit` *outside* `main` (cobra `RunE`, kong commands, helpers); return errors, map once.
 2. **Unbuffered signal channel** `signal.Notify(make(chan os.Signal), …)`: drops signals; must be size ≥ 1. Prefer `signal.NotifyContext`.
@@ -560,7 +571,7 @@ Charm v2 stack (Feb-Mar 2026, first breaking changes in ~6 years): moved to **va
 - [observability.md](observability.md): structured logging to stderr, slog handlers
 
 ## Sources {#sources}
-- pkg.go.dev/{os, flag, os/exec, os/signal, github.com/spf13/cobra, github.com/alecthomas/kong, github.com/urfave/cli/v3, github.com/knadh/koanf/v2, github.com/spf13/viper, github.com/caarlos0/env/v11}
+- pkg.go.dev/{os, flag, os/exec, os/signal, github.com/spf13/cobra, github.com/alecthomas/kong, github.com/urfave/cli/v3, github.com/knadh/koanf/v2, github.com/spf13/viper, github.com/caarlos0/env/v11, github.com/sethvargo/go-envconfig/v2}
 - go.dev/doc/go1.13-go1.27 release notes; freedesktop.org XDG Base Directory spec; no-color.org; bixense.com CLICOLOR spec
 - Charm upgrade guides (bubbletea/lipgloss/bubbles/huh v2, `charm.land/*`); 12factor.net/config; sysexits.h (BSD)
 - Declined proposal: `main() int` (#24869)

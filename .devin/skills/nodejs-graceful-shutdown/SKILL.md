@@ -5,57 +5,59 @@ description: 'Use when asked to implement or fix service termination: SIGTERM or
 
 # Node.js graceful shutdown
 
-## Contract
+You make a Node.js server stop without dropping work. When the process gets SIGTERM or SIGINT (a deploy, a scaler, a Ctrl-C), it stops accepting new connections, tells the load balancer it is going away, lets in-flight requests finish inside a deadline, closes its database and queue handles, and exits with a code that says whether the drain was clean. If the ask is really about scaffolding the whole service (env, logging, errors), that belongs to nodejs-service-foundations instead.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Implementing or fixing service termination handling: SIGTERM or SIGINT, connection draining, health-check shutdown signaling, zero-downtime deploys. |
-| Authority | Reversible local: writes only the service shutdown handler and a companion test; rollback is version control. No remote mutation. |
-| Side effect | Edits server shutdown code; runs a short-lived server to verify drain. |
-| Done | On signal the service stops accepting new connections, drains active requests within the deadline, closes external dependencies, exits with code 0 on success or non-zero on deadline, and the companion test passes. |
+This stays local and reversible: you edit only the server shutdown handler and add one companion test, both rolled back through version control. You never touch remote state. The only runtime side effect is starting a short-lived server to watch it drain.
 
-## Inputs
+What you need before starting:
 
-- `DRAIN_TIMEOUT_MS`: integer milliseconds to wait for in-flight requests to complete before forcing exit. Required; must be positive. Default `10000`.
-- `SERVER_PORT`: TCP port for the HTTP server. Required.
-- `HEALTH_ROUTE`: URL path for the health or readiness endpoint. Required.
-- `SOURCES`: list of source files under `$CWD/src` or `$CWD/lib` to edit. Required; may be a single file.
-- `EXTERNAL_DEPENDENCIES`: list of external connections the application opens (database pools, Redis clients, message-queue producers). Required; may be empty.
+- `SOURCES`: files under `$CWD/src` or `$CWD/lib` holding the `http.createServer` or Express/Fastify `listen` bootstrap (one file is fine). Required.
+- `SERVER_PORT`: TCP port the test server binds. Required.
+- `HEALTH_ROUTE`: health or readiness path. Required.
+- `DRAIN_TIMEOUT_MS`: milliseconds to wait for in-flight requests before forcing the exit. Required, positive integer, default `10000`.
+- `EXTERNAL_DEPENDENCIES`: every external handle the app opens (database pools, Redis clients, queue producers). Required, may be empty.
 
-## Procedure
+## Wire one handler for both signals
 
-1. **Install SIGTERM and SIGINT handlers.** Read every file in `SOURCES`. Identify the server bootstrap point: the `http.createServer` or Express or Fastify `listen` call. Identify any existing `process.on` handlers. If no `isShuttingDown` boolean state exists, add it as `let isShuttingDown = false` at module scope. Add or augment `process.on('SIGTERM', shutdown)` and `process.on('SIGINT', shutdown)`; if the existing handler is named and registered, update it, do not register a second handler on the same signal. Done when: both SIGTERM and SIGINT are wired to a single shutdown handler and `isShuttingDown` state exists at module scope.
+Read every file in `SOURCES` and find the bootstrap: the `listen` call and the variable holding the server instance. Keep any existing named `process.on` handler and update it rather than registering a second handler on the same signal. Both `SIGTERM` and `SIGINT` must end at a single `shutdown` function, guarded by module-scope state declared as `let isShuttingDown = false`. If that flag does not exist yet, add it.
 
-2. **Flip health check to 503 and verify it responds.** Write the `shutdown` function so that the first action is setting `isShuttingDown = true`, then update the health endpoint handler to return `503 Service Unavailable` with body `{"status":"shutting_down"}` when `isShuttingDown === true`, and `200 OK` with body `{"status":"ok"}` otherwise. The health flip must happen before `server.close()` so the 503 observation is reliable. Verify by sending a health request immediately after the signal: it must return 503. Done when: the health endpoint returns 503 shutting_down during shutdown and 200 ok otherwise, and the 503 is observable before the server stops accepting connections.
+## Fail health first so the balancer looks away
 
-3. **Call server.close() and drain active requests.** After the health flip, call `server.close()` from the variable that holds the server instance. This stops accepting new connections and resolves when all active connections close. Await `server.close()` with a deadline: race it against a timeout of `DRAIN_TIMEOUT_MS`. If `server.close()` resolves first, the drain succeeded gracefully. If the timeout wins, active requests are still in flight and the exit must be non-zero. Do not use a fixed sleep; await the actual close promise. Done when: `server.close()` is called and awaited with a deadline, and the drain outcome (success or timeout) is distinguishable.
+The first thing `shutdown` does is set `isShuttingDown = true`, and the health endpoint reads that flag on every request: `200 OK` with `{"status":"ok"}` while serving, `503 Service Unavailable` with `{"status":"shutting_down"}` once draining starts. This flip must land before `server.close()` runs, so a health probe sent right after the signal reliably sees the 503 while the server is still up.
 
-4. **Close external dependencies.** Call `closeExternalConnections()` for every connection in `EXTERNAL_DEPENDENCIES`: `pool.end()` for database pools, `redis.quit()` for Redis clients, `producer.disconnect()` for message-queue producers. Do not modify OS-level sockets. Await all close calls; if any dependency is unresponsive, record it and proceed to exit. Done when: every external dependency in the list has a close call in the shutdown function.
+## Drain connections, then close what you opened
 
-5. **Exit with code 0 on success or non-zero on deadline.** If `server.close()` resolved before the timeout and all dependencies closed, call `process.exit(0)`. If the timeout won (drain did not complete in time), call `process.exit(1)`. If a dependency was unresponsive, call `process.exit(1)`. The exit code must distinguish a graceful drain from a deadline-forced termination. Done when: the exit code is 0 on graceful success and non-zero on deadline or partial cleanup.
+After the health flip, call `server.close()` on the real server instance and await it (never a fixed sleep), raced against a `DRAIN_TIMEOUT_MS` timeout. If close resolves first the drain was graceful; if the timer wins, requests are still in flight and the exit must be non-zero. Then close every entry in `EXTERNAL_DEPENDENCIES`:
 
-6. **Write a companion test.** Create `<filename>.test.ts` that:
-   - Spawns the server with `DRAIN_TIMEOUT_MS=500`.
-   - Sends a `GET /<HEALTH_ROUTE>` request and asserts `200`.
-   - Sends `SIGTERM` to the server process.
-   - Immediately sends a second health request; asserts `503` with `shutting_down`.
-   - Sends a long-running request before the signal; asserts it completes before the server exits.
-   - Waits for the process to exit; asserts exit code `0` when the long-running request completes within the deadline.
-   - Runs a second scenario where the long-running request exceeds `DRAIN_TIMEOUT_MS`; asserts exit code is non-zero.
-   Done when: the companion test file is written covering all assertions.
+- database pools with `pool.end()`
+- Redis clients with `redis.quit()`
+- queue producers with `producer.disconnect()`
 
-7. **Run the test.** Run with `node --test` or the project's test runner. Done when: all tests pass.
+Leave OS-level sockets alone. Await every close; an unresponsive dependency gets recorded, not retried forever. Partial cleanup (some handles closed, others not) counts as failure.
 
-## Failure and recovery
+Exit `0` only when the server drained inside the deadline and every dependency closed. Exit `1` when the drain timed out or any dependency stayed unresponsive, so callers can tell a clean drain from a forced one.
 
-| Failure class | Result |
-|---|---|
-| Unresponsive dependency | `closeExternalConnections()` hangs. Record which dependency did not close. Exit with code 1. The test detects the non-zero exit. Add a timeout on each dependency close call. |
-| Drain timeout | Active requests exceed `DRAIN_TIMEOUT_MS`. The timeout wins the race against `server.close()`. Exit with code 1. The test detects the non-zero exit. Increase `DRAIN_TIMEOUT_MS` or ensure the service under test does not hold connections beyond the limit. |
-| Partial cleanup | Some dependencies closed, others did not. Record which closed and which did not. Exit with code 1. The test detects the non-zero exit. Add the missing dependency to `EXTERNAL_DEPENDENCIES`. |
-| `isShuttingDown` checked after I/O initiation | A request that started async work before the signal may still emit a database query after `isShuttingDown` is set. Add the guard before the I/O call, not after. |
-| Health route does not reflect `isShuttingDown` | The load balancer keeps routing traffic to a pod that has started draining. The health endpoint must return 503 immediately after the signal, before `server.close()`. |
+## Prove it with a companion test
 
-## Output
+Write `<filename>.test.ts` next to the handler and run it with `node --test` or the project's runner until it is green. The test spawns the server with `DRAIN_TIMEOUT_MS=500`, then:
 
-Edited source files implementing the graceful shutdown sequence, plus a passing companion test demonstrating the 503 health flip, clean drain, and exit code that distinguishes graceful from deadline-forced termination.
+- requests `GET /<HEALTH_ROUTE>` and expects `200`
+- sends `SIGTERM`
+- immediately requests health again and expects `503` with `shutting_down`
+- holds a long-running request across the signal and expects it to complete before exit
+- waits for the process to exit and expects code `0` when the long request finished inside the deadline
+- reruns a scenario where the long request outlasts the deadline and expects a non-zero exit
+
+All of those assertions must exist and pass.
+
+## When draining fails
+
+- Unresponsive dependency hangs `closeExternalConnections()`: record which one, give each dependency close its own timeout, and exit `1`. The companion test sees the non-zero code.
+- Active requests outliving `DRAIN_TIMEOUT_MS`: the timeout wins the race against `server.close()`. Exit `1`, and either raise the timeout or stop the service holding connections past it.
+- Partial cleanup: some handles closed, others not. Exit `1`. The usual cause is a handle missing from `EXTERNAL_DEPENDENCIES`, so add it.
+- Flag checked too late: a request that started async work before the signal can still fire a database query after the flag is set. Put the `isShuttingDown` guard before the I/O call, not after.
+- Health route ignoring the flag: the balancer keeps sending traffic to a draining pod. The 503 must come immediately after the signal and before `server.close()`.
+
+## What you hand back
+
+Edited shutdown code plus a passing companion test, demonstrating the 503 health flip ahead of `server.close()`, a clean drain inside the deadline, and an exit code that separates graceful shutdown from deadline-forced termination.

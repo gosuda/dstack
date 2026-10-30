@@ -2,13 +2,13 @@
 
 Pick the right lens: **pprof** = *where* time/memory went (statistical, always-on); the **execution tracer** = *why a goroutine wasn't running* (temporal: scheduling, blocking, GC timing); **`dlv`** = step one process or read a core post-mortem; **`-race`** = test shared-memory-unsafety. The last two years didn't change *how* to debug Go: they changed which tools are production-viable and which defaults moved underneath you.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC1** (GA ~Aug 2026), `dlv` **v1.27.0**. Version tags `[1.N]` mark the release a claim applies to.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes), `dlv` **v1.27.2**. Version tags `[1.N]` mark the release a claim applies to.
 
 ## TL;DR: the modern deltas (read first)
 
 - Execution tracing is now production-viable. Frame-pointer unwinding [1.21] cut tracer overhead from ~10-20% CPU to **~1-2%**; the streaming format + rewritten parser [1.22] stop `go tool trace` from loading the whole trace into RAM. "Tracing is too expensive for prod" is **stale**.
 - `trace.FlightRecorder` is in `runtime/trace` [1.25]: an in-memory ring buffer you snapshot *on anomaly* (was `golang.org/x/exp/trace`; models still cite x/exp). Highest-leverage upgrade for tail-latency debugging.
-- `goroutineleak` profile: GC-reachability leak detection. Experimental `GOEXPERIMENT=goroutineleakprofile` [1.26]; **GA + flag-free [1.27]** at `/debug/pprof/goroutineleak`. No false positives; misses leaks whose primitive stays globally reachable.
+- `goroutineleak` profile: GC-reachability leak detection. Experimental under `GOEXPERIMENT=goroutineleakprofile` [1.26]; **GA and flag-free [1.27]** at `/debug/pprof/goroutineleak`: that GOEXPERIMENT knob is deleted, so there is nothing to opt into (or out of). No false positives; misses leaks whose primitive stays globally reachable.
 - `GOMAXPROCS` is cgroup-aware [1.25] → `go.uber.org/automaxprocs` is **largely redundant** on Linux. **`GOMEMLIMIT` is NOT cgroup-aware**: still needs `automemlimit` or templating.
 - `-race` does not halt by default: it prints and *continues*. Set `GORACE="halt_on_error=1"` in CI. It's a *data*-race detector: logical/ordering races stay silent and `recover()` can't catch one.
 - `debug.Stack()` / `debug.PrintStack()` are current-goroutine only. All goroutines = `runtime.Stack(buf, true)` or `pprof.Lookup("goroutine").WriteTo(w, 2)`.
@@ -187,7 +187,7 @@ for range ws { if r := <-ch; r.err != nil { return r.err } }   // leftovers bloc
 // RIGHT: ch := make(chan result, len(ws))  — or context cancellation / errgroup.
 ```
 
-**`goroutineleak` profile** [1.26 exp → **1.27 GA**]: uses the **GC reachability graph**: if a blocked goroutine's primitive is unreachable from any runnable goroutine, it provably can't wake; the profile tags it `(leaked)`. **No false positives**, but **false negatives** when the primitive stays reachable via a global/runnable-local. Complements (doesn't replace) `go.uber.org/goleak` and dump analysis. Fetch: `curl localhost:6060/debug/pprof/goroutineleak | go tool pprof /dev/stdin`.
+**`goroutineleak` profile** [1.26 exp → **1.27 GA**, the `GOEXPERIMENT=goroutineleakprofile` opt-in deleted]: uses the **GC reachability graph**: if a blocked goroutine's primitive is unreachable from any runnable goroutine, it provably can't wake; the profile tags it `(leaked)`. **No false positives**, but **false negatives** when the primitive stays reachable via a global/runnable-local. Complements (doesn't replace) `go.uber.org/goleak` and dump analysis. Fetch: `curl localhost:6060/debug/pprof/goroutineleak | go tool pprof /dev/stdin`.
 
 Deadlocks: `fatal error: all goroutines are asleep - deadlock!` fires **only when *every* goroutine blocks**: a goroutine in a syscall/netpoller (e.g. an idle HTTP server) **suppresses it** despite a real partial deadlock. Diagnose via `goroutine?debug=2`: cluster `[N min]` + sync/chan waits; `tracebackancestors` adds the spawn tree. **`goleak`** in tests (`defer goleak.VerifyNone(t)` / `goleak.VerifyTestMain(m)`, `IgnoreTopFunction` for framework G) but **confused by `t.Parallel()`**: use `VerifyTestMain` there. **`testing/synctest` [1.24 exp → 1.25 GA]** = deterministic fake-time concurrency tests (kills `time.Sleep` flakiness) but is *scheduling* only, **not** a `-race` replacement.
 
@@ -231,9 +231,9 @@ Overhead: CPU/heap low (prod-safe); goroutine dump low to moderate; trace ~1-2% 
 
 | Tool / lib | Status [2026] | Note |
 |---|---|---|
-| **`dlv`** | **v1.27.0**, active | Build with Go ≥ target; DWARFv5 [1.25]; `--api-version` only `2` (v1 removed 1.24.0). |
+| **`dlv`** | **v1.27.2**, active | Build with Go ≥ target; DWARFv5 [1.25]; `--api-version` only `2` (v1 removed 1.24.0). |
 | `runtime/trace` + FlightRecorder | **Stdlib** [1.25] | Supersedes `x/exp/trace` for rolling capture. |
-| `goroutineleak` profile | **GA [1.27]** (exp 1.26) | GC-reachability; complements `goleak`. |
+| `goroutineleak` profile | **GA [1.27]** (1.26 experiment deleted) | GC-reachability; complements `goleak`. |
 | `runtime/metrics` | **Stdlib, stable** | Prefer over parsing `gctrace` text. |
 | `go.uber.org/goleak` | Active | Test-time; breaks with `t.Parallel()`. |
 | `KimMachineGun/automemlimit` | Active | Sets `GOMEMLIMIT` from cgroups: **still needed**. |
@@ -257,7 +257,7 @@ Overhead: CPU/heap low (prod-safe); goroutine dump low to moderate; trace ~1-2% 
 | **1.24** | `testing/synctest` (exp); `weak.Pointer[T]`; `+dirty` VCS suffix. |
 | **1.25** | **`trace.FlightRecorder`**; **cgroup-aware `GOMAXPROCS`** (`containermaxprocs`/`SetDefaultGOMAXPROCS`); **DWARF v5**; `synctest` GA; `decoratemappings`; race `linux/loong64`. |
 | **1.26** | `goroutineleak` (exp); `tracebacklabels` knob; pprof flame-graph default; race `linux/riscv64`. |
-| **1.27 (RC)** | **`goroutineleak` GA**; traceback labels **default-on** (`go 1.27` modules); `asynctimerchan` **removed**; `go tool trace -http` localhost-default; generic methods. Draft until ~Aug 2026. |
+| **1.27** | **`goroutineleak` GA** (`goroutineleakprofile` experiment deleted); traceback labels **default-on** for `go 1.27` modules (`tracebacklabels=0` opts out, kept indefinitely); `asynctimerchan` **removed** (time channels always synchronous); `go tool trace -http` localhost-default on a bare port; generic methods shipped (language; gated by the module `go` line). GA 2026-08-19. |
 
 ---
 

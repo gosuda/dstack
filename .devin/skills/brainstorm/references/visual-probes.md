@@ -62,10 +62,10 @@ Use the bundled display-only helper when the current platform can run a bundled 
 
 - Helper: `scripts/visual-probe-server.js`
 - Resolve the helper path relative to the loaded `brainstorm` skill directory before running it. Do not resolve it from the user's project CWD.
-- Start: `node <resolved-helper-path> start --root /tmp/odin/brainstorm-visual/<run-id>`
-- Start foreground: `node <resolved-helper-path> start --root /tmp/odin/brainstorm-visual/<run-id> --foreground`
-- Status: `node <resolved-helper-path> status --root /tmp/odin/brainstorm-visual/<run-id>`
-- Stop: `node <resolved-helper-path> stop --root /tmp/odin/brainstorm-visual/<run-id>`
+- Start: `node <resolved-helper-path> start --root /tmp/dstack/brainstorm-visual/<run-id>`
+- Start foreground: `node <resolved-helper-path> start --root /tmp/dstack/brainstorm-visual/<run-id> --foreground`
+- Status: `node <resolved-helper-path> status --root /tmp/dstack/brainstorm-visual/<run-id>`
+- Stop: `node <resolved-helper-path> stop --root /tmp/dstack/brainstorm-visual/<run-id>`
 
 The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity, so an abandoned browser tab cannot keep the server alive forever. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no click tracking or browser-to-agent event path.
 
@@ -118,11 +118,11 @@ The user's chat response is authoritative. The visual artifact is supporting con
 Use OS temp by default because visual probes are disposable scratch:
 
 ```text
-/tmp/odin/brainstorm-visual/<run-id>/
+/tmp/dstack/brainstorm-visual/<run-id>/
   screens/
     001-<decision>.html
   state/
     display-info.json
 ```
 
-Use `.context/odin/brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. The final requirements doc in `docs/plans/` is the durable artifact.
+Use `.context/dstack/brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. For software brainstorms, the final requirements doc in `docs/plans/` is the durable artifact. From the universal (non-software) route, do not write a requirements-only plan under `docs/plans/` (draft the next artifact directly in conversation per `universal-brainstorming.md`).

@@ -1,6 +1,6 @@
 # Errors and Resilience Patterns
 
-Go's `(value, error)` convention is a design philosophy: wrap with `%w` to expose, `%v` to hide; pick sentinel/typed/opaque deliberately; put retry/circuit-breaker/timeout resilience at **boundaries**, not deep in the stack. Handle each error **once**.
+Go's `(value, error)` convention is a design philosophy. Wrap with `%w` to expose. Wrap with `%v` to hide. Pick sentinel, typed, or opaque deliberately. Put retry, circuit-breaker, and timeout resilience at **boundaries**, not deep in the stack. Handle each error **once**.
 
 > Source horizon: verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to. Deepened from multi-source research.
 
@@ -214,7 +214,7 @@ body, err := cb.Execute(func() ([]byte, error) { return fetch(ctx) })
 if errors.Is(err, gobreaker.ErrOpenState) { /* fail fast → degrade (below) */ }
 ```
 
-**Expert points:** exclude caller cancellations/deadlines from failure counting (`IsExcluded`) or benign aborts trip the breaker; treat `ErrOpenState` as a **degradation trigger**, not a user-facing error. For composing retry + breaker + timeout + fallback + hedging in one place, `failsafe-go` is the comprehensive option (composition order is outer→inner). `afex/hystrix-go` is unmaintained, so avoid it.
+**Expert points:** exclude caller cancellations/deadlines from failure counting (`IsExcluded`) or benign aborts trip the breaker; treat `ErrOpenState` as a **degradation trigger**, not a user-facing error. For composing retry + breaker + timeout + fallback + hedging in one place, `failsafe-go` is the comprehensive option (composition order is outer→inner). `afex/hystrix-go` is unmaintained (zero commits since 2018-05-02; separate from upstream Java parent `Netflix/Hystrix` which officially entered maintenance mode at v1.5.18), so avoid it.
 
 ---
 
@@ -311,13 +311,13 @@ There is **no `slog.Err` helper** (the proposal was rejected); convention is `sl
 |---|---|---|
 | stdlib `errors`/`fmt`/`context`/`slog` | **Default** | Almost always |
 | `pkg/errors` | **Archived/dead** (pre-1.13) | Never in new code |
-| `cockroachdb/errors` | Maintained, heavyweight | Distributed systems: cross-process error encoding, stack traces, redactable "safe details", Sentry |
-| `samber/oops` | Maintained, structured builder | slog/APM-centric apps wanting `.With/.Tags/.Code` context + `LogValuer` |
+| `cockroachdb/errors` | Maintained, v1.14.0 | Distributed systems: cross-process error encoding, stack traces, redactable "safe details", Sentry |
+| `samber/oops` | Maintained, v1.23.2 | slog/APM-centric apps wanting `.With/.Tags/.Code` context + `LogValuer` |
 | `errors.Join` (stdlib) | **Default** [1.20] | Supersedes `uber/multierr`, `hashicorp/go-multierror` |
 | `cenkalti/backoff` | Active | Retry w/ backoff+jitter, `Permanent`/`RetryAfter` (match major version) |
 | `sony/gobreaker/v2` | Active, standard | A single count-based breaker (v2 = generics) |
 | `failsafe-go` | Active, comprehensive | Composing retry+breaker+timeout+fallback+hedging |
-| `afex/hystrix-go` | Unmaintained | Avoid |
+| `afex/hystrix-go` | Unmaintained (avoid) | Zero commits since May 2018; upstream Java parent `Netflix/Hystrix` officially entered maintenance mode at v1.5.18 |
 
 ---
 
@@ -332,7 +332,7 @@ There is **no `slog.Err` helper** (the proposal was rejected); convention is `sl
 | **1.24** | `testing/synctest` (experiment): deterministic time for retry/timeout tests |
 | **1.25** | `sync.WaitGroup.Go` (f must not panic); `go vet` flags `wg.Add` in new goroutine; `slog.GroupAttrs`; flight recorder |
 | **1.26** | **`errors.AsType[E]`**; `fmt.Errorf` alloc-parity with `errors.New`; `slog.NewMultiHandler`; `NotifyContext` cancels with a cause; `go fix` modernizers (auto-migrate `As`→`AsType`); experimental goroutine-leak profile |
-| **1.27** | Generic methods (enables generic error-assertion methods); `asynctimerchan` GODEBUG removed (timer channels always synchronous); `encoding/json/v2` GA (error text differs). GA 2026-08-19; row from 2026-06 RC notes, confirmed against the final release notes. |
+| **1.27** | Generic methods shipped (enables generic error-assertion methods); note interface methods may not declare type params nor be implemented by generic methods; `asynctimerchan` GODEBUG removed (timer channels always synchronous); `encoding/json/v2` GA (error text differs); `goroutineleak` profile GA (the 1.26 experiment promoted, `goroutineleakprofile` GOEXPERIMENT deleted). GA 2026-08-19; row from 2026-06 RC notes, confirmed against the final release notes. |
 
 ---
 

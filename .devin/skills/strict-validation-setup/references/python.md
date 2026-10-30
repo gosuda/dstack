@@ -7,7 +7,7 @@
 ```json
 {
   "typeCheckingMode": "strict",
-  "pythonVersion": "3.14",
+  "pythonVersion": "3.15",
   "useLibraryCodeForTypes": true,
   "reportMissingTypeStubs": true,
   "reportImplicitOverride": "error",
@@ -21,12 +21,11 @@ Pyright `typeCheckingMode = "strict"` is the canonical 2026 strict surface (~30 
 ## ruff.toml
 
 ```toml
-target-version = "py314"
+target-version = "py315"
 line-length = 100
 
 [lint]
 extend-select = ["F", "W", "E", "I", "UP", "C4", "B", "SIM", "ANN", "PT"]
-ignore = ["ANN101", "ANN102"]  # self/cls type annotations are noise
 
 [lint.per-file-ignores]
 "tests/**" = ["ANN", "S101"]   # tests can assert without S101
@@ -47,5 +46,5 @@ class Request(BaseModel):
     payload: dict[str, object]
 ```
 
-`extra="forbid"` rejects unknown keys; `frozen=True` makes instances hashable and immutable; `strict=True` disables coercion (string `"42"` is not `int 42`).
+`extra="forbid"` rejects unknown keys; `frozen=True` blocks attribute reassignment (the instance hashes only when all fields are hashable, so the `dict` payload here stays unhashable and mutable); `strict=True` disables coercion (string `"42"` is not `int 42`).
 

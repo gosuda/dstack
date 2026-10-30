@@ -5,43 +5,28 @@ description: 'Use when an authorized reference surface needs a clean-room fronte
 
 # Frontend fidelity rebuild
 
-## Contract
+You rebuild an approved reference surface from scratch (no peeking at its source) and prove the copy matches the original in layout, motion, and responsive behavior. Every number that decides pass or fail is frozen before you build, and every claim ends with comparison evidence.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | An authorized reference surface needs a clean-room frontend reconstruction across static, motion, and responsive fidelity. |
-| Authority | Human-gated: asks for IP authorization approval via one harness ask/question call before the run starts; otherwise reversible local: writes only named local reconstruction artifacts; rollback is version control. No remote mutation. Prose consent, invocation consent, prior-run consent, and post-start discovery do not approve an effect. |
-| Side effect | Authorized frontend reconstruction across static, motion, and responsive fidelity. |
-| Done | The clean-room reconstruction passes all three fidelity gates with comparison evidence. |
-| Stop | Authorization absent; capture blocked; stagnation. Bound: approved reference, viewports, timelines, tolerances, round cap. |
+## Get permission first
 
-## Inputs
+This work starts with one harness ask or question call confirming the reconstruction is authorized. State the reference surface and the authorized scope in that call. Prose consent, invocation consent, a prior run's consent, and anything discovered after the run starts do not count as approval. If approval never arrives, stop before touching anything and write a blocked receipt naming the missing approval. You write only to named local reconstruction artifacts, never to a remote, and version control is your rollback. If the scope drifts after approval, end the run.
 
-- IP authorization (required): start approval confirming the reconstruction is authorized.
-- Reference surface (required): the URL, file, or design artifact to reconstruct from.
-- Viewport set (required): the screen sizes at which fidelity is measured (for example, 375px mobile, 768px tablet, 1440px desktop). Named before any reconstruction.
-- Timeline set (required): the animation or interaction sequences to measure for motion fidelity (for example, page load, hover transitions, scroll effects). Named before any reconstruction.
-- Comparison tolerances (required): the per-gate thresholds that define a pass. Static: pixel difference percentage or visual regression threshold. Motion: timing deviation in ms and property delta. Responsive: layout shift at each viewport breakpoint.
-- Round cap (required): the maximum number of reconstruction and measurement cycles allowed before the run ends at its bound. Declared before any reconstruction.
+## Freeze what counts as done
 
-## Procedure
+Before any reconstruction, name and freeze four things: the viewport set (for example 375px mobile, 768px tablet, 1440px desktop), the timeline set (the animation or interaction sequences you will measure, such as page load, hover transitions, scroll effects), the per-gate tolerances (static: pixel-difference percentage or visual-regression threshold; motion: timing deviation in milliseconds and property delta; responsive: layout shift at each breakpoint), and the round cap (the maximum rebuild-and-measure cycles before the run ends at its bound). Nothing gets built until all four are fixed.
 
-1. Collect start approval with one harness ask/question call. State the reference surface and the authorized scope. End the run on scope drift. Done when: approval is collected or the run ends on absent authorization.
-2. Bind the viewports, timelines, tolerances, and round cap. Freeze all before any reconstruction. Done when: the viewport set, timeline set, per-gate tolerances, and round cap are named and frozen.
-3. Capture the reference surface. For each viewport in the set, capture a full-page screenshot and the rendered DOM. For each timeline in the set, capture a video or frame sequence of the animation or interaction. Record the capture tool, browser, and version. Done when: reference captures exist for every viewport and timeline.
-4. Reconstruct the surface in a clean-room implementation. Build from the captures, not from the reference source code. Match the static layout, the motion timing, and the responsive behavior. Done when: the reconstruction renders at every viewport and plays every timeline.
-5. Measure fidelity against the reference. For each viewport, compare the reconstruction screenshot to the reference screenshot using a visual regression tool. Record the pixel difference percentage. For each timeline, compare the reconstruction motion to the reference motion. Record timing deviation and property delta. For each viewport transition, compare the layout shift. Record whether each gate passes its tolerance. Done when: all three fidelity gates have comparison results.
-6. Stop at success (all three gates pass their tolerances), any non-success terminal, or the bound (round cap reached). Done when: a terminal class is reached and recorded.
-7. Persist per profiles.persistence.P1 (durable_location `.outline/loops/frontend-fidelity-rebuild/<run_id>/` when durable). Emit `receipt.json` before return. Done when: the receipt is written with per-gate comparison evidence, tolerances, and the terminal class.
+## Capture the reference, then rebuild without its source
 
-## Failure and recovery
+For each declared viewport, capture a full-page screenshot and the rendered DOM. For each declared timeline, capture a video or frame sequence of the animation or interaction. Record the capture tool, browser, and version alongside. If any declared viewport or timeline cannot be captured, the run is blocked: report which capture failed and why.
 
-- Authorization absent: stop before any effect; emit a blocked receipt naming the missing approval.
-- Capture blocked: the reference surface cannot be captured at a declared viewport or timeline. Terminal `blocked`; report which capture failed and why.
-- Stagnation: repeated reconstruction attempts do not improve fidelity scores. Terminal `stalled`; report the score plateau and the attempts.
-- Scope drift after binding: end the run; emit a stalled or blocked receipt.
-- Budget exhausted: the round cap is reached before all three gates pass their tolerances. Terminal `capped`; report the best per-gate results obtained. Budget exhaustion is never success unless it is the predeclared success predicate.
+Build the reconstruction from those captures, never from the reference source code. Match the static layout, the motion timing, and the responsive behavior until the rebuild renders at every viewport and plays every timeline.
 
-## Output
+## Measure all three gates and stop honestly
 
-An immutable K11 receipt with every K11 field, recording the terminal class (success, capped, stalled, or blocked) and the per-gate fidelity comparison evidence: static pixel difference, motion timing deviation, responsive layout shift, and whether each gate passed its tolerance.
+Compare each viewport's reconstruction screenshot against its reference screenshot with a visual regression tool and record the pixel-difference percentage. Compare each timeline's motion against the reference and record timing deviation and property delta. Compare each viewport transition and record layout shift, marking whether each gate passes its frozen tolerance.
+
+Stop when all three gates pass, when a terminal failure is reached, or when the round cap is hit. If repeated attempts stop improving the scores, the run is stalled: report the plateau and the attempts. If the cap arrives first, the run is capped: report the best per-gate results. Reaching the cap is never success unless the predeclared success predicate said so.
+
+## Leave a receipt
+
+When the outcome is durable, write `receipt.json` under `.outline/loops/frontend-fidelity-rebuild/<run_id>/`. It is immutable and carries the terminal class (success, capped, stalled, or blocked) plus the full per-gate evidence: static pixel difference, motion timing deviation, responsive layout shift, the tolerances each was judged against, and whether each gate passed.

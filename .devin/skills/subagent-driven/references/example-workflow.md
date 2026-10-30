@@ -61,5 +61,5 @@ Reviewer: Spec Compliance ✅. Code Quality ✅. Task quality: Approved.
  most capable model]
 Final reviewer: all requirements met, Minor findings triaged, ready to ship.
 
-[Ship via the ODIN atomic path — atomic commits, not a squash]
+[Ship via the DStack atomic path — atomic commits, not a squash]
 ```

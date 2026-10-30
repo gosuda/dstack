@@ -1,10 +1,10 @@
-# Advanced Resources: Authoritative Pointers & Staying Current
+# Advanced Resources: Where Go Truth Lives
 
-A curated map of the **primary sources** for Go: the spec, the memory model, the Google style guide, the blog, release notes, the proposal process, and `pkg.go.dev`: plus the landmark talks/articles that still hold up and how an AI agent should keep its Go knowledge fresh. This is a **pointer file**: light on code, heavy on annotated links. When a topic has a dedicated reference in this skill, this file points there rather than duplicating it.
+Start here when you need the authoritative answer: the spec, the memory model, the style guides, the release notes, and the proposal record. This file collects the primary sources in one place and points to the deeper reference in this skill when one exists, so you check the source instead of a stale tutorial.
 
-> Source horizon: verified against Go **1.26** (stable) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md). Every URL below was checked against the live source or is a stable canonical `go.dev`/`pkg.go.dev` path. Items marked `[verify]` could not be fully confirmed at write time: check before citing.
+> Source horizon: verified against Go **1.27.3** (current stable pin per SKILL.md, GA 2026-08-19, patch 2026-10-19; final Go 1.27 release notes; Go 1.26 still supported, with historical 1.26 research), rechecked 2026-10. Every URL below was checked against the live source or is a stable canonical `go.dev`/`pkg.go.dev` path. Items marked `[verify]` could not be fully confirmed at write time: check before citing.
 
-## TL;DR: how to not cite stale Go (read first)
+## How to avoid citing stale Go
 
 - Default to the canonical five. The [spec](https://go.dev/ref/spec), the [memory model](https://go.dev/ref/mem), [Effective Go](https://go.dev/doc/effective_go), the [Google Go Style Guide](https://google.github.io/styleguide/go/), and [`pkg.go.dev`](https://pkg.go.dev). These supersede *any* blog post or tutorial when they disagree.
 - Anything pre-modules is suspect. Go modules became the default in **1.16** (Aug 2021). Tutorials that use `GOPATH`, `dep`, `glide`, `$GOPATH/src` layouts, or `go get` for installing tools (now `go install pkg@version` / `go get -tool` [1.24]) are stale on their toolchain even if the language advice survives.
@@ -64,7 +64,8 @@ The core team announces and explains features on the blog; the release notes are
 |---|---|---|
 | **Release notes hub** | https://go.dev/doc/devel/release | Links to every `go1.N` release note: the authoritative "what changed and when." Start every "is X available?" check here. |
 | **The Go Blog (all posts)** | https://go.dev/blog/all | Core-team posts; the place feature deep-dives and rationale appear first. |
-| **go1.26 release notes** | https://go.dev/blog/go1.26 | 1.26 (Feb 2026; current stable is 1.27, Aug 2026): Green Tea GC default, reduced cgo overhead, `simd` work, `errors.AsType`. `[verify]` exact feature list at GA. |
+| **go1.26 release notes** | https://go.dev/blog/go1.26 | 1.26 (Feb 2026; still one of the two supported releases): Green Tea GC default, reduced cgo overhead, `simd` work, `errors.AsType`. |
+| **go1.27 release notes** | https://go.dev/doc/go1.27 | 1.27 (Aug 2026; current stable, pin 1.27.3): generic methods (no interface-method type params), generalized function type inference, field-selector struct-literal keys, `encoding/json/v2`/`jsontext` stable, `goroutineleak` GA, `stdversion` vet default. |
 | **2025 Go Developer Survey** | https://go.dev/blog/survey2025 | Real-world usage/sentiment data: useful for "what do Go teams actually do." |
 | **Go release policy** | https://go.dev/doc/devel/release#policy | Two stable releases supported at a time; security backports: frames how aggressively to adopt new versions. |
 
@@ -101,9 +102,9 @@ This skill's own synthesis of these lives in [style-synthesis.md](style-synthesi
 
 ---
 
-## Landmark talks & articles that still hold up {#landmarks}
+## Talks and articles that still hold up {#landmarks}
 
-Old but **not** stale: these shaped how Go is written and remain accurate.
+These shaped how Go is written and remain accurate.
 
 | Resource | URL | Why it matters |
 |---|---|---|
@@ -210,7 +211,7 @@ A practical loop for staying accurate instead of confidently stale:
 ## Sources {#sources}
 - Canonical: go.dev/ref/spec; go.dev/ref/mem (dated 2022-06-06); go.dev/doc/effective_go; go.dev/doc/go1compat; go.dev/doc/godebug; go.dev/doc/faq
 - Discovery: pkg.go.dev, pkg.go.dev/std, go.dev/ref/mod, go.dev/doc/modules/managing-dependencies, go.dev/cmd/go
-- Releases/blog: go.dev/doc/devel/release; go.dev/blog/all; go.dev/blog/go1.26; go.dev/blog/survey2025
+- Releases/blog: go.dev/doc/devel/release; go.dev/blog/all; go.dev/blog/go1.26; go.dev/blog/survey2025; go.dev/doc/go1.27 (final)
 - Process: github.com/golang/proposal; go.dev/s/proposal; go.dev/s/proposal-minutes; github.com/golang/go/issues; go.dev/blog/go2-here-we-come
 - Style: google.github.io/styleguide/go/{guide,decisions,best-practices}; go.dev/wiki/CodeReviewComments; go.dev/wiki/TestComments; go-proverbs.github.io
 - Landmarks: go.dev/talks/2012/concurrency.slide (YouTube f6kdp27TYZs); go.dev/blog/advanced-go-concurrency-patterns; go.dev/blog/pipelines; dave.cheney.net/2016/04/27; research.swtch.com/godata; dave.cheney.net/practical-go

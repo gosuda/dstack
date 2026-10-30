@@ -1,0 +1,3 @@
+interface:
+  display_name: "Humanizer Korean Ste"
+  short_description: "Use when Korean tech docs need unofficial ASD-STE controlled wording, single-step procedures, unified terms; not for plain readability (use humanizer-korean-plain), official or English STE."

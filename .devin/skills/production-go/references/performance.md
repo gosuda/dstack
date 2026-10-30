@@ -1,42 +1,42 @@
-# Performance Profiling and Optimization
+# Performance profiling and optimization
 
 Profile before you optimize. Most Go performance problems are **allocation rate** (GC pressure) or **contention** (scheduler stalls), rarely the algorithm. Measure with `pprof`/`trace`, change one thing, A/B with `benchstat`. The toolchain already does constant folding, DCE, bounds-check elimination, inlining, devirtualization, escape analysis, and `memclr`, so don't hand-roll those.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Tags `[1.N]` mark the release a claim lands in; `[exp 1.N]` = experimental behind a `GOEXPERIMENT`. Triangulated from multi-source research; resolved to go.dev/pkg.go.dev where reports diverged.
+> Verified against Go **1.26.4** (stable, 2026-06) and the final **Go 1.27** release notes (GA 2026-08-19). Tags `[1.N]` mark the release a claim lands in; `[exp 1.N]` = experimental behind a `GOEXPERIMENT`. Triangulated from multi-source research; resolved to go.dev/pkg.go.dev where reports diverged.
 
 ## TL;DR: the modern deltas (read first)
 
 - `for b.Loop()` [1.24] replaces `for i := 0; i < b.N`: setup runs *once per `-count`*, params/results stay alive (no manual `sink`), timer is automatic. **Trap:** 1.24/1.25 `b.Loop` *suppressed inlining* of the body (phantom allocs); **[1.26] fixed it**; re-measure any `allocs/op` from 1.24/1.25.
-- Green Tea GC is the default [1.26] (span-granular, locality-aware marking): 10-40% less GC overhead on GC-heavy programs, +~10% on AVX-512 amd64. Opt-out `GOEXPERIMENT=nogreenteagc` is **removed in 1.27**. It *reduces*, not eliminates, GC cost; allocation reduction still compounds.
+- Green Tea GC is the default [1.26] (span-granular, locality-aware marking): 10-40% less GC overhead on GC-heavy programs, +~10% on AVX-512 amd64. The `GOEXPERIMENT=nogreenteagc` opt-out remains available in Go 1.27.3 on linux/amd64. It *reduces*, not eliminates, GC cost; allocation reduction still compounds.
 - `runtime.AddCleanup` [1.24] supersedes `runtime.SetFinalizer`: multiple cleanups/object, interior pointers, no cycle leaks, no resurrection, no extra-GC-cycle delay.
 - Zero-copy str↔[]byte = `unsafe.String`/`unsafe.Slice` [1.20], never `reflect.StringHeader`/`SliceHeader` (deprecated, GC-invisible, broken under modern stack allocation).
 - `defer` is ~1 ns since open-coded defers [1.14]: "avoid defer in hot paths" is stale (exception: defers in a tight loop or >8 per frame fall back to the heap path).
 - The compiler stack-allocates slice backing stores in far more cases [1.25][1.26] (incl. `append` growth and some *escaping* slices moved to heap only at return). "Variable-sized backing store always heaps" is stale; verify with `-gcflags=-m`.
 - `benchstat` changed: columns are `sec/op`/`B/op`/`allocs/op` + `vs base` with `~` for non-significant (Mann-Whitney U). The library `golang.org/x/perf/benchstat` is deprecated; use `golang.org/x/perf/cmd/benchstat`.
 
-## Table of Contents
-1. [Runtime Cost Reference](#runtime-costs)
-2. [Profiling Workflow](#profiling-workflow)
-3. [CPU Profiling](#cpu-profiling)
-4. [Execution Tracer & Flight Recorder](#tracing)
-5. [Profile-Guided Optimization (PGO)](#pgo)
-6. [Memory Profiling and Escape Analysis](#memory)
-7. [Allocation Reduction Patterns](#allocation-reduction)
-8. [sync.Pool for Hot-Path Objects](#sync-pool)
-9. [String and Slice Optimization](#string-slice)
+## Table of contents
+1. [Runtime cost reference](#runtime-costs)
+2. [Profiling workflow](#profiling-workflow)
+3. [CPU profiling](#cpu-profiling)
+4. [Execution tracer & flight recorder](#tracing)
+5. [Profile-guided optimization (PGO)](#pgo)
+6. [Memory profiling and escape analysis](#memory)
+7. [Allocation reduction patterns](#allocation-reduction)
+8. [sync.Pool for hot-path objects](#sync-pool)
+9. [String and slice optimization](#string-slice)
 10. [Inlining](#inlining)
-11. [Memory Layout & False Sharing](#memory-layout)
-12. [GC Tuning](#gc-tuning)
-13. [Benchmarking Methodology](#benchmarking)
+11. [Memory layout & false sharing](#memory-layout)
+12. [GC tuning](#gc-tuning)
+13. [Benchmarking methodology](#benchmarking)
 14. [SIMD](#simd)
-15. [Caching Strategies](#caching)
+15. [Caching strategies](#caching)
 16. [Library landscape & status](#libraries)
 17. [Version map 1.20→1.27](#versions)
-18. [Anti-Patterns / What models get wrong](#anti-patterns)
+18. [Anti-patterns / what models get wrong](#anti-patterns)
 
 ---
 
-## Runtime Cost Reference {#runtime-costs}
+## Runtime cost reference {#runtime-costs}
 
 Order-of-magnitude estimates on modern amd64/arm64, **not guarantees**. There is no authoritative portable ns/op table (varies by microarch, OS, patch level, PGO/GC state, workload); benchmark on target. Treat as relative.
 
@@ -45,7 +45,7 @@ Order-of-magnitude estimates on modern amd64/arm64, **not guarantees**. There is
 | Direct call | ~1-2 ns | plus stack-growth check |
 | Interface / indirect call | ~2-5 ns | blocks inlining; PGO can devirtualize hot ones |
 | `defer` (common case) | **~1 ns** | open-coded `[1.14]`; **was ~50 ns pre-1.14**. Loop/>8 defers fall back to heap path |
-| Small heap allocation | ~20-100 ns | + amortized GC scan/sweep; `[1.27]` size-specialized malloc cuts <80 B allocs ~30% |
+| Small heap allocation | ~20-100 ns | + amortized GC scan/sweep; `[1.27]` size-specialized malloc cuts <80 B allocs up to ~30% |
 | Map access (hit) | ~10-30 ns | Swiss Tables `[1.24]` improved this |
 | Slice `append` (no grow) | ~1-3 ns | grow = alloc + copy |
 | Channel send/recv (uncontended) | ~50-120 ns | buffered slightly cheaper; contended far higher |
@@ -57,7 +57,7 @@ Order-of-magnitude estimates on modern amd64/arm64, **not guarantees**. There is
 
 ---
 
-## Profiling Workflow {#profiling-workflow}
+## Profiling workflow {#profiling-workflow}
 
 Measure → identify the limiting resource → use the matching profiler → fix one bottleneck class → re-benchmark. The GC guide says start with **heap profiles** when GC cost matters, and that `alloc_space` (allocation *rate*) is usually the most useful view for cutting GC cost, not `inuse_space` (live memory).
 
@@ -70,14 +70,14 @@ Two front-ends, one backend: `runtime/pprof` (manual/batch) and `net/http/pprof`
 | Block | time blocked on chan/select/timer/sync | `SetBlockProfileRate(n)` (off by default) | `/block` |
 | Mutex | contention on `Mutex`/`RWMutex` | `SetMutexProfileFraction(n)` (off by default) | `/mutex` |
 | Goroutine | live goroutine stacks | none | `/goroutine` |
-| `goroutineleak` `[exp 1.26 / GA 1.27]` | goroutines on an unreachable primitive | `GOEXPERIMENT=goroutineleakprofile` (1.26) | `/goroutineleak` |
+| `goroutineleak` `[exp 1.26 / GA 1.27]` | goroutines on an unreachable primitive | `GOEXPERIMENT=goroutineleakprofile` (1.26 only; GA in 1.27, experiment deleted) | `/debug/pprof/goroutineleak` |
 
 `/allocs` and `/heap` are the **same profile**, different default sample type. Block/mutex are **useless unless sampling is enabled in-process first**; skipping it is the #1 mistake. `SetBlockProfileRate(1)`/`SetMutexProfileFraction(1)` cost 5-20% CPU under load; sample instead:
 
 ```go
-// WRONG — every event; catastrophic under concurrency
+// WRONG: every event; catastrophic under concurrency
 runtime.SetBlockProfileRate(1); runtime.SetMutexProfileFraction(1)
-// RIGHT — ~1 event per 10000 ns blocked; ~1/100 contention events
+// RIGHT: ~1 event per 10000 ns blocked; ~1/100 contention events
 runtime.SetBlockProfileRate(10000); runtime.SetMutexProfileFraction(100)
 ```
 
@@ -87,7 +87,7 @@ Reading: `go tool pprof -http=:8080 cpu.pprof` (**flame graph is the default vie
 
 ---
 
-## CPU Profiling {#cpu-profiling}
+## CPU profiling {#cpu-profiling}
 
 ```go
 import "runtime/pprof"
@@ -105,7 +105,7 @@ func main() {
 
 ---
 
-## Execution Tracer & Flight Recorder {#tracing}
+## Execution tracer & flight recorder {#tracing}
 
 `runtime/trace` records goroutine create/block/unblock, scheduler latency, syscalls, GC, heap-size changes, P start/stop with ns timestamps + stacks. It reveals what CPU sampling cannot: a channel bottleneck shows as the *absence* of execution. Use **CPU profile** for where time goes; **trace** for why goroutines aren't running. Annotate with a **task** (spans goroutines via `context.Context`, one request) and a **region** (same-goroutine interval, one stage):
 
@@ -117,14 +117,14 @@ trace.WithRegion(ctx, "db", func() { queryDB(ctx) })
 
 **Overhead is stale folklore.** Pre-1.21 tracing cost ~10-20% CPU; `[1.21]` cut traceback cost ~10× (≈1-2%), and `[1.22]` made the format splittable, enabling continuous tracing/flight recording. `[1.23]` flushes trace data on uncaught panics.
 
-### Flight Recorder `[1.25]`
+### Flight recorder `[1.25]`
 
 A sliding in-memory ring buffer over the trace: snapshot only the window *before* a rare event (timeout, latency spike) instead of spooling continuously. Lives in **`runtime/trace`** (the `golang.org/x/exp/trace` prototype is outdated).
 
 ```go
 fr := trace.NewFlightRecorder(trace.FlightRecorderConfig{
     MinAge:   10 * time.Second, // retain ≈ this long; set ~2× your debug window
-    MaxBytes: 10 << 20,         // memory cap — TAKES PRECEDENCE over MinAge
+    MaxBytes: 10 << 20,         // memory cap: TAKES PRECEDENCE over MinAge
 })
 if err := fr.Start(); err != nil { log.Fatal(err) }
 defer fr.Stop()
@@ -135,17 +135,17 @@ API: `Start() error`, `WriteTo(io.Writer) (int64, error)`, `Stop()`, `Enabled() 
 
 ### Goroutine-leak profile `[exp 1.26 → GA 1.27]`
 
-Piggybacks on the GC reachability graph: flags a goroutine blocked on a channel/`Mutex`/`Cond` whose primitive is **unreachable from any runnable goroutine or global root** (topologically impossible to unblock): **zero false positives**, zero overhead unless in use. Cannot detect leaks via primitives still reachable through globals/live locals. Makes leaks *runtime-profiled data*, superseding `go.uber.org/goleak` for production detection.
+Piggybacks on the GC reachability graph: flags a goroutine blocked on a channel/`Mutex`/`Cond` whose primitive is **unreachable from any runnable goroutine or global root** (topologically impossible to unblock): **zero false positives**, zero overhead unless in use. Cannot detect leaks via primitives still reachable through globals/live locals. Makes leaks *runtime-profiled data*, superseding `go.uber.org/goleak` for production detection. **GA in [1.27]:** profile type `goroutineleak` in `runtime/pprof`, endpoint `/debug/pprof/goroutineleak`; the `GOEXPERIMENT=goroutineleakprofile` setting was deleted.
 
 ---
 
-## Profile-Guided Optimization (PGO) {#pgo}
+## Profile-guided optimization (PGO) {#pgo}
 
 PGO feeds a representative **CPU pprof profile** back to the compiler, which then inlines hot functions more aggressively and **devirtualizes hot interface calls**. Whole-program: all packages incl. dependencies are recompiled. Preview `[1.20]`, **GA `[1.21]`** with `-pgo=auto` default. Realistic gain **2-14%**, zero code change, the cheapest big win.
 
 ```bash
 curl -o cpu.pprof "http://service:6060/debug/pprof/profile?seconds=30"
-mv cpu.pprof ./cmd/server/default.pgo   # MAIN package dir; commit to VCS — auto-detected [1.21+]
+mv cpu.pprof ./cmd/server/default.pgo   # MAIN package dir; commit to VCS (auto-detected [1.21+])
 go build ./cmd/server                   # explicit: -pgo=./path.pprof or -pgo=off
 go version -m ./server | grep pgo       # verify applied
 go tool pprof -proto a.pprof b.pprof > default.pgo   # merge profiles for robustness
@@ -155,7 +155,7 @@ go tool pprof -proto a.pprof b.pprof > default.pgo   # merge profiles for robust
 
 ---
 
-## Memory Profiling and Escape Analysis {#memory}
+## Memory profiling and escape analysis {#memory}
 
 The compiler decides stack (pointer bump, auto-freed) vs heap (GC-traced). Read the decisions as **evidence, not folklore** (heuristics change per release):
 
@@ -180,9 +180,9 @@ Interface boxing: assigning a non-pointer value to `any` allocates a 2-word `(ty
 
 ```go
 type Payload struct{ ID int64; Data [256]byte }
-func process(v any)            { /* ... */ }   // WRONG — heap-copies Payload per call
-func process[T any](v T)       { /* ... */ }   // RIGHT — no boxing
-func processPtr(v *Payload)    { /* ... */ }   // RIGHT — skips the deep copy
+func process(v any)            { /* ... */ }   // WRONG: heap-copies Payload per call
+func process[T any](v T)       { /* ... */ }   // RIGHT: no boxing
+func processPtr(v *Payload)    { /* ... */ }   // RIGHT: skips the deep copy
 ```
 
 More stack allocation `[1.25][1.26]`: the compiler now keeps far more off-heap. `[1.25]` some small variable-sized `make([]T, 0, n)` get a speculative stack buffer; `[1.26]` `append` can start from one, and some *escaping* slices are built on-stack then moved to the heap only at the return boundary. So `var s []T` + append-growth → `make([]T, 0, 10)` can drop allocs to **zero**, not just one. Bisect a suspected bad stack-alloc with `-gcflags=all=-d=variablemakehash=n` (disables the `variablemake` optimization `[1.25+]`).
@@ -191,7 +191,7 @@ More stack allocation `[1.25][1.26]`: the compiler now keeps far more off-heap. 
 
 ---
 
-## Allocation Reduction Patterns {#allocation-reduction}
+## Allocation reduction patterns {#allocation-reduction}
 
 ```go
 users := make([]User, 0, len(ids))          // pre-alloc: fewer reallocs AND better stack-alloc odds [1.25/1.26]
@@ -204,17 +204,17 @@ Small structs by value beat pointer indirection (no heap, better locality). `io.
 
 ---
 
-## sync.Pool for Hot-Path Objects {#sync-pool}
+## sync.Pool for hot-path objects {#sync-pool}
 
 Per-P sharded free list with a **victim cache** `[1.13]`: a pooled object survives at most **one** GC, then is dropped, *not* a persistent cache, and *not* worth it for cheap/infrequent allocations. The docs say it's for "temporary objects silently shared among concurrent independent clients," explicitly **not** a per-object free list inside a short-lived object.
 
 ```go
-// New returns a POINTER — a non-pointer in an interface forces an extra heap alloc (staticcheck SA6002)
+// New returns a POINTER: a non-pointer in an interface forces an extra heap alloc (staticcheck SA6002)
 var bufferPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 
 func handle(data []byte) []byte {
     buf := bufferPool.Get().(*bytes.Buffer)
-    buf.Reset()                 // MUST reset — Get returns a prior user's state
+    buf.Reset()                 // MUST reset: Get returns a prior user's state
     defer bufferPool.Put(buf)
     return buf.Bytes()          // ... use buf
 }
@@ -224,15 +224,15 @@ func handle(data []byte) []byte {
 
 ---
 
-## String and Slice Optimization {#string-slice}
+## String and slice optimization {#string-slice}
 
 ```go
 // strings.Builder = write→string (cheapest); bytes.Buffer = read+write. s += x in a loop is O(n²).
 var b strings.Builder
 b.Grow(estimate)                        // single preallocation
 for _, s := range parts { b.WriteString(s) }
-result := b.String()                    // no copy — Builder hands out its backing bytes
-// Do NOT copy a strings.Builder after first write — go vet copylocks flags it.
+result := b.String()                    // no copy: Builder hands out its backing bytes
+// Do NOT copy a strings.Builder after first write: go vet copylocks flags it.
 
 // Substring/subslice leak: slicing keeps the WHOLE backing array alive
 small := strings.Clone(big[:10])        // [1.20] independent copy → big can be GC'd
@@ -260,7 +260,7 @@ The compiler inlines if cost ≤ 80 (`inlineMaxBudget`, a heuristic; each AST no
 
 ---
 
-## Memory Layout & False Sharing {#memory-layout}
+## Memory layout & false sharing {#memory-layout}
 
 Each field aligns to its size; the struct aligns to its widest field; padding fills gaps. Order fields **largest → smallest** to minimize padding; smaller structs = less memory *and* less GC scanning.
 
@@ -274,15 +274,15 @@ Inspect with `unsafe.Sizeof`/`Alignof`/`Offsetof`. Lint with `fieldalignment` (`
 **False sharing:** two variables written by different cores in one 64-byte cache line make the line ping-pong across the coherence protocol. **The most-compact field order can *cause* this** by colocating independently-updated fields. Pad hot, independently-written fields to a full line:
 
 ```go
-type Metrics struct { a, b atomic.Int64 }              // WRONG — one line; severe ping-pong
-type Metrics struct { a atomic.Int64; _ [56]byte; b atomic.Int64 } // RIGHT — 8 + 56 = separate lines
+type Metrics struct { a, b atomic.Int64 }              // WRONG: one line; severe ping-pong
+type Metrics struct { a atomic.Int64; _ [56]byte; b atomic.Int64 } // RIGHT: 8 + 56 = separate lines
 ```
 
 Cache line is 64 B mainstream; pad to **128 B only if a profile shows residual false sharing** (some Apple silicon / aggressive prefetch behaves as 128 B, not single-source). `golang.org/x/sys/cpu.CacheLinePad` is the public helper. **Compact by default; de-compact only after contention profiling.**
 
 ---
 
-## GC Tuning {#gc-tuning}
+## GC tuning {#gc-tuning}
 
 GOGC is the CPU↔memory knob. Target heap: `target = live + (live + roots) * GOGC/100`. **Roots (stacks + globals) are included since `[1.18]`** (previously only live heap). Default 100 (GC when heap ~doubles). **Doubling GOGC ≈ doubles heap overhead and ≈ halves GC CPU**, and vice versa. `GOGC=off` / `debug.SetGCPercent(-1)` disables pacing.
 
@@ -292,30 +292,30 @@ GOMEMLIMIT: soft memory limit `[1.19]` (`debug.SetMemoryLimit` or env, IEC suffi
 - Death-spiral risk: near the limit the GC fires ever more often; built-in mitigation caps it at **~50% CPU** (it breaches the limit instead of spiraling). Watch `GCCPUFraction`; if a low limit causes constant GC, fix the limit or shrink the heap; don't keep tuning GOGC.
 - The **heap-ballast** hack is obsolete; `GOMEMLIMIT` replaces it. Don't emit ballast code.
 
-Green Tea GC `[exp 1.25 → default 1.26]` is locality-aware: instead of chasing pointers depth-first (erratic → ~35% of mark time in cache misses), it scans small objects at **8 KiB span granularity** (FIFO page worklist + SIMD metadata). Default `[1.26]`, no flag; **10-40% less GC overhead** on GC-heavy programs, **+~10%** from vector scanning on newer amd64. Opt-out `GOEXPERIMENT=nogreenteagc` **removed in 1.27**. Doesn't change GOGC/GOMEMLIMIT semantics; allocation/pointer-density reduction stays a *multiplicative* win.
+Green Tea GC `[exp 1.25 → default 1.26]` is locality-aware: instead of chasing pointers depth-first (erratic → ~35% of mark time in cache misses), it scans small objects at **8 KiB span granularity** (FIFO page worklist + SIMD metadata). Default `[1.26]`, no flag; **10-40% less GC overhead** on GC-heavy programs, **+~10%** from vector scanning on newer amd64. The `GOEXPERIMENT=nogreenteagc` opt-out remains available in Go 1.27.3 on linux/amd64. It does not change GOGC/GOMEMLIMIT semantics; allocation and pointer-density reduction remain useful.
 
-Observability: `GODEBUG=gctrace=1` (one line/GC: wall/CPU, heap goal, `GCCPUFraction`); `checkfinalizers=1` `[1.25]` diagnoses finalizer mistakes. Prefer `runtime/metrics` over `ReadMemStats`; `[1.26]` adds `/sched/...` metrics. **Container-aware `GOMAXPROCS` `[1.25]`** honors the cgroup CPU limit, obsoleting `uber-go/automaxprocs` for most uses (`GODEBUG=containermaxprocs=0` to disable).
+Observability: `GODEBUG=gctrace=1` (one line/GC: wall/CPU, heap goal, `GCCPUFraction`); `checkfinalizers=1` `[1.25]` diagnoses finalizer mistakes. Prefer `runtime/metrics` over `ReadMemStats`; `[1.26]` adds `/sched/...` metrics. **Container-aware `GOMAXPROCS` `[1.25+]`** natively honors Linux cgroup CPU quotas and adapts dynamically (`GODEBUG=containermaxprocs=0` to disable), so prefer stdlib runtime on Go 1.25+ and perform no new `uber-go/automaxprocs` installs (`go.uber.org/automaxprocs` v1.6.0 is historical context for legacy Go < 1.25 only).
 
 Finalizers/cleanups/weak: `runtime.AddCleanup(ptr, fn, arg)` `[1.24]` supersedes `SetFinalizer` (multiple cleanups, interior pointers, no cycle leaks/resurrection/delayed free; runs in parallel `[1.25]`); it **panics** if `arg` is the exact pointer being cleaned.
 
 ```go
-runtime.SetFinalizer(res, func(r *Resource) { syscall.Close(r.fd) }) // WRONG [pre-1.24] — resurrection/cycle risk
-runtime.AddCleanup(res, func(fd int) { syscall.Close(fd) }, res.fd)  // RIGHT [1.24] — object & arg decoupled
+runtime.SetFinalizer(res, func(r *Resource) { syscall.Close(r.fd) }) // WRONG [pre-1.24]: resurrection/cycle risk
+runtime.AddCleanup(res, func(fd int) { syscall.Close(fd) }, res.fd)  // RIGHT [1.24]: object & arg decoupled
 ```
 
 `weak` package `[1.24]` (`weak.Pointer[T]`) + `maphash.Comparable` `[1.24]` for caches/canonicalization maps that shouldn't pin memory; models reach for finalizer hacks instead.
 
 ---
 
-## Benchmarking Methodology {#benchmarking}
+## Benchmarking methodology {#benchmarking}
 
 ```go
-// CORRECT [1.24+] — setup once per -count; params/results kept alive; timer automatic; no sink needed
+// CORRECT [1.24+]: setup once per -count; params/results kept alive; timer automatic; no sink needed
 func BenchmarkEncode(b *testing.B) {
     data := makeInput(); b.ReportAllocs()
     for b.Loop() { result = Encode(data) }
 }
-// OLD / error-prone — setup re-run during b.N calibration; result may be DCE'd
+// OLD / error-prone: setup re-run during b.N calibration; result may be DCE'd
 func BenchmarkEncode(b *testing.B) {
     data := makeInput(); b.ResetTimer()
     for i := 0; i < b.N; i++ { Encode(data) }   // discarded → compiler may delete the call
@@ -335,26 +335,26 @@ Modern output: columns `sec/op`/`B/op`/`allocs/op`, each `median ± variation`, 
 
 ## SIMD {#simd}
 
-`[exp 1.26]` `simd/archsimd` exposes **amd64** 128/256/512-bit vector types/ops without assembly or cgo, behind `GOEXPERIMENT=simd`. The API is **architecture-specific, non-portable, not covered by the Go 1 promise** and changes release-to-release (1.27 revises amd64, adds arm64 Neon / Wasm SIMD). A **portable, vector-size-agnostic `simd` package** appears experimentally in the `[1.27]` notes (two-level design). **Do not** present it as production-ready/portable/stable or invent type/function names; read the live package docs. (Green Tea's internal GC scanning already uses SIMD `[1.26]`, separate from this package.) SIMD vectors must stay local stack values; taking their address forces a heap escape that negates the win.
+`[exp 1.26]` `simd/archsimd` exposes 128/256/512-bit vector types/ops (256/512-bit on some amd64 processors) without assembly or cgo, behind `GOEXPERIMENT=simd`. The API is **architecture-specific, non-portable, not covered by the Go 1 promise** and still not considered stable: `[1.27]` keeps both SIMD packages experimental under `GOEXPERIMENT=simd`, revises the amd64 API, and adds arm64 "Neon" and Wasm 128-bit support. `[1.27]` also ships a **portable, vector-size-agnostic `simd` package**, experimental under the same `GOEXPERIMENT=simd` (a "scalable" subset of `simd/archsimd`, emulated in pure Go where hardware lacks it; two-level design). **Do not** present either as production-ready/portable/stable or invent type/function names; read the live package docs. (Green Tea's internal GC scanning already uses SIMD `[1.26]`, separate from these packages.) SIMD vectors must stay local stack values; taking their address forces a heap escape that negates the win.
 
 ---
 
-## Caching Strategies {#caching}
+## Caching strategies {#caching}
 
 ```go
-import "github.com/dgraph-io/ristretto/v2"   // default pick: concurrent, TinyLFU admission
+import "github.com/dgraph-io/ristretto/v2"   // v2.4.2: concurrent, TinyLFU admission (Set is advisory)
 cache, _ := ristretto.NewCache(&ristretto.Config[string, []byte]{
     NumCounters: 1e7, MaxCost: 1 << 30, BufferItems: 64,
 })
-cache.Set("key", value, int64(len(value))) // cost = size; Set is async
+cache.Set("key", value, int64(len(value))) // cost = size; Set is async and advisory (may drop)
 cache.Wait()                                // before a read-after-write
 val, found := cache.Get("key")
 ```
 
 | Library | Best for | Key feature |
 |---|---|---|
-| **ristretto/v2** | General, high throughput | TinyLFU admission, concurrent, generic |
-| `golang/groupcache` | Distributed, immutable data | Consistent hashing, request dedup |
+| **ristretto/v2** (v2.4.2) | General, high throughput | TinyLFU admission (advisory Set), concurrent, generic |
+| `groupcache/groupcache-go/v3` (v3.5.0) | Distributed, immutable data | Active fork (Go 1.24+); peer-aware read-through, TTLs, OTel, Otter caching; original `golang/groupcache` is dormant |
 | `sync.Map` | Read-mostly / disjoint-key churn | Zero deps; hash-trie reimpl `[1.24]` widened its sweet spot |
 | `map` + `sync.RWMutex` | Write-heavy / contended keys / range-with-mutation | Full control, no deps |
 
@@ -371,14 +371,14 @@ val, found := cache.Get("key")
 | Flame graphs | `go tool pprof -http` (native, default) | `uber/go-torch` | `[1.26]` default |
 | Continuous low-overhead trace | `runtime/trace.FlightRecorder` | `golang.org/x/exp/trace` (prototype) | `[1.25]` |
 | Goroutine-leak detection | `goroutineleak` profile | `go.uber.org/goleak` (fine for tests) | `[1.26→1.27]` |
-| `GOMAXPROCS` in containers | stdlib (cgroup-aware) | `uber-go/automaxprocs` | `[1.25]` |
+| `GOMAXPROCS` in containers | stdlib (cgroup-aware) | `uber-go/automaxprocs` (v1.6.0 legacy) | `[1.25+]` |
 | Zero-copy str/bytes | `unsafe.String`/`Slice`/`StringData`/`SliceData` | `reflect.StringHeader`/`SliceHeader` | `[1.20]` |
 | Object finalization | `runtime.AddCleanup` | `runtime.SetFinalizer` | `[1.24]` |
 | Memory ceiling | `GOMEMLIMIT` / `debug.SetMemoryLimit` | heap-ballast hack | `[1.19]` |
 | GC/runtime metrics | `runtime/metrics` | `runtime.ReadMemStats` (heavier) | `[1.16]` |
 | Struct-layout lint | `fieldalignment` (opt-in, `-fix`) | none (not in default vet) | none |
-| SIMD | `simd/archsimd` (exp, amd64) + portable `simd` (exp) | hand-written asm / codegen | `[1.26]`/`[1.27]` |
-| In-memory cache | `dgraph-io/ristretto/v2` | none | none |
+| SIMD | `simd/archsimd` (exp; amd64, plus arm64/Wasm 128-bit in 1.27) + portable `simd` (exp) | hand-written asm / codegen | `[1.26]`/`[1.27]` |
+| In-memory cache | `dgraph-io/ristretto/v2` (v2.4.2) | none | none |
 
 External continuous profilers (Datadog, Google Cloud Profiler, Pyroscope/Grafana) consume the same pprof format, the standard way to source representative PGO profiles from production.
 
@@ -397,11 +397,11 @@ External continuous profilers (Datadog, Google Cloud Profiler, Pyroscope/Grafana
 | **1.24** | `b.Loop`; `runtime.AddCleanup`; `weak` pkg; `maphash.Comparable`; Swiss-Tables `map`; hash-trie `sync.Map`; new internal mutex; cgo `#cgo noescape`/`nocallback` |
 | **1.25** | Green Tea (exp); Flight Recorder; container-aware `GOMAXPROCS`; `testing/synctest` GA; more slice-stack alloc; `AllocsPerRun` panics under parallel; `checkfinalizers=1`; `reflect.TypeAssert` |
 | **1.26** | **Green Tea default** (10-40% less GC); `b.Loop` stops suppressing inlining; cgo −30%; pprof flame default; `goroutineleak` (exp); `simd/archsimd` (exp); `errors.AsType`; `io.ReadAll`/`fmt.Errorf` lower-alloc; `/sched/...` metrics |
-| **1.27 (RC)** | Green Tea opt-out removed; `goroutineleak` GA; size-specialized malloc <80 B (~30%/~1%); portable `simd` (exp) + `archsimd` arm64/Wasm; `encoding/json/v2` GA; `asynctimerchan` GODEBUG removed. Draft until GA (~Aug 2026). |
+| **1.27** | `goroutineleak` **GA** (`GOEXPERIMENT=goroutineleakprofile` deleted); size-specialized malloc <80 B (up to ~30% cheaper, ~1% overall, +60 KB binary, `nosizespecializedmalloc` opt-out); `simd` + `simd/archsimd` both still experimental under `GOEXPERIMENT=simd` (amd64 API revised; arm64 Neon/Wasm 128-bit added); `encoding/json/v2` + `jsontext` **stable**; `asynctimerchan` GODEBUG removed permanently. Green Tea `nogreenteagc` opt-out observed accepted by go1.27.3 (linux/amd64). |
 
 ---
 
-## Anti-Patterns / What models get wrong {#anti-patterns}
+## Anti-patterns / what models get wrong {#anti-patterns}
 
 1. **`for i := 0; i < b.N` + `ResetTimer` + manual `sink`**: use `for b.Loop()` `[1.24]`; re-measure `allocs/op` from 1.24/1.25 (inlining fix `[1.26]`).
 2. **Old benchstat format/lib** (`time/op`/`delta`, `rsc.io/benchstat`); current is `golang.org/x/perf/cmd/benchstat`, `sec/op`/`vs base`, `~` = not significant.
@@ -415,18 +415,18 @@ External continuous profilers (Datadog, Google Cloud Profiler, Pyroscope/Grafana
 10. **`sync.Pool` of values, no `Reset`, no size guard**: extra alloc (SA6002), stale-data leak, memory bloat; Pool is cleared across GC.
 11. **"Most-compact struct order is always best"**: it can *cause* false sharing; compact by default, de-compact after contention profiling.
 12. **"PGO isn't worth the build hit"**: single-digit % since `[1.23]`; profile with real traffic; commit `default.pgo`.
-13. **"Green Tea is just an experiment"**: default `[1.26]`; opt-out removed in 1.27. Allocation reduction still compounds.
+13. **"Green Tea is just an experiment"**: default `[1.26]`. Allocation reduction still compounds. (1.26's `nogreenteagc` opt-out: observed accepted by go1.27.3, linux/amd64.)
 14. **"Loops/`defer` block inlining"**: over-generalized; check `-gcflags=-m`.
 15. **"Tracing is too expensive for prod"**: ~1-2% since `[1.21]`; Flight Recorder `[1.25]` lives in `runtime/trace`, not `x/exp/trace`.
-16. **`go-torch` for flame graphs**: deprecated; `go tool pprof -http` is native (default `[1.26]`). **`uber-go/automaxprocs`**: stdlib is cgroup-aware `[1.25]`.
+16. **`go-torch` for flame graphs**: deprecated; `go tool pprof -http` is native (default `[1.26]`). **`uber-go/automaxprocs`**: on Go 1.25+, prefer stdlib container-aware `GOMAXPROCS` (no new automaxprocs installs; automaxprocs v1.6.0 is historical context for legacy Go < 1.25 only).
 17. **"No built-in goroutine-leak profile"**: `goroutineleak` exp `[1.26]`, GA `[1.27]`.
-18. **`simd/archsimd` as stable/portable**: experimental, amd64-only, unstable `[1.26]`.
+18. **`simd`/`simd/archsimd` as stable/portable**: both experimental under `GOEXPERIMENT=simd`, architecture-specific, unstable `[1.26]`/`[1.27]`.
 19. **`s += x` in a loop** (O(n²)) / **`fmt.Sprintf` in hot paths** (reflection + boxing); use `strings.Builder`/`strconv`/`fmt.Appendf`.
 20. **A fixed ns/op cheat sheet**: no authoritative portable table exists; costs above are relative.
 
 ---
 
-## See Also {#see-also}
+## See also {#see-also}
 
 - [observability.md](observability.md): continuous profiling, runtime metrics, slog
 - [internals.md](internals.md): GC internals, memory allocator, scheduler, compiler
@@ -438,7 +438,7 @@ External continuous profilers (Datadog, Google Cloud Profiler, Pyroscope/Grafana
 
 ## Sources {#sources}
 
-- go.dev/doc/go1.20-go1.27 release notes; tip.golang.org/doc/go1.27
+- go.dev/doc/go1.20-go1.26 release notes; go.dev/doc/go1.27 (final, GA 2026-08-19)
 - go.dev/doc/gc-guide; go.dev/doc/pgo; go.dev/doc/diagnostics
 - go.dev/blog/{pprof, greenteagc, flight-recorder, execution-traces-2024, pgo, testing-b-loop}
 - pkg.go.dev/{runtime, runtime/pprof, net/http/pprof, runtime/trace, runtime/debug, runtime/metrics, sync, unsafe, golang.org/x/perf/cmd/benchstat, simd/archsimd}

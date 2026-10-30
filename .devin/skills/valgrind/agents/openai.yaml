@@ -1,3 +1,0 @@
-interface:
-  display_name: "Valgrind"
-  short_description: "Use when running Valgrind Memcheck for heap errors, leaks, or uninitialised reads on an unmodified binary, or Cachegrind, Callgrind, or Massif profiling."

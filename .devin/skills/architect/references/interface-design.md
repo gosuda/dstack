@@ -1,43 +1,30 @@
-# Interface design
+# Trying several interfaces before committing
 
-When the user wants to explore alternative interfaces for a chosen deepening candidate, follow this parallel sub-agent pattern. Based on "Design It Twice" (Ousterhout): the first idea is unlikely to be the best.
+When the user wants competing options for a chosen deepening candidate, run parallel passes and compare. The first idea is rarely the best, so demand at least two.
 
-Uses the vocabulary in ../SKILL.md: module, interface, seam, adapter, leverage.
+Reads with the shared words from `../SKILL.md`: module, interface, seam, adapter.
 
-## Process
+## Frame the problem first
 
-### 1. Frame the problem space
+Before spawning passes, write a short explanation of the problem space for the chosen candidate:
 
-Before spawning sub-agents, write a user-facing explanation of the problem space for the chosen candidate:
+- The constraints any new interface must satisfy.
+- The dependencies it relies on, with each category from `deepening.md`.
+- A rough illustrative sketch to ground the constraints: not a proposal, just something concrete. Use the codebase's primary language; for cross-language reviewers a parallel sketch in a second language family helps.
 
-- The constraints any new interface would need to satisfy.
-- The dependencies it would rely on, and which category they fall into (see [deepening.md](deepening.md)).
-- A rough illustrative code sketch to ground the constraints: not a proposal, just a way to make the constraints concrete. Use the codebase's primary language; for cross-language reviewers, parallel sketches in two language families help (e.g., a Rust trait sketch alongside a Go interface sketch, or a Java sealed interface alongside an OCaml `.mli`).
+Show this to the user, then start the passes. The user reads while the passes run.
 
-Show this to the user, then immediately proceed to Step 2. The user reads and thinks while the sub-agents work in parallel.
+## Run competing passes
 
-### 2. Spawn sub-agents
+Spawn two or more passes in parallel; two is the floor. Add a third pass, designed around ports and adapters, when a seam crosses a process or team bound. Each pass must produce a radically different interface for the deepened module. Give each pass its own brief (file paths, coupling detail, dependency category, what sits behind the seam) and a different design constraint:
 
-Spawn two or more sub-agents in parallel. Two is the floor, because the technique is design it twice; `../SKILL.md` step 3 asks for at least two competing sketches and sets no ceiling.
-Each must produce a **radically different** interface for the deepened module.
+- Cut the interface down: fewest entry points, most behavior per entry point.
+- Cover the most ground: support many uses and extensions.
+- Serve the common caller: make the default case trivial.
+- Third pass, only with a cross-bound seam: design around ports and adapters.
 
-Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [deepening.md](deepening.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
+Each pass returns the interface (types, methods, params, plus invariants, ordering, error modes, in the codebase's language), a usage example showing how callers use it, what the implementation hides behind the seam, the dependency strategy with adapters, and trade-offs naming where the interface pays off and where it stays thin.
 
-- Agent 1: "Minimize the interface: aim for 1-3 entry points max. Maximize leverage per entry point."
-- Agent 2: "Maximize flexibility: support many use cases and extension."
-- Agent 3: "Optimize for the most common caller: make the default case trivial."
-- Agent 4, where cross-seam dependencies exist: "Design around ports and adapters."
+## Present, compare, recommend
 
-Each sub-agent outputs:
-
-1. Interface (types, methods, params: plus invariants, ordering, error modes). Express in the codebase's language; if the project is polyglot, give the surface in each owned language family.
-2. Usage example showing how callers use it.
-3. What the implementation hides behind the seam.
-4. Dependency strategy and adapters (see [deepening.md](deepening.md)).
-5. Trade-offs: where leverage is high, where it is thin.
-
-### 3. Present and compare
-
-Present designs sequentially so the user can absorb each one, then compare them in prose. Contrast by **depth** (power at the interface), **locality** (where change concentrates), and **seam placement**.
-
-After comparing, give an opinionated recommendation: which design is strongest and why. If elements from different designs would combine well, propose a hybrid. Be decisive: the user wants a strong read, not a menu.
+Present designs one at a time so each can be absorbed, then compare in prose on depth (behavior per unit of interface), locality (where change concentrates), and seam placement. Give an opinionated recommendation: which design is strongest and why. When elements from different designs combine well, propose a hybrid. The user wants a read, not a menu.

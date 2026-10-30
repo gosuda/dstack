@@ -1,6 +1,6 @@
-# Anchors
+# Eleven anchors for telling slop from overkill
 
-Eleven cross-domain anchors. Each carries a definition, 1-2 manifestations, and the failure mode it catches.
+Eleven cross-domain anchors. Each carries a definition, one or two manifestations, and the failure mode it catches.
 
 ## Clarity
 
