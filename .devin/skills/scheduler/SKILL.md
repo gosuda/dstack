@@ -26,7 +26,7 @@ For create and update, these steps run in order.
 
 1. Sort out intent, action, schedule, and delivery. Decide whether this is a reminder or a task; when it is unclear, assume reminder and say so. If anything is ambiguous (a vague time like "tomorrow morning", an unclear timezone, an unclear action), ask the one blocking question and stop. Nothing gets scheduled until intent, action, schedule, and delivery are all resolved.
 2. Restate the schedule in plain local time terms and get confirmation. Whether the request was an absolute timestamp, a relative delay, or a recurrence, express it in the user's local timezone unless they said otherwise, and confirm that normalized schedule before installing anything.
-3. Name it and record it. Derive the kebab case name from the action ("review PRs" becomes `review-prs`), appending a numeric suffix on collision. Write the metadata record under `~/.odin/scheduler/` with the schema: name, type, backend path, normalized schedule, delivery, status.
+3. Name it and record it. Derive the kebab case name from the action ("review PRs" becomes `review-prs`), appending a numeric suffix on collision. Write the metadata record under `~/.dstack/scheduler/` with the schema: name, type, backend path, normalized schedule, delivery, status.
 4. Install it through the platform backend, quoting and escaping the action string correctly for that backend:
    - macOS: write a launchd plist to `~/Library/LaunchAgents/<name>.plist`. Notifications go through `osascript`. Removal is `launchctl unload ~/Library/LaunchAgents/<name>.plist`.
    - Linux: write a systemd user timer unit plus service unit to `~/.config/systemd/user/`, and verify with `systemctl --user list-timers`. Where systemd is unavailable, fall back to a crontab line installed with `crontab -l | { cat; echo "<line>"; } | crontab -`. Notifications use `notify-send`, with terminal output as fallback.
@@ -36,7 +36,7 @@ For create and update, these steps run in order.
 
 For the other operations, follow the matching branch instead of steps 1 to 4.
 
-- List: read the metadata records under `~/.odin/scheduler/` and confirm each against its backend entry, then emit the list report. No schedule, delivery, or confirmation needed.
+- List: read the metadata records under `~/.dstack/scheduler/` and confirm each against its backend entry, then emit the list report. No schedule, delivery, or confirmation needed.
 - Pause or unpause: flip the status in the metadata record and disable or re-enable the backend entry, then confirm the state transition with the updated record.
 - Update: change only the named fields, re-confirm the normalized schedule when the time changed, and verify backend and metadata agree before confirming.
 - Delete: remove the backend entry and its metadata record, verify both are gone, then confirm the deletion.

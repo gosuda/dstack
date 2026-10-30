@@ -56,7 +56,7 @@ Selections may be the literal option label or the option number. Match numbers a
 
 **If user selects "Create the implementation plan":**
 
-Immediately enter Claude Code's plan mode (or, where the host has none, draft a written implementation plan and ask the user to approve it) in the current session, using the plan artifact path when one exists, otherwise a concise summary of the finalized brainstorm decisions. When the Phase 1.1 grounding scout produced a dossier and the file still exists, also pass its path (`/tmp/odin/brainstorm/<run-id>/grounding.md`). Do not print the closing summary first.
+Immediately enter Claude Code's plan mode (or, where the host has none, draft a written implementation plan and ask the user to approve it) in the current session, using the plan artifact path when one exists, otherwise a concise summary of the finalized brainstorm decisions. When the Phase 1.1 grounding scout produced a dossier and the file still exists, also pass its path (`/tmp/dstack/brainstorm/<run-id>/grounding.md`). Do not print the closing summary first.
 
 **If user selects "Ship it autonomously":**
 

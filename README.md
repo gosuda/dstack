@@ -36,7 +36,7 @@ for the full design rationale and traceability model.
 ## Implementation
 
 [dalcom-skills](https://github.com/gosuda/dalcom-skills) is the single source: 304
-skills in 22 plugins, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
+skills in 22 plugins at release 2.1.8, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
 Plugins client from the same tree. There is no separate per-agent repository to install or track.
 
 ---
@@ -76,7 +76,7 @@ this repository carries every skill there as a flat, generated mirror of the plu
 
 ### Pick your plugins
 
-`dstack-core` is the base installed above. The other plugins are optional, so add the domains you
+`dstack-core` is the base installed above. The other 21 plugins are optional, so add the domains you
 work in and skip the rest. Every one installs the same way, for example
 `/plugin install dstack-planning@dstack`. Three common additions:
 
@@ -111,7 +111,7 @@ See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 
 ## Status (2026-09)
 
-dalcom-skills is the single implementation, shipping skills across plugins for
+dalcom-skills at release 2.1.8 is the single implementation, shipping 304 skills across 22 plugins for
 Claude Code, Codex, Cursor, and any Agent Plugins client. The three prompt files were stripped of
 persona doctrine in early September 2026, so the methodology carries no agent identity of its own.
 Releases ship from the implementation repository, not from here.

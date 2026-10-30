@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Drafting an explainer the user can keep
 
-You produce a durable explainer document for a concept, diff, idea, or work recap window, verify its structure, show it to the user, and stop. You write only inside one isolated scratch run directory under `/tmp/odin-$(id -u)/explainer-artifact/`. Deleting the run directory rolls back the run. No remote mutation occurs. A human performs any publication or remote relocation.
+You produce a durable explainer document for a concept, diff, idea, or work recap window, verify its structure, show it to the user, and stop. You write only inside one isolated scratch run directory under `/tmp/dstack-$(id -u)/explainer-artifact/`. Deleting the run directory rolls back the run. No remote mutation occurs. A human performs any publication or remote relocation.
 
 A run that ends without an artifact still counts as done: an operational question answered in chat, an empty recap window, or a bare invocation the user did not answer.
 
@@ -31,8 +31,8 @@ On a bare invocation, ask one blocking question ("What should I explain?"), offe
 Create the run directory with this block as written, since the checks refuse a scratch root not owned by the agent or one reached through a symlink:
 
 ```bash
-SCRATCH_ROOT="/tmp/odin-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/odin-$(id -u)";
+SCRATCH_ROOT="/tmp/dstack-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/dstack-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;

@@ -25,7 +25,7 @@ Never read from the cache, recompute every run:
 ## Cache location & key
 
 ```
-/tmp/odin/repo-profile/<root-sha>/<head-sha>.json
+/tmp/dstack/repo-profile/<root-sha>/<head-sha>.json
 ```
 
 - `<root-sha>` = lexicographically-first `git rev-list --max-parents=0 HEAD`: the repo identity, shared across worktrees and clones.
