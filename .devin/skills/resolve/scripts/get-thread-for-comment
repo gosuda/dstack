@@ -31,7 +31,7 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
     exit 1
 fi
 
-tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-get-thread-for-comment.XXXXXX")
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dstack-get-thread-for-comment.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT
 threads_file="$tmp_dir/threads.json"
 

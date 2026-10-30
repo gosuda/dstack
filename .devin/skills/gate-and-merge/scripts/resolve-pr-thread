@@ -16,7 +16,7 @@ if [ $# -eq 0 ]; then
 fi
 
 THREAD_ID=$1
-tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-resolve-thread.XXXXXX")
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dstack-resolve-thread.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT
 payload_file="$tmp_dir/payload.json"
 resp_file="$tmp_dir/resp.json"

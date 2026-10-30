@@ -4,9 +4,9 @@
 
 **스펙을 넘어서. 바이브를 넘어서.** 버전 관리된 아웃라인이 모든 에이전트 행위의 계약이 됩니다.
 
-[![GitHub Stars](https://img.shields.io/github/stars/gosuda/dalcom-skills?style=flat-square)](https://github.com/gosuda/dalcom-skills/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/gosuda/dstack?style=flat-square)](https://github.com/gosuda/dstack/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-c8803c?style=flat-square)](LICENSE)
-[![Last commit](https://img.shields.io/github/last-commit/gosuda/dalcom-skills?style=flat-square)](https://github.com/gosuda/dalcom-skills/commits/main)
+[![Last commit](https://img.shields.io/github/last-commit/gosuda/dstack?style=flat-square)](https://github.com/gosuda/dstack/commits/main)
 [![Site](https://img.shields.io/badge/site-outlinedriven.github.io-c8803c?style=flat-square)](https://outlinedriven.github.io)
 
 ---
