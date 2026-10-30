@@ -1,72 +1,69 @@
 ---
 name: security-finding-verification
-description: 'Use when a named security allegation needs a true-positive or false-positive verdict. Not for discovering bugs: use security-review. Not for adding controls: use security-hardening.'
+description: 'Use when a named security allegation needs a true-positive or false-positive verdict. Not for discovering bugs: use security-review. Not for adding controls.'
 ---
 
 # Security finding verification
 
-## Contract
+You test one named allegation and return a verdict with evidence. Each supplied finding gets an independent trace, tested or proved at the right depth and challenged before you label it. This skill produces chat output only and makes no file mutation, so rollback does not apply. No remote mutation.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A specific alleged security vulnerability needs a true-positive or false-positive verdict rather than new-bug discovery. |
-| Authority | Reversible local: writes only named local artifacts; rollback is deleting those artifacts. No remote mutation. |
-| Side effect | Restated claim, threat model, complete source-to-sink evidence, class-specific checks, exploitability or PoC evidence where warranted, gate reviews, and verdict. |
-| Done | Each supplied finding is independently traced, tested or proved at the appropriate depth, challenged adversarially, and labeled true positive or false positive with evidence. |
+This skill does not discover new vulnerabilities in a change set (use security review) and does not add security controls during construction.
 
-## Not for
+## What to take in
 
-- Discovering new vulnerabilities in a change set: use security-review.
-- Adding security controls during construction: use security-hardening.
+* Required: the finding claim (vulnerability type, affected component, and any asset or call site description) and the relevant source code or artifact under evaluation.
+* Optional: the existing threat model for the affected component, plus any prior triage notes or external report context.
 
-## Inputs
+## Restate the finding
 
-Must supply:
-- The finding claim: vulnerability type, affected component, and any asset or call-site description.
-- The relevant source code or artifact under evaluation.
+Summarize the alleged vulnerability: type, affected component, and attacker position from the supplied claim. State whether the finding sits in scope.
 
-Optional:
-- Existing threat model for the affected component.
-- Any prior triage notes or external report context.
+## Build the threat model
 
-## Procedure
+Record attacker position, required capabilities, and the complete attack path from entry point to asset.
 
-1. **Restate the finding.** Summarize the alleged vulnerability: type, affected component, and attacker's position from the supplied claim. State whether the finding is in scope. **Done when:** the finding is restated with type, component, and attacker position.
+## Trace the data flow
 
-2. **Build the threat model.** Identify attacker position, required capabilities, and the complete attack path from entry point to asset. **Done when:** the threat model is recorded with attacker position, capabilities, and attack path.
+Locate the source entry, list each intermediate step, find the sink, and confirm each step by reading the code. Mark any step you cannot confirm as `unresolved`. A verdict waits on unresolved steps.
 
-3. **Trace the data flow.** Locate the source entry, identify all intermediate steps, find the sink, and confirm each step by reading the actual code. Mark any unconfirmable step as `unresolved`. Block the verdict on unresolved steps. **Done when:** every step is confirmed or marked `unresolved`.
+## Run class specific checks
 
-4. **Run class-specific checks.** Apply the OWASP Top 10 and relevant CWE checks for the alleged vulnerability class. For each check, record whether the finding passes or fails it. Compare the observation with known false-positive shapes for that vulnerability class. Record the exact shape and why it does or does not apply. **Done when:** every class-specific check is recorded with pass/fail and false-positive shape comparison.
+Apply the OWASP Top 10 and relevant CWE checks for the alleged class. Record pass or fail for each check. Compare the observation with known false positive shapes for that class, and record the exact shape and whether it applies.
 
-   Class-specific checks by vulnerability type:
-   - Injection (SQL, command, XSS, LDAP, XML, Xpath, SMTP header, OS command): Confirm unsanitized user-controlled input reaches a sensitive sink without context-appropriate escaping or validation.
-   - Path traversal: Confirm user-controlled input reaches a filesystem operation without path sanitization or canonicalization.
-   - Authentication/authorization bypass: Confirm a protection mechanism is absent or bypassed at the named call site.
-   - Sensitive data exposure: Confirm secrets, keys, tokens, or credentials appear in plaintext in source code, logs, or network payloads.
-   - Cryptographic failure: Confirm weak, broken, or misused crypto primitives at the named call site.
-   - Insecure design: Confirm a missing architectural guard such as rate limiting, CSRF tokens, or session invalidation.
-   - Security misconfiguration: Confirm a default, outdated, or permissive configuration at the named component.
-   - Integrity failure: Confirm code or data is used without a cryptographic integrity check.
-   - Logging and monitoring failure: Confirm an attack sequence reaches the named step without triggering an observable log event.
-   - Any other class: define the relevant class-specific check explicitly before running it.
+Class checks by vulnerability type:
 
-5. **Assess exploitability.** Determine whether the finding is: (a) reachable from the named attacker position, (b) sufficient to cause harm given the threat model, and (c) reproducible in the available environment. If all three hold and safe to demonstrate, construct a proof of concept. If not safe or not reproducible, provide structured reasoning instead of a live exploit. **Done when:** exploitability is determined with all three sub-conditions addressed.
+* Injection (SQL, command, XSS, LDAP, XML, Xpath, SMTP header, OS command): confirm unsanitized user controlled input reaches a sensitive sink without context appropriate escaping or validation.
+* Path traversal: confirm user controlled input reaches a filesystem operation without path sanitization or canonicalization.
+* Authentication or authorization bypass: confirm a protection mechanism is absent or bypassed at the named call site.
+* Sensitive data exposure: confirm secrets, keys, tokens, or credentials appear in plaintext in source code, logs, or network payloads.
+* Cryptographic failure: confirm weak, broken, or misused crypto primitives at the named call site.
+* Insecure design: confirm a missing architectural guard such as rate limiting, CSRF tokens, or session invalidation.
+* Security misconfiguration: confirm a default, outdated, or permissive configuration at the named component.
+* Integrity failure: confirm code or data is used without a cryptographic integrity check.
+* Logging and monitoring failure: confirm an attack sequence reaches the named step without triggering an observable log event.
+* Any other class: define the relevant check explicitly before running it.
 
-6. **Conduct gate reviews.** At each step, verify the evidence is sufficient to support the next step. Stop and report the specific evidence gap if a gate check fails. Do not proceed past a gate with unverified assumptions. **Done when:** every gate is passed or the specific gap is reported.
+## Assess exploitability
 
-7. **Issue the verdict.** For each finding: state `true positive` if the data flow is confirmed, class checks fail as described, and exploitability is established; state `false positive` if the data flow is broken, the pattern matches a known false-positive shape, the class checks pass, or exploitability cannot be established despite sufficient evidence. Include all evidence, the threat model, class-specific check results, and the adversarial challenge rationale in the verdict. **Done when:** the verdict is issued with classification and full evidence.
+Decide three things: (a) the finding is reachable from the named attacker position, (b) it suffices to cause harm under the threat model, (c) it reproduces in the available environment. When all three hold and a demonstration is safe, construct a proof of concept. When demonstration is unsafe or reproduction fails, give structured reasoning instead of a live exploit.
 
-## Failure and recovery
+## Hold the gates
 
-- Finding claim insufficient: stop and return `inconclusive` with the specific missing element.
-- Missing source code: stop and return `inconclusive — source code not available` for the affected component.
-- Unresolved data flow step: mark the step `unresolved` and return `inconclusive — unresolved data flow step` blocking the verdict.
-- Vulnerability class mismatch: return `out of scope — vulnerability class does not match the supplied finding`.
-- Insufficient evidence at any gate: stop, name the gate, and return the specific evidence gap.
-- Partial-result rule: if multiple findings are supplied and some cannot be resolved, issue a verdict only for the findings with complete evidence; name the inconclusive findings explicitly.
-- No file mutation: this skill produces chat output only. No rollback is needed.
+At each step, check that the evidence supports the next step. Stop at the first gate that fails and report the specific gap. Never proceed past a gate on an unverified assumption.
 
-## Output
+## Issue the verdict
 
-A structured verdict in chat for each finding: classification (`true positive` or `false positive`), complete source-to-sink data flow trace, class-specific check results, threat model, exploitability assessment and PoC if constructed, adversarial challenge with response, severity and exploitability rating if true positive, and recommended remediation steps.
+For each finding state `true positive` when the data flow is confirmed, class checks fail as described, and exploitability is established. State `false positive` when the data flow is broken, the pattern matches a known false positive shape, the class checks pass, or exploitability cannot be established on sufficient evidence. Include the full trace, threat model, check results, and the adversarial challenge with its response. A true positive also carries severity, exploitability rating, and recommended remediation.
+
+## When evidence runs short
+
+* Claim too thin: stop and return `inconclusive` with the specific missing element.
+* Source code missing: stop and return `inconclusive, source code not available` for the affected component.
+* Data flow step unconfirmed: mark it `unresolved` and return `inconclusive, unresolved data flow step`. The verdict waits.
+* Class mismatch: return `out of scope, vulnerability class does not match the supplied finding`.
+* Gate failure: stop, name the gate, and report the specific gap.
+* Partial results: when several findings arrive together and some cannot resolve, issue verdicts only for findings with complete evidence and name the inconclusive ones explicitly.
+
+## What you hand back
+
+A structured verdict in chat for each finding: classification (`true positive` or `false positive`), the complete source to sink trace, class specific check results, threat model, exploitability assessment and proof of concept when built, adversarial challenge with response, and for true positives the severity, exploitability rating, and remediation steps.

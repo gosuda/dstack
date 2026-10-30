@@ -1,134 +1,51 @@
-# `simplify`: orchestration recipe
+# Simplify routing runbook
 
-Dispatch shape, composition rule, Reviewer audit contract, fix sequencing, and behavior gate for the `simplify` skill. Read alongside `../SKILL.md` Phase 1 / 2 / 3.
+Read alongside `../SKILL.md`. This file carries the mechanics: base resolution, the inspection that precedes every route decision, exact dispatch conditions, sequencing, and the proof gates each route inherits. It never overrides the skill.
 
-## Phase 1: diff scope resolution (shell snippet)
+## Base resolution from evidence
 
-```bash
-# Resolve a base ref. Print "" and exit 1 if none resolves.
-resolve_base() {
-  for candidate in \
-    "$(git merge-base HEAD origin/main 2>/dev/null)" \
-    "$(git merge-base HEAD origin/master 2>/dev/null)" \
-    "$(git merge-base HEAD main 2>/dev/null)" \
-    "$(git merge-base HEAD master 2>/dev/null)" \
-    "$(git rev-parse '@{upstream}' 2>/dev/null)"; do
-    if [ -n "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
+Resolve in this order; never guess `main` or `master`:
 
-# Primary path.
-if base="$(resolve_base)"; then
-  diff="$(git --no-pager diff "$base")"
-elif git rev-parse --verify HEAD >/dev/null 2>&1; then
-  if git rev-parse --verify 'HEAD^' >/dev/null 2>&1; then
-    # Committed history exists, no base resolves -> abort.
-    printf 'simplify: committed history exists but no base ref resolves\n' >&2
-    printf '  re-invoke with explicit base: simplify against <ref>\n' >&2
-    exit 2
-  else
-    # HEAD is the root commit -> working tree only is the full scope.
-    printf 'simplify: scope: working-tree only, on root commit\n' >&2
-    diff="$(git --no-pager diff HEAD)"
-  fi
-else
-  # Unborn HEAD or no git context -> caller supplies files.
-  diff=""
-fi
+1. Explicit override: `simplify against <ref>` diffs against that revision directly.
+2. Pull-request evidence: the base branch the branch was opened against, via `git merge-base HEAD <pr-base>`.
+3. Upstream evidence: the upstream tracking branch, when `@{upstream}` resolves.
+4. Remote-default evidence: the remote-advertised default branch reference.
 
-# Empty diff after all valid resolutions -> exit 11.
-[ -z "$diff" ] && exit 11
-```
+Otherwise stop and ask for an explicit base. Never fall back to a working-tree-only diff on a branch with committed history but no resolved base. Unborn HEAD means user-named files only; a root commit means the working tree is the scope with that noted. Empty after all valid resolutions is exit 11.
 
-**Explicit-base override**: when the user invokes `simplify against <ref>`, the orchestrator bypasses `resolve_base` and runs `git --no-pager diff "<ref>"` directly. The `<ref>` is any revision spec git accepts (`HEAD~5`, a SHA, a branch name, a tag).
+Untracked work: enumerate `??` entries from status output. Read authorized untracked files (user-named or explicit full-sweep authorization) alongside the tracked diff. Never delete an untracked file. Report meaningful unauthorized untracked files as out-of-scope remaining work with paths.
 
-## Phase 2: single `task` call dispatch shape
+## The inspection that precedes routing
 
-The orchestrator issues a single `task` tool call with a `tasks` array of three items, never three sequential messages. Each item receives a prompt built as:
+The diff is entry evidence, not scope analysis. Before dispatching, establish for each touched region:
 
-```
-<axis prompt from references/<axis>.md, verbatim>
+- Callers: who calls the touched code, inside and just outside the hunks. Forced in-tree callers a survivor needs to land clean travel with the cut; callers beyond the forced set stay out and route as candidates.
+- Boundaries: which module, contract, or artifact-class boundary the region sits on, and whether any surface is public, persisted, configured elsewhere, or version-promised.
+- Dependencies: import, re-export, feature-flag, build, config, and generated-surface edges entering or leaving the region, with owning files.
 
----
+Done when every region has its callers, boundaries, and edges recorded, or is gapped by name with the reason.
 
-DIFF:
-<captured diff from Phase 1>
-```
+## Dispatch conditions
 
-Independence argument the orchestrator must include in the spawn message:
+Send each disjoint scope to exactly one owner:
 
-> "Three agents dispatched in parallel. Axes are disjoint by construction: reuse-axis owns Graft (existing-utility detection), quality-axis owns Excess + Sprawl on code shape, efficiency-axis owns Excess + Sprawl on execution cost. All three agents are read-only; none edits files; none reads or writes shared mutable state."
+- Still being written, or deciding whether a helper, wrapper, config key, branch, or dependency earns its place: `minimalism-driven`.
+- The weight is comments explaining what code already says: `no-comments`, with legal, mechanical-directive, and public-documentation homes protected.
+- One named module, file set, or dependency slice shrinking inside its contract: `code-simplification`, module or dependency mode as the edges dictate.
+- The module layout or dependency graph itself must collapse: `architecture-simplification`, only on an explicit human ask with an approved path set; never auto-promoted from a smaller cleanup.
+- Residue crossing artifact classes under one unchanged observable boundary: `guillotine`, with its candidate ledger and bidirectional proof; stop for approval at any observable API, stored data, or untracked target.
+- A consumer-facing surface must go: `refactor-break-compat`, with the demolition manifest previewed and explicit human confirmation before the atomic cutover.
 
-Agent type for each invocation: `Explore` (read-only).
+Anything matching none of these, or matching two with no evidence to decide, is emitted as a candidate with file, line, evidence, and reason rather than forced into a route.
 
-## Phase 3: composition, audit, fix
+## Sequencing and integration
 
-### Composition
+Dispatch disjoint scopes together; sequence dependent rewrites so interior cuts land before the boundary-gated cuts that depend on them. `refactor-break-compat` cutovers and `architecture-simplification` slices run after the `code-simplification` and `minimalism-driven` reductions they assume. Simplify is the single integration owner: every routee result returns through it, one concern per atomic commit with a capitalized imperative subject, and mixed-concern commits split before merge (exit 15).
 
-After all three findings lists return, merge by `{file, line}`. Tag each finding with its axis. When two axes report the same `{file, line}` with structurally identical patterns, deduplicate: keep the finding once, attribute to the first reporter, note the second axis as a co-signer.
+## Proof gates every route inherits
 
-### Reviewer audit (single adjudication authority)
+Red baseline stops all cutting; report the failing tests first. After each increment run the narrowest applicable verifier, then the repository's own test command; revert the increment on red (exit 13) and keep prior green commits. Test edits are mechanical migration to the new contract with recorded reasons; no deletion, suppression, skipping, or weakening of tests to force green. Close with the post-fix audit and ghost sweep: no new bloat in the simplify chain itself (exit 14 on a hit, whole chain reverted), and no surviving string reference to any removed concept.
 
-Dispatch a Reviewer agent (also `Explore`-typed, read-only) with:
-- the composed findings list,
-- the original diff,
-- the axis prompts from `references/{reuse,quality,efficiency}.md`.
+## Exit summary
 
-Reviewer audit charter (four checks):
-1. **Completeness**: did the three axes between them cover every diff hunk that warrants attention? Flag systematic blind spots.
-2. **Consistency**: do any findings contradict each other (e.g., "extract this into a helper" vs "inline this helper")? Flag and resolve.
-3. **Accuracy**: for each finding, verify the citation. Discard findings whose `path:line` does not match the diff or whose `existing-utility` does not exist.
-4. **Scope**: flag findings that propose changes outside the diff's blast radius. Discard.
-
-The Reviewer's output is the **validated survivor set**. The orchestrator applies survivors and drops non-survivors; no re-litigation in either direction.
-
-If the survivor set is empty after a non-empty raw findings list, exit 12.
-
-### Fix sequencing
-
-Group survivors by `issue-class`. Apply in this order, one atomic commit per class:
-
-1. **Duplicate commit**: apply all reuse-axis survivors (and any other axis survivors flagged `issue-class: duplicate`).
-2. **Excess-surface commit**: apply all quality-axis + efficiency-axis survivors flagged `issue-class: excess-surface`.
-3. **Structure commit**: apply all quality-axis + efficiency-axis survivors flagged `issue-class: structure`.
-
-Commit message format follows the baseline `<git>` charter (capitalized imperative subject, 50 chars target and 72 hard, no trailing period); recommended:
-
-```
-Remove <class> from <scope>
-
-<2-4 lines describing the survivors applied in this commit, citing
-file:line pairs>
-
-```
-
-A commit that would bundle survivors from more than one class is split before merge (exit 15).
-
-## Behavior gate (after every commit)
-
-After each fix commit, run the repo-native verifier per the matrix derived from the project's manifest in this order: a task-runner target (`just test`, `make test`), then the ecosystem's own test command (`cargo test`, `pytest`, `npm test`, `dune runtest`, `go test ./...`), or the equivalent for the current language. On red:
-
-```bash
-git revert HEAD --no-edit
-```
-
-Surface the failure mode (exit 13) and stop the simplify run for the affected commit. Other class commits already landed remain.
-
-## Post-fix audit (no new bloat)
-
-After the final commit, audit the simplify patch itself for unneeded surface, duplicated logic, structure without cause, or a broken consumer contract. Any hit → revert the entire simplify chain via `git revert <first-simplify-commit>^..HEAD --no-edit` and exit 14. The orchestrator may re-plan and re-invoke.
-
-## Exit code summary (matches SKILL.md)
-
-| Code | Trigger |
-|---|---|
-| 0 | Survivors applied, behavior gate green, no new bloat |
-| 11 | Empty diff after all Phase 1 resolutions |
-| 12 | Survivor set empty after Reviewer audit |
-| 13 | Behavior gate red on a fix commit; that commit reverted |
-| 14 | Post-fix audit caught new bloat; chain reverted |
-| 15 | Mixed-class commit detected; split required before merge |
+Matches `SKILL.md`: 0 clean; 11 empty diff; 12 empty survivor set with report; 13 regression auto-reverted; 14 chain reverted on new bloat; 15 mixed-concern commit. Autopilot G2 passes on 0, 11, 12, absorbs a self-reverted 13, and halts for human re-planning on 14 and 15; these meanings are unchanged, so that caller needs no migration.

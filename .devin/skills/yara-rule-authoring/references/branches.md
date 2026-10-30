@@ -28,7 +28,7 @@ Requires YARA-X v1.11.0+. Not compatible with legacy YARA's dex module; the API 
 
 ## When strings fail, pivot to structure
 
-If extraction returns only API names and generic paths, use `math.entropy()` on specific sections for high-entropy detection, use `pe.imphash()` for import-hash clustering, check PE structure anomalies (section names, sizes, characteristics), and examine metadata (version info, timestamps, resources). If nothing unique remains, the sample may not be detectable with YARA alone.
+When extraction returns only API names and generic paths, work through structural signals in order: run `math.entropy()` over specific sections to flag high-entropy regions, cluster with `pe.imphash()`, inspect PE structure anomalies (section names, sizes, characteristics), and examine metadata (version info, timestamps, resources). If nothing unique remains, the sample may not be detectable with YARA alone.
 
 ## Rationalizations to reject
 

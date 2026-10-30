@@ -1,64 +1,33 @@
 ---
 name: unslop
-description: 'Use when prose is drafted or edited, reviewed for AI tells, or the user asks to remove AI patterns, humanize, or add voice. Offers dedash and detool modes. Not for code debris: use deslop.'
+description: 'Use when prose is drafted or edited, reviewed for AI tells, or the user asks to remove AI patterns, humanize, or add voice. Offers dedash and detool modes. Not for code debris.'
 ---
 
 # Unslop
 
-## Contract
+You make prose sound like a person wrote it. You work on prose only, never code, and you write only the named file or scope. Your rollback is version control or the user's undo. You never touch a remote.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Prose is drafted or edited, text is under review for AI tells, or the user asks to remove AI patterns, humanize, add voice, purge em-dashes by grammatical role, or neutralize incidental tool names in portable artifacts. |
-| Authority | Reversible local: writes only the named prose file or scope; rollback is version control or the user's undo. No remote mutation. |
-| Side effect | Rewrites user-facing or internal prose files; may replace punctuation by grammatical role and remove incidental framework and tool nouns. |
-| Done | The rewrite passes all 20 checks (full mode) or the focused mode's pass condition; meaning is preserved. |
+You have three modes. Full mode is the default: all 21 checks below. Dedash mode purges em-dashes and look-alikes by grammatical role, with the classification and leave-alone rules in `references/dedash.md`. Detool mode neutralizes incidental tool names in portable artifacts, with the role classification and protection rules in `references/detool.md`.
 
-## Refusals
+What you need before starting: the prose file, scope, or inline text. When the user pastes text instead of naming a path, edit that text directly and return the result. Optional extras: a mode (`full`, `dedash`, `detool`); tone guidance for the intended register or audience, defaulting to the file's existing voice; and for dedash only, strictness, where `default` replaces clear-cut cases while `strict` surfaces every occurrence as a judgment call.
 
-- Code debris and dead code: use `deslop`. Unslop edits prose; deslop cuts code.
-- Korean or other non-English humanization: unslop applies the same full-mode checks; where a check's example list is English-specific, judge the underlying pattern (puffery, filler, passive voice, meta-narration) in the target language rather than the literal words.
-- The routing verdict: use `deslop` for code debris and `purge-slop-docs` for stale doc trees; use unslop when the answer is prose editing.
-- Already clean: if the text contains no AI tell patterns, return it unchanged and report the text is already clean.
+Korean and other non-English text get the same full-mode treatment: where a check's example list is English-specific, judge the underlying pattern (puffery, filler, passive voice, meta-narration) in the target language rather than hunting the literal English words. If the scan finds no violations, return the text unchanged and say it is already clean. Stale doc trees belong to `purge-slop-docs`, not here.
 
-## Inputs
+## A full pass
 
-- Prose file, scope, or inline text (required): the file, text block, directory, glob, or pasted text to edit. When the user supplies text inline rather than a path, edit that text directly and return the result.
-- Mode (optional): `full` (default: all 20 checks), `dedash` (em-dash purge by grammatical role), `detool` (incidental tool-name neutralization in portable artifacts).
-- Tone guidance (optional): intended register or audience; defaults to the file's existing voice.
-- Strictness (optional, dedash only): `default` replaces clear-cut cases; `strict` surfaces every occurrence as a judgment call.
+Work the steps in order:
 
-## Procedure
+1. Read the prose file end to end. If it is missing or empty, stop and report `source file missing or empty`. Never create a file to have something to edit.
+2. Scan every paragraph against the 21 checks below until each paragraph has a verdict per check.
+3. Before rewriting, inventory the load-bearing claims: one line per section stating what must survive. After rewriting, confirm every recorded claim is still there. A cut that would lose one gets restored and recorded as a near-miss, never kept silently.
+4. Rewrite while preserving meaning and the intended tone. Respect earned length: prose meant to teach or orient, such as a quickstart or a worked example, keeps the length its accessibility needs. Compress the bloat, not the teaching.
+5. Add voice: have opinions, vary rhythm, acknowledge complexity, use "I" when it fits, let some mess in, be specific.
+6. Self-audit with one question: "what makes this obviously AI-generated?" Fix whatever answers it. If the rewrite introduces a fresh checklist pattern, re-run this audit on the affected paragraph.
+7. Verify no edit changed factual content or logical claim. Revert the offending edit and rephrase; if no rephrase can satisfy both meaning and the check, keep the original and flag the conflict.
 
-### Full mode (default)
+Three rewrite passes is the limit. If violations remain after three, stop and report each one with its location.
 
-1. Read the prose file end to end. If the file is empty or missing, stop and report the failure. **Done when**: every paragraph has been read.
-2. Scan every paragraph against the 20 checks below. **Done when**: every paragraph has a per-check verdict.
-3. Rewrite the file while preserving its meaning and intended tone. **Done when**: all passing checks are reflected in the text.
-4. Add voice: have opinions, vary rhythm, acknowledge complexity, use "I" when it fits, let some mess in, be specific. **Done when**: the text reads as a person wrote it.
-5. Self-audit: "What makes this obviously AI-generated?" Fix remaining tells. **Done when**: no answer survives the question.
-6. Verify meaning is preserved. If any edit changes the factual content or logical claim, revert that edit and rephrase. **Done when**: no edit altered meaning.
-
-### Dedash mode
-
-Triggered when the user asks to remove em-dashes and look-alikes from a named scope. The grammatical-role classification and leave-alone rules live in `references/dedash.md`.
-
-1. Enumerate all files in the named scope. If the scope is empty or missing, stop and report `scope-empty`. **Done when**: the file list is complete.
-2. Scan each file for em-dashes (`—`, `---`, `--`), en-dashes used as em-dashes, and Unicode em-dash variants. **Done when**: every occurrence is located.
-3. Classify every occurrence by grammatical role per `references/dedash.md` and apply the replacement. **Done when**: each occurrence is replaced, skipped with a leave-alone reason, or surfaced as a judgment call.
-4. Produce a report: occurrences found, replaced by role class, skipped by leave-alone class, judgment calls. **Done when**: per-file and aggregate counts are reported.
-
-### Detool mode
-
-Triggered when a durable artifact claims portability or tool-neutrality while carrying stack-specific nouns. The role classification and protection rules live in `references/detool.md`.
-
-1. Read the target artifact end to end. If not found or unreadable, stop and report the miss. **Done when**: the whole artifact has been read.
-2. Classify the artifact, or each section if mixed, into durable/portable, provenance/operational, or tool-subject per `references/detool.md`. **Done when**: every section has a recorded role.
-3. Sweep durable-content sections for incidental coupling and replace each hit with the neutral mechanism that preserves the action. **Done when**: every hit is neutralized or kept with a recorded reason.
-4. Re-read as a reader on a different stack. **Done when**: the artifact is still true, portable, and executable where it promised action.
-5. Report neutralized couplings, deliberate keeps with their role, and judgment calls. **Done when**: the report is complete.
-
-## The 20 checks
+## The 21 checks
 
 **Content**
 1. Puffery and promotional language: "pivotal moment", "testament to", "evolving landscape", "nestled", "vibrant", "breathtaking", "groundbreaking". Cut; state what happened.
@@ -97,22 +66,27 @@ Triggered when a durable artifact claims portability or tool-neutrality while ca
 18. Previous-pointing prose: replace "as discussed above", "previously noted", and similar navigation with the fact the reader needs at that point. Keep a cross-reference only when the target is the literal source of truth the reader must inspect.
 19. Mechanical symmetry: break repeated paragraph templates, forced three-part lists, and identical sentence openings. Keep repetition only when it carries a real comparison or invariant.
 20. Meta-process narration: remove descriptions of drafting, analysis, response structure, and the writer's own effort unless the process is the subject. State the result, evidence, or required action directly.
+21. Structural bloat: cut qualifiers or parentheticals the sentence works without; split a fused sentence carrying several ideas and drop the dead clause; collapse an enumeration into a rule plus short list; keep a nearby point once; replace litigation history with the rule alone.
 
-## Failure and recovery
+## Purging dashes
 
-- Missing or empty source (full mode): stop; report "source file missing or empty". Do not create a file.
-- scope-empty (dedash mode): no files matched the scope. Report; perform no writes.
-- Artifact not found or unreadable (detool mode): stop immediately; report the miss. Do not fabricate content.
-- Meaning drift: if an edit changes the factual content or logical claim, revert that edit and rephrase. If no rephrase preserves both meaning and the check, keep the original and flag the conflict.
-- ambiguous-role (dedash mode): an occurrence fits neither a clear replacement class nor a leave-alone class. Surface it as a judgment call with the surrounding sentence. Do not guess.
-- Ambiguous role classification (detool mode): default to durable content and flag the judgment call in the report.
-- Neutral wording loses the mechanism (detool mode): keep the concrete detail as an example; note the decision in the report.
-- Pattern introduction: if the rewrite introduces a new pattern from the checklist, re-run self-audit on the affected paragraph.
-- Non-converged: if three rewrite passes still leave checklist violations, stop and report the remaining violations with their locations.
-- partial-completion (dedash mode): if a file write fails mid-batch, stop processing that file, report the partial state, and continue with remaining files.
-- Edit alters the mechanism or evidence (detool mode): abort that edit; report the conflict.
+When the user asks to remove em-dashes and look-alikes from a named scope, work in order:
 
-## Output
+1. Enumerate every file in the scope. Empty or missing scope means stop and report `scope-empty`. No writes.
+2. Scan each file for em-dashes (`—`, `---`, `--`), en-dashes standing in for em-dashes, and Unicode em-dash variants.
+3. Classify each occurrence by grammatical role per `references/dedash.md` and apply the replacement. An occurrence fitting neither a clear replacement class nor a leave-alone class is recorded as `ambiguous-role`: surface it as a judgment call with its surrounding sentence, never a guess. If a file write fails mid-batch, stop that file, report `partial-completion` with the partial state, and continue with the rest.
+4. Report per-file and aggregate counts: occurrences found, replaced by role class, skipped by leave-alone class, judgment calls.
 
-The rewritten prose file with original meaning preserved. Full mode: all 20 checks passing, or if non-converged after three passes, the remaining violations reported with their locations. Dedash and detool modes append a per-occurrence or per-hit report.
+## Neutralizing tool names
 
+When a durable artifact claims portability or tool-neutrality while carrying stack-specific nouns, work in order:
+
+1. Read the target end to end. Not found or unreadable means stop and report the miss. Never fabricate the content.
+2. Classify the artifact, or each section if mixed, into durable/portable, provenance/operational, or tool-subject per `references/detool.md`. An ambiguous section defaults to durable content and gets flagged as a judgment call.
+3. Sweep durable-content sections for incidental coupling and replace each hit with the neutral mechanism that preserves the action. If an edit would alter the mechanism or the evidence, abort that edit and report the conflict. When neutral wording would lose the mechanism, keep the concrete detail as an example and note the decision.
+4. Re-read the result as a reader on a different stack: still true, still portable, still executable where it promised action.
+5. Report neutralized couplings, deliberate keeps with their role, and judgment calls.
+
+## What you hand back
+
+The rewritten prose with its original meaning intact. Full mode passes when all 21 checks hold, otherwise the remaining violations with their locations. Dedash passes when every occurrence is replaced, skipped with a leave-alone reason, or surfaced as a judgment call, with per-file and aggregate counts reported. Detool passes when every hit is neutralized or kept with a recorded reason and the artifact still reads true, portable, and executable where it promised action, with the per-hit report complete.

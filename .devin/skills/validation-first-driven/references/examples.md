@@ -32,6 +32,9 @@ function submit(order: Order & { state: 'draft' }): Order & { state: 'pending' }
 ## Python
 
 ```python
+from dataclasses import dataclass
+from enum import Enum, auto
+
 class OrderState(Enum):
     DRAFT = auto()
     PENDING = auto()
@@ -42,7 +45,8 @@ class Order:
     state: OrderState = OrderState.DRAFT
 
     def submit(self) -> None:
-        assert self.state == OrderState.DRAFT, "Invalid transition"
+        if self.state != OrderState.DRAFT:
+            raise ValueError("Invalid transition")
         self.state = OrderState.PENDING
 ```
 

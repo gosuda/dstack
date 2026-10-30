@@ -112,11 +112,11 @@ python scripts/trial_manager.py finalize <kernel_name> <output_path>
 
 `scripts/benchmark_cpu.py` runs two checks, and both must pass for a trial to count as completed.
 
-Correctness compares the kernel output to the baseline output with a structure-aware comparator. Tuples, lists, and dicts are walked element-wise and must agree in type, length, and keys. Every tensor leaf must agree in dtype and shape and is compared in its own dtype against a per-dtype tolerance: half an ulp relative for bf16 and fp16, `atol=1e-6, rtol=1e-5` for fp32, `atol=1e-12, rtol=1e-9` for fp64, and exact equality for integer and bool dtypes. A mismatch names the leaf path, for example `output[1]`. Pass `--atol` and `--rtol` to widen every floating tolerance when the kernel's accumulation order legitimately differs from the reference. The baseline must define `get_inputs()` and either `get_reference_output()` or a `Model` class.
+Correctness compares the kernel output to the baseline output with a structure-aware comparator. Tuples, lists, and dicts are walked element-wise and must agree in type, length, and keys. Every tensor leaf must agree in dtype and shape. Each leaf is compared in its own dtype against a per-dtype tolerance: half an ulp relative for bf16 and fp16, `atol=1e-6, rtol=1e-5` for fp32, `atol=1e-12, rtol=1e-9` for fp64, and exact equality for integer and bool dtypes. A mismatch names the leaf path, for example `output[1]`. Pass `--atol` and `--rtol` to widen every floating tolerance when the kernel's accumulation order legitimately differs from the reference. The baseline must define `get_inputs()` and either `get_reference_output()` or a `Model` class.
 
 Performance times both implementations with `torch.utils.benchmark.Timer.blocked_autorange(min_run_time=2.0)` and reports the median time and the speedup.
 
-`python scripts/benchmark_cpu.py --self-check` exercises the comparator on a wrong second tuple element, a bf16 truncation error, a scalar reference paired with a tensor kernel output, and the structure, dtype, and shape checks; it exits 1 if any expectation fails and exits 2 with a stated reason when torch is not installed, so the check fails closed on a host without torch.
+`python scripts/benchmark_cpu.py --self-check` exercises the comparator on a wrong second tuple element, a bf16 truncation error, a scalar reference paired with a tensor kernel output, and the structure, dtype, and shape checks. It exits 1 if any expectation fails. It exits 2 with a stated reason when torch is not installed, so the check fails closed on a host without torch.
 
 ## Profiling with perf stat
 

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Architecture Simplification"
+  short_description: "Use when the user explicitly asks to simplify an architecture, collapse modules or crates, or cut a dependency graph within approved boundaries."

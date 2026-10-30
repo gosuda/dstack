@@ -22,7 +22,7 @@ type Finding = {
 
 Normalize before dedupe:
 
-1. `pass = result.pass || reviewerId || 'unknown'`.
+1. `pass = result.pass || result.reviewerId || result.reviewer || 'unknown'`.
 2. Trim `file`, `category`, `description`, `suggestion`, `confidence`, `falsePositiveReason`.
 3. Lowercase `severity`; unknown severity becomes `medium` and sets `severityNormalized: true`.
 4. Coerce `line` to a positive integer; missing/invalid line keeps the finding but marks `locationWeak: true`.
@@ -41,11 +41,15 @@ function normalizeFinding(pass, finding) {
     ? finding.falsePositiveReason.trim()
     : '';
   const dismissed = finding.falsePositive === true && reason.length > 0;
+  const locationWeak = !(Number.isInteger(finding.line) && finding.line > 0);
+  const severityLower = typeof finding.severity === 'string' ? finding.severity.toLowerCase() : '';
+  const severityKnown = severityLower === 'critical' || severityLower === 'high' || severityLower === 'medium' || severityLower === 'low';
   return {
     pass,
     file: String(finding.file || '').trim(),
-    line: Number.isInteger(finding.line) && finding.line > 0 ? finding.line : 1,
+    line: locationWeak ? 1 : finding.line,
     severity: normalizeSeverity(finding.severity),
+    severityNormalized: !severityKnown,
     category: String(finding.category || pass).trim(),
     description: String(finding.description || '').trim(),
     suggestion: String(finding.suggestion || '').trim(),
@@ -53,6 +57,7 @@ function normalizeFinding(pass, finding) {
     falsePositive: dismissed,
     falsePositiveReason: dismissed ? reason : undefined,
     reasonMissing: finding.falsePositive === true && reason.length === 0,
+    locationWeak,
     status: dismissed ? 'false-positive' : 'open'
   };
 }
@@ -78,7 +83,7 @@ Pseudo-code:
 function consolidate(agentResults) {
   const rows = [];
   for (const result of agentResults) {
-    const pass = result.pass || result.reviewer || 'unknown';
+    const pass = result.pass || result.reviewerId || result.reviewer || 'unknown';
     for (const finding of Array.isArray(result.findings) ? result.findings : []) {
       const normalized = normalizeFinding(pass, finding);
       if (!normalized.file && !normalized.description) continue;
@@ -200,7 +205,7 @@ CONSOLIDATED
 
 ASK_BLOCKED
   ├─ treat-all-as-open            -> CONSOLIDATED
-  ├─ override-and-accept          -> CONSOLIDATED
+  ├─ override-and-accept-dismissals -> CONSOLIDATED
   └─ abort                        -> STOP_QUEUE_INTACT
 
 FIX_BATCH

@@ -6,7 +6,7 @@
 .env.example       → Committed (template for developers)
 .env                → NOT committed (local development)
 .env.test           → Committed (test environment, no real secrets)
-CI secrets          → Stored in GitHub Secrets / vault
+CI secrets          → Stored in provider secret store (GitHub Secrets or GitLab CI/CD variables) / vault
 Production secrets  → Stored in deployment platform / vault
 ```
 
@@ -27,8 +27,9 @@ updates:
     open-pull-requests-limit: 5
 ```
 
-### PR checks
+### PR checks (forge-side, not authored by this skill)
 
+These are forge-side settings outside this skill's scope, listed for context only; workflow files only supply the CI status checks:
 - Required reviews: At least 1 approval before merge
 - Required status checks: CI must pass before merge
 - Branch protection: No force-pushes to main

@@ -4,37 +4,37 @@ description: 'Use when the user explicitly invokes branch or worktree cleanup fo
 disable-model-invocation: true
 ---
 
-# Git cleanup
+# Clear out dead local branches and worktrees
 
-## Contract
+This skill inventories every local branch and worktree, sorts them by merge evidence, and deletes only what the human confirms command by command. All writes stay local: confirmed branch and clean-worktree deletions only. Rollback is `git reflog` and remote refs. Remote state is never mutated, and force-push operations are out of scope.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The user explicitly invokes branch/worktree cleanup for a repository with accumulated local branches or worktrees. |
-| Authority | Reversible local: writes only VCS-tracked local branches and clean worktrees; rollback is git reflog and remote refs. No remote mutation. Show the exact set before any deletion. |
-| Side effect | Delete confirmed local git branches and clean worktrees only; dirty worktrees and protected branches are refused. |
-| Done | Every local branch is categorized or surfaced as unanalyzed, every recommended deletion has evidence, exact quoted commands receive final confirmation, and each command is reported as deleted or failed. |
+The run is complete when every branch is categorized or surfaced as unanalyzed, every recommended deletion carries its evidence, each exact quoted command has final confirmation, and each command is reported as deleted or failed.
 
-## Inputs
+## Enumerate everything before judging anything
 
-A local git repository path (defaults to the current working directory). No remote credentials, no force-push targets, no protected-branch list beyond the repository's own configuration. The user supplies final confirmation for each deletion command; nothing is deleted without it.
+Run `git branch -vv` and `git worktree list` to list every local branch and worktree. Record the current branch, the default upstream branch, and every branch the repository own configuration marks protected. Those stay excluded from deletion from the start.
 
-## Procedure
+For each branch, determine merge status against its upstream and against the current branch: run `git branch --merged` and `git branch --no-merged`, then `git log <branch> --not <upstream> --oneline` to surface unmerged commits. Categorize each branch as `merged`, `unmerged-with-evidence`, or `unanalyzed` when the upstream is missing or the comparison is ambiguous.
 
-1. Run `git branch -vv` and `git worktree list` to enumerate every local branch and worktree. Record the current branch and the default upstream branch as protected; never propose their deletion. Done when: every local branch and worktree is enumerated and the current branch plus default upstream are marked protected.
-2. For each local branch, determine merge status against its upstream and against the current branch: run `git branch --merged` and `git branch --no-merged`, then `git log <branch> --not <upstream> --oneline` to surface unmerged commits. Categorize each branch as `merged`, `unmerged-with-evidence`, or `unanalyzed` when the upstream is missing or the comparison is ambiguous. Done when: each branch carries one of `merged`, `unmerged-with-evidence`, or `unanalyzed` with its evidence.
-3. For each worktree, run `git -C <path> status --porcelain` to classify it as `clean` or `dirty`. Mark dirty worktrees as refused for deletion. Done when: every worktree is classified `clean` or `dirty`.
-4. For every branch or clean worktree recommended for deletion, attach the evidence that justifies it: the merge commit SHA, the empty `git log` output proving no unique commits, or the worktree's clean status. Branches categorized `unanalyzed` are surfaced with their reason and never recommended for deletion. Done when: each recommended deletion has its evidence attached and no `unanalyzed` branch is recommended.
-5. Present the full categorized list and, for each recommended deletion, the exact quoted command the user must confirm (for example `git branch -d <name>` or `git worktree remove <path>`). Do not execute any command yet. Done when: the categorized list and every recommended deletion's exact quoted command are shown, with nothing executed.
-6. Wait for explicit human confirmation of each exact quoted command. Refuse to batch, abbreviate, or infer confirmation. Done when: the user confirms each exact quoted command individually, or declines.
-7. Execute only the confirmed commands, one at a time, in the order confirmed. After each command, record whether it succeeded (`deleted`) or failed, capturing the exact git error message. Done when: each confirmed command ran and is recorded `deleted` or `failed` with its git error message.
-## Failure and recovery
-- `Dirty worktree`: refuse deletion, report the uncommitted changes, and stop. The user must commit, stash, or discard changes before retrying.
-- `Protected branch`: refuse deletion, name the branch, and stop. Protected branches are the current branch, the default upstream, and any branch the repository marks protected.
-- `Unanalyzed branch`: surface the branch with its reason (missing upstream, ambiguous merge comparison) and never delete it. Deletion requires the user to resolve the ambiguity and re-invoke.
-- `Command failure`: record the exact git error, leave all other confirmed commands pending, and report the failure. Do not retry automatically or widen scope.
-- `Missing confirmation`: stop before execution. No deletion occurs. Partial results are the categorized analysis only; no branch or worktree is removed without per-command confirmation.
-- Recovery for an accidental deletion is `git reflog` and `git branch <name> <sha>` for branches, or re-adding a worktree with `git worktree add`; state this recovery path when reporting any deletion.
+For each worktree, run `git -C <path> status --porcelain` and classify it `clean` or `dirty`. Dirty worktrees are refused for deletion.
 
-## Output
-A categorized report of every local branch (`merged`, `unmerged-with-evidence`, `unanalyzed`, or `protected`) and every worktree (`clean`, `dirty`, or `protected`), each recommended deletion with its evidence and exact quoted command, the set of confirmed commands, and a per-command result of `deleted` or `failed` with the git error message. Branches or worktrees never confirmed remain listed as not deleted.
+Attach the evidence to every recommended deletion: the merge commit SHA, the empty `git log` output proving no unique commits, or the worktree clean status. Branches categorized `unanalyzed` get surfaced with their reason and are never recommended.
+
+## Confirm each command exactly, then run what was confirmed
+
+Present the full categorized list first. For each recommended deletion show the exact quoted command the user must confirm (for example `git branch -d <name>` or `git worktree remove <path>`). Nothing executes at this stage.
+
+Wait for explicit human confirmation of each exact quoted command. Confirmation is never batched, abbreviated, or inferred. Then execute only the confirmed commands, one at a time in the confirmed order. After each command record success (`deleted`) or failure with the exact git error message.
+
+## Refusals and recovery
+
+- Dirty worktree: refuse deletion, report the uncommitted changes, and stop. The user commits, stashes, or discards before retrying.
+- Protected branch (the current branch, the default upstream, or any branch the repository marks protected): refuse deletion, name the branch, and stop.
+- Unanalyzed branch: surface it with its reason (missing upstream, ambiguous merge comparison) and never delete it. Deletion waits on the user resolving the ambiguity and re-invoking.
+- Missing confirmation: stop before execution. Partial results are the categorized analysis only. No branch or worktree is removed without per-command confirmation.
+- Command failure: record the exact git error, leave all other confirmed commands pending, and report the failure. Retries are never automatic and scope never widens.
+- Accidental deletion recovers through `git reflog` and `git branch <name> <sha>` for branches, or re-adding a worktree with `git worktree add`. State that recovery path when reporting any deletion.
+
+## What you hand back
+
+A categorized report of every local branch (`merged`, `unmerged-with-evidence`, `unanalyzed`, or `protected`) and every worktree (`clean`, `dirty`, or `protected`), each recommended deletion with its evidence and exact quoted command, the set of confirmed commands, and a per-command result of `deleted` or `failed` with the git error message. Branches or worktrees never confirmed stay listed as not deleted.

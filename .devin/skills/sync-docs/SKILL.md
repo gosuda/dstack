@@ -5,45 +5,55 @@ description: 'Use when a behavioral diff may have left docs or CHANGELOG stale, 
 
 # Sync docs
 
-## Contract
+Behavioral changes rot documentation quietly: a renamed export, a bumped version, a missing changelog entry. This job finds where the docs disagree with the code and fixes the small mechanical part, leaving every judgment call to a human.
 
-| Field | Bound contract |
+## Where you may write
+
+This job is reversible and local. You write only the named local doc files and the fix ledger, and rollback means reverting the edited files to their pre-edit content. There is no remote mutation of any kind.
+
+You work read-first. In `report` mode you change nothing. In `apply` mode you touch only the two safe fixes described below. Anything else you flag with evidence and walk away from.
+
+## Telling me what to look at
+
+You need a scope and a base before you start.
+
+| Setting | Meaning |
 |---|---|
-| Trigger | User says 'sync docs' or 'update changelog' after a behavioral change. |
-| Authority | Reversible local: writes only named local doc files and a fix ledger; rollback reverts the edited files. No remote mutation. |
-| Side effect | Applies only safe fixes (version bump plus CHANGELOG Unreleased entry) and writes a fix ledger with before/after evidence. |
-| Done | Safe fixes are applied or explicitly unavailable, and all residual drift is flagged with file:line evidence and reasons. |
+| Mode | `report` (default) or `apply`. Even in `apply`, you edit only safe-fix issues. |
+| Scope | `recent` (changed files from the current branch or last few commits), `before-pr` (branch diff against the PR base), or `all` (all tracked code and docs). |
+| Base | An explicit base ref is preferred. Without one, resolve the default branch, then fall back to `HEAD~5` for `recent`. |
 
-## Inputs
+Stop before doing anything if there is no diff or the scope is empty. Report the resolved base and scope rather than inventing drift. If the base ref is ambiguous, list the candidate refs and ask. When the user expects PR readiness, refuse an ambiguous review scope outright.
 
-- Mode: `report` (default) or `apply`. `apply` still edits only safe-fix issues.
-- Scope: `recent` (changed files from current branch or last few commits), `before-pr` (branch diff against PR base), or `all` (all tracked code and docs).
-- Base: explicit base ref preferred. If absent, resolve the default branch, then fall back to `HEAD~5` for `recent`.
+In DStack tool mode, use `bash` only for git commands. Use `find`, `search`, `read`, `lsp`, `ast_grep`, and `edit` for everything else.
 
-## Refusal
+## Finding what changed in code
 
-- No diff or empty scope: stop. Report the resolved base and scope; do not fabricate drift.
-- Ambiguous base ref: stop. List candidate refs and ask the user.
-- Manifest parse failure: skip the version-bump safe fix for that manifest; flag the file as MEDIUM with reason.
-- Post-edit read mismatch: revert the edit; reclassify the issue as flag-only with `reasonFlagOnly`.
-- Codegraph unavailable: use syntax fallback; downgrade confidence to MEDIUM for symbol-dependent claims.
+Build the changed-code list from the diff, keeping only source, config, and package files that can actually affect docs. Leave out pure docs, vendored or generated paths, lockfiles (unless version docs mention package-manager output), and deleted files that were never public.
 
-## Procedure
+For each changed file, derive its coupling terms: the filename stem, the full path, import strings taken from the diff, and exported or public symbols, via codegraph where indexed and syntax extraction otherwise. If codegraph is unavailable, say so and treat symbol-dependent claims as MEDIUM certainty at best. The full detection recipe lives in `references/doc-issues.md`.
 
-1. **Pick scope and base.** Refuse ambiguous review scope when the user expects PR readiness. Resolve the base ref and compute the changed-file list. In ODIN tool mode, use `bash` only for git commands; use `find`, `search`, `read`, `lsp`, `ast_grep`, and `edit` for everything else. Done when: the scope and base are resolved and the changed-file list is computed.
-2. **Compute changed code.** Keep only source/config/package files that can change docs. Exclude pure docs, vendored/generated paths, lockfiles unless version docs mention package manager output, and deleted files that were never public. Done when: the changed-code file list is filtered.
-3. **Extract coupling terms.** For each changed code file derive filename stem, full path, import strings from the diff, and exported/public symbols via codegraph when indexed or syntax fallback. Load `references/doc-issues.md` for the full detection recipe. Done when: coupling terms are extracted for every changed file.
-4. **Discover related docs.** Search live doc surfaces: `README.md`, `CHANGELOG.md`, `docs/**/*.md`, `*.md` at repo root. For each coupling term, search docs and record `doc`, `line`, `term`, `referenceType`. Done when: every coupling term is searched against docs.
-5. **Classify issues.** Load `references/doc-issues.md` for the severity taxonomy, safe-fix boundary, and default ignore list. Classify each finding as HIGH, MEDIUM, or LOW. Ignore generated docs unless explicitly in scope, vendored docs, changelog append-only entries, and versioned snapshots unless in scope. Done when: every finding is classified with severity and safe-fix eligibility.
-6. **Apply safe fixes only** (in `apply` mode). Safe fixes are: version bump (replace stale semver in docs with the manifest version when the line clearly labels a version) and CHANGELOG `## [Unreleased]` entry (insert a minimal bullet citing commit/file evidence). Load `references/detection-recipes.md` for per-ecosystem manifest version fields and changelog evidence commands. Do not auto-edit removed exports, import paths, examples, undocumented exports, dead-code docs, or doc-drift prose. Those require human intent. Done when: safe fixes are applied or confirmed unavailable.
-7. **Flag the rest.** Emit a compact report sorted by severity then file path. Done when: every non-safe-fix finding is flagged with file:line evidence and reason.
-8. **Return fix ledger.** For every edit record `file`, `line`, `type`, `before`, `after`, and evidence source. For every flag-only item record `reasonFlagOnly`. Done when: the fix ledger is complete.
+## Finding the docs that should care
 
-## Failure modes
+Search the live doc surfaces (`README.md`, `CHANGELOG.md`, `docs/**/*.md`, root `*.md`) for every coupling term, recording the doc, line, term, and reference type for each hit. Confirm the occurrence pass with a second, different search pattern or symbol index before classifying anything, and fold in any occurrences the first pass missed.
 
-- Partial results: if some coupling terms resolve and others do not, report resolved issues and flag unresolved terms. Never widen scope to compensate for missing evidence.
-- Rollback: revert any edited file to its pre-edit content. The fix ledger records before/after for every edit.
+Then classify each finding as HIGH, MEDIUM, or LOW using the severity taxonomy in `references/doc-issues.md`. Skip generated docs unless explicitly in scope, plus vendored docs, changelog append-only entries, and versioned snapshots unless in scope.
 
-## Output
+## What you may fix, and what you only flag
 
-A JSON fix ledger: `opCell`, `scope`, `base`, `changedCode` array, `relatedDocs` array, `fixesApplied` array, `flagged` array. Completion means safe fixes are applied or explicitly unavailable, and all remaining drift is flagged. A clean report with no edits is valid only after the diff-to-doc mapping and taxonomy pass ran.
+There are exactly two safe fixes, and both need HIGH-certainty evidence:
+
+1. Stale version number. Replace the exact semver in docs with the manifest version, but only when the line clearly labels it as the product or package version. Get the manifest field per ecosystem from `references/detection-recipes.md` (package.json `version`, Cargo.toml `package.version`, pyproject.toml `project.version`; Go tag-derived versions are never auto-fixed). Years, dates, protocol or API versions, port numbers, and third-party image tags are never safe fixes. If a manifest fails to parse, skip its version bump and flag the file as MEDIUM with the reason.
+2. Missing changelog entry. Insert a minimal bullet under `## [Unreleased]`, creating that section directly below the title if absent, citing the commit or file evidence. Never touch historical release sections, and never write changelog prose that needs product judgment.
+
+Everything else is flag-only, no matter how certain: removed or renamed exports, import-path changes, stale examples, undocumented exports, docs describing dead code or wrappers, doc-drift or dead-doc suspicion. Those need human intent. After applying a safe fix, re-read the edited lines. On mismatch, revert the edit and reclassify the issue as flag-only with its `reasonFlagOnly`.
+
+Two judgment rules apply while flagging. When two sources contradict each other on the same fact, surface both with their evidence and stop for a human ruling. Never resolve the conflict silently. For stacked parse-versus-enforce changes, inspect the code and docs at each tip. A base that stores a field without enforcing it must not claim enforcement, so flag the precise qualification the base tip needs and the restoring wording the enforcing tip needs, keeping semantic prose flag-only unless separately approved.
+
+Sort the final report by severity, then file path.
+
+## What you hand back
+
+A JSON fix ledger with `opCell`, `scope`, `base`, `changedCode`, `relatedDocs`, `fixesApplied`, and `flagged`. Every edit records `file`, `line`, `type`, `before`, `after`, and its evidence source. Every flag-only item records `reasonFlagOnly`. You are done when safe fixes are applied or explicitly unavailable, and all remaining drift is flagged with file:line evidence and reasons. A clean report with no edits is valid only after the diff-to-doc mapping and taxonomy pass actually ran.
+
+If some coupling terms resolve and others do not, report what resolved and flag the rest. Never widen scope to compensate for missing evidence. Reverting means restoring every edited file to its pre-edit content. The ledger before/after pairs make that possible.

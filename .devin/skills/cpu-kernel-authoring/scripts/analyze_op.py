@@ -15,6 +15,19 @@ import ast
 import re
 import sys
 from pathlib import Path
+from typing import TypedDict
+
+
+class KernelAnalysis(TypedDict):
+    """Analysis result shared by analyze_from_file/analyze_from_args and print_analysis."""
+
+    kernel_type: str
+    operations: list[str]
+    activations: list[str]
+    reductions: list[str]
+    elementwise: list[str]
+    shapes: dict[str, int | str]
+    has_gemm: bool
 
 
 class OpAnalyzer(ast.NodeVisitor):
@@ -81,7 +94,7 @@ class OpAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def analyze_from_file(filepath: Path) -> dict[str, object]:
+def analyze_from_file(filepath: Path) -> KernelAnalysis:
     """Analyze PyTorch file and extract optimization hints."""
     with open(filepath, "r") as f:
         source = f.read()
@@ -106,7 +119,7 @@ def analyze_from_file(filepath: Path) -> dict[str, object]:
     return _build_analysis(analyzer, shapes)
 
 
-def analyze_from_args(op_name: str, shapes_str: str) -> dict[str, object]:
+def analyze_from_args(op_name: str, shapes_str: str) -> KernelAnalysis:
     """Analyze operation from command-line args."""
     analyzer = OpAnalyzer()
 
@@ -139,7 +152,7 @@ def analyze_from_args(op_name: str, shapes_str: str) -> dict[str, object]:
     return _build_analysis(analyzer, shapes)
 
 
-def _build_analysis(analyzer: OpAnalyzer, shapes: dict[str, int | str]) -> dict[str, object]:
+def _build_analysis(analyzer: OpAnalyzer, shapes: dict[str, int | str]) -> KernelAnalysis:
     """Build analysis result from analyzer state."""
     kernel_type = "unknown"
     if analyzer.has_matmul or analyzer.has_linear:
@@ -165,7 +178,7 @@ def _build_analysis(analyzer: OpAnalyzer, shapes: dict[str, int | str]) -> dict[
     }
 
 
-def print_analysis(analysis: dict[str, object]):
+def print_analysis(analysis: KernelAnalysis):
     """Pretty print the analysis results with CPU-specific recommendations."""
 
     print(f"\n{'=' * 70}")
@@ -248,7 +261,8 @@ def print_analysis(analysis: dict[str, object]):
     print("  ├── my_kernel_avx512.cpp       # AVX512 implementation")
     print("  └── my_kernel_avx512.hpp")
     print()
-    print("  torch_binding.cpp              # Op registration (registration.h)")
+    print("  torch-ext/")
+    print("  └── torch_binding.cpp          # Op registration (registration.h)")
     print("  build.toml                     # Multi-target compilation config")
     print()
 

@@ -4,53 +4,35 @@ description: 'Use when a human invokes triage on a new configured Slack issue re
 disable-model-invocation: true
 ---
 
-# Triage issue reports
+# Triage a Slack issue report
 
-## Contract
+A human points you at one fresh report in a configured Slack channel and you decide what it deserves: acknowledge, defer, escalate, close, or track it. You speak exactly once in the thread and file at most one tracker issue. Anything outside that channel, or any second verdict on the same report, is out of scope.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Human invokes this skill on a new configured Slack issue report. |
-| Authority | Remote: posts at most one Slack thread verdict and creates at most one tracker issue; requires explicit human invocation. Previews the target and consequence before any credential use, data-at-rest change, paid action, publishing, or remote mutation. |
-| Side effect | Posts at most one Slack thread verdict. Creates at most one tracker issue. |
-| Done | Exactly one classified verdict exists in the thread and tracker state is deduped. |
+## What you need before touching anything
 
-## Inputs
+You need the report URL (`slack_report_url`) first. From it you derive the channel (`slack_channel_id`) and the message timestamp (`slack_thread_ts`). Never accept those derived values from anyone else's summary.
 
-- `slack_report_url`: required. The URL of the new configured Slack issue report to triage.
-- `slack_token`: required at runtime. Slack bot token scoped to post thread replies.
-- `tracker_token`: optional at runtime. Tracker API token for issue creation. Required only if the triage verdict calls for a tracker issue.
-- `tracker_base_url`: required at runtime if `tracker_token` is supplied. The tracker instance base URL.
-- `slack_channel_id`: derived from `slack_report_url`. The Slack channel ID containing the report.
-- `slack_thread_ts`: derived from `slack_report_url`. The thread timestamp of the report message.
+You need a Slack bot token (`slack_token`) scoped to reply in that thread. You need a tracker token (`tracker_token`) plus its instance URL (`tracker_base_url`) only if the verdict ends up calling for a tracker issue. Before any credential use, any data-at-rest change, any paid action, or any publishing or remote write, say plainly what target you will touch and what will change as a consequence.
 
-## Procedure
+## Work the report in order
 
-1. **Validate invocation.** Confirm human invoked this skill. Stop if the call is not human-originated. Done when: human origin is confirmed.
-2. **Fetch the Slack report.** Retrieve the target Slack message using `slack_report_url`. Validate the channel and thread exist. Stop if the message cannot be fetched. Done when: the report message content is in hand.
-3. **Classify the report.** Parse the message content. Apply triage classification to the report content. Accepted verdicts and their criteria:
-   - `ack`: valid report needing no action. The report describes a known, already-tracked condition with no new information. Cite the existing tracker reference or known-status evidence.
-   - `defer`: valid but consciously postponed. The report is actionable but lower priority than current work. Cite the prioritization reason.
-   - `escalate`: urgent or beyond this tracker's scope. The report indicates a security incident, data loss, service outage, or a problem requiring a human outside this tracker's workflow. Cite the urgency signal or scope boundary.
-   - `close`: invalid, already resolved, or not actionable. The report duplicates a resolved issue, describes expected behavior, or lacks reproducible information. Cite the resolution, expected-behavior reference, or the missing-information gap.
-   - `track`: actionable work that must persist, warranting a tracker issue. The report describes a reproducible problem that is not yet tracked. Cite the reproduction evidence.
-   The produced verdict must cite the report evidence satisfying its criterion. Produce a single classified verdict. Done when: one verdict from the accepted set is selected with its evidence citation.
-4. **Check for duplicates.** Query the tracker for any existing issues that reference this Slack report. If a duplicate issue exists and the verdict is `track`, skip creation and mark the existing issue as the target. Done when: the duplicate check is complete and the target issue is identified or confirmed absent.
-5. **Post the verdict to Slack.** Post exactly one thread reply containing the classified verdict and its evidence citation. Stop on failure. Do not post a second reply. Done when: one Slack reply is posted and its timestamp is captured.
-6. **Create tracker issue if warranted.** If the verdict is `track` and no duplicate exists, create exactly one tracker issue linked to the Slack report. Stop on failure. Done when: one tracker issue is created (or skipped as duplicate or not warranted).
-7. **Confirm state.** Verify the Slack reply was posted and the tracker state reflects at most one issue per report. Mark done. Done when: the Slack reply exists and the tracker has at most one issue per report.
+1. Confirm a human asked for this triage, then fetch the message behind `slack_report_url`. When the call is not human originated, stop with no post and no issue. If the channel or thread does not resolve, stop with no post, no issue, and say the report could not be found.
+2. Read the message content and pick exactly one verdict, with the report evidence that earns it. A verdict without its evidence citation is not a verdict. Never invent evidence the report does not contain.
 
-## Failure and recovery
-| Failure class | Rule |
-|---|---|
-| `not-human-originated` | Stop. No post, no issue. Return error. |
-| `report-not-found` | Stop. No post, no issue. Return error. |
-| `duplicate-issue` | Skip creation. Use existing issue. Proceed to post verdict. |
-| `slack-post-failed` | Stop. No tracker issue. Return error with partial result. |
-| `tracker-issue-failed` | Stop. Slack post stands. Return error with partial result. |
+| Verdict | When it fits | Evidence to cite |
+|---|---|---|
+| `ack` | Valid report needing no action, restates a known and already tracked condition with nothing new | Existing tracker reference or known status evidence |
+| `defer` | Valid but consciously postponed, actionable yet lower priority than current work | Prioritization reason |
+| `escalate` | Urgent or outside this tracker scope (security incident, data loss, service outage, or a problem needing a human beyond this workflow) | Urgency signal or scope boundary |
+| `close` | Invalid, already resolved, or not actionable (duplicates a resolved issue, describes expected behavior, or lacks reproducible information) | Resolution, expected behavior reference, or missing information gap |
+| `track` | Actionable work that must persist, a reproducible problem not yet tracked | Reproduction evidence |
+3. Check for duplicates when you can. If `tracker_token` and `tracker_base_url` are present, query the tracker for existing issues referencing this Slack report and record the outcome. Without those credentials, skip the query and record it as skipped. A skip is never proof of absence. When the verdict is `track` and a duplicate exists, drop the creation plan and carry the existing issue URL forward.
+4. Post exactly one thread reply with the verdict and its evidence citation, and capture its timestamp. If the post fails, stop right there and file nothing. A verdict that never landed authorizes no tracker write.
+5. Only when the verdict is `track` and no duplicate exists, create exactly one tracker issue linked to the Slack report. If creation fails after a successful post, leave the posted reply alone. It stands as authoritative and is never edited or deleted to cover the miss.
+6. Confirm the end state: the one reply exists, and where you queried the tracker there is at most one issue per report.
 
-Partial-result rule: if Slack post succeeded but tracker issue creation failed, the Slack reply is authoritative. Do not delete or edit the posted reply.
+## What to hand back
 
-## Output
+Return one JSON object with `verdict` (one of `ack`|`defer`|`escalate`|`close`|`track`), `evidence_citation`, `slack_reply_ts`, `tracker_issue_url` (the created or existing duplicate URL when the verdict is `track`, otherwise null), and `is_duplicate`.
 
-One JSON object: verdict (ack|defer|escalate|close|track), evidence_citation, slack_reply_ts, tracker_issue_url (null when verdict is not track or creation was skipped as duplicate), and is_duplicate.
+Map failures to these outcomes: a non-human call or an unfetchable report stops with an error and no side effects; a duplicate skips creation and still posts; a failed Slack post stops before any tracker write and reports the partial result; a failed tracker write keeps the Slack post and reports the partial result. No failure path claims the triage is complete.

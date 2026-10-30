@@ -39,7 +39,7 @@ linters-settings:
     checks: ["all"]
 ```
 
-`errorlint` enforces `%w` for error wrapping (matches the user's "errors %w typed/sentinel" rule). `exhaustive` with `default-signifies-exhaustive: false` requires every typed-enum `switch` to list each case explicitly, a bare `default` does not silence the lint, so adding a new enum value forces a compile-time review of every switch over it. `staticcheck checks: ["all"]` enables every rule.
+`errorlint` enforces `%w` for error wrapping (matches the user's "errors %w typed/sentinel" rule). `exhaustive` with `default-signifies-exhaustive: false` requires every typed-enum `switch` to list each case explicitly, a bare `default` does not silence the lint, so adding a new enum value forces a lint-time review of every switch over it. `staticcheck checks: ["all"]` enables every rule.
 
 ## Justfile (or Makefile target)
 
@@ -56,7 +56,7 @@ lint:
 verify: vet lint test
 ```
 
-`-race` is the de facto 2026 default for `go test`; without it, data races silently pass.
+`-race` is the recommended 2026 CI default for `go test`; without it, data races silently pass.
 
 ## Schema validators at IO boundaries
 

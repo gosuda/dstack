@@ -1,16 +1,16 @@
 # Zig target triples and CPU names
 
-Every entry below was read from `zig targets` on Zig 0.14.1 or produced by a scratch build on it. The authoritative list on any machine is `zig targets`; re-check it after a Zig upgrade.
+Use this to pick a triple and CPU that your Zig accepts. Every entry below was read from `zig targets` on Zig 0.14.1 or produced by a scratch build on it. The list on your machine is authoritative. Re-check it with `zig targets` after a Zig upgrade.
 
 ## Triple format
 
-`<arch>-<os>-<abi>`. Architectures include `x86_64`, `x86`, `aarch64`, `aarch64_be`, `arm`, `armeb`, `thumb`, `riscv32`, `riscv64`, `mips`, `mipsel`, `mips64`, `mips64el`, `powerpc64le`, `s390x`, `loongarch64`, `wasm32`, `wasm64`, `avr`, `bpfel`, `bpfeb`. Operating systems include `linux`, `windows`, `macos`, `ios`, `freebsd`, `netbsd`, `openbsd`, `dragonfly`, `solaris`, `illumos`, `wasi`, `freestanding`, `uefi`, `other`. ABIs include `none`, `gnu`, `gnueabi`, `gnueabihf`, `musl`, `musleabi`, `musleabihf`, `eabi`, `eabihf`, `msvc`, `android`.
+A triple has the form `<arch>-<os>-<abi>`. Architectures include `x86_64`, `x86`, `aarch64`, `aarch64_be`, `arm`, `armeb`, `thumb`, `riscv32`, `riscv64`, `mips`, `mipsel`, `mips64`, `mips64el`, `powerpc64le`, `s390x`, `loongarch64`, `wasm32`, `wasm64`, `avr`, `bpfel`, and `bpfeb`. Operating systems include `linux`, `windows`, `macos`, `ios`, `freebsd`, `netbsd`, `openbsd`, `dragonfly`, `solaris`, `illumos`, `wasi`, `freestanding`, `uefi`, and `other`. ABIs include `none`, `gnu`, `gnueabi`, `gnueabihf`, `musl`, `musleabi`, `musleabihf`, `eabi`, `eabihf`, `msvc`, and `android`.
 
-There is no `thumbv7m` or `thumbv7em` architecture: the architecture is `thumb` and the `-mcpu` value selects the Cortex-M core.
+There is no `thumbv7m` or `thumbv7em` architecture. The architecture is `thumb`. The `-mcpu` value selects the Cortex-M core.
 
 ## Triples with a bundled libc
 
-These appear under `.libc` in `zig targets` and link without a system sysroot:
+These triples appear under `.libc` in `zig targets`. They link without a system sysroot.
 
 | Triple | Notes |
 |---|---|
@@ -42,6 +42,6 @@ These appear under `.libc` in `zig targets` and link without a system sysroot:
 
 ## CPU names present under `.cpus`
 
-x86_64: `baseline`, `x86_64`, `x86_64_v2`, `x86_64_v3`, `x86_64_v4`, plus named microarchitectures. AArch64: `baseline`, `cortex_a53`, `cortex_a72`, `cortex_a76`, `neoverse_n1`, `apple_m1`, `apple_m2`. ARM and Thumb: `cortex_m0`, `cortex_m0plus`, `cortex_m3`, `cortex_m4`, `cortex_m7`, `cortex_m33`. RISC-V: `baseline`, `generic_rv32`, `generic_rv64`, `sifive_u74`.
+x86_64 carries `baseline`, `x86_64`, `x86_64_v2`, `x86_64_v3`, `x86_64_v4`, plus named microarchitectures. AArch64 carries `baseline`, `cortex_a53`, `cortex_a72`, `cortex_a76`, `neoverse_n1`, `apple_m1`, and `apple_m2`. ARM and Thumb carry `cortex_m0`, `cortex_m0plus`, `cortex_m3`, `cortex_m4`, `cortex_m7`, and `cortex_m33`. RISC-V carries `baseline`, `generic_rv32`, `generic_rv64`, and `sifive_u74`.
 
-Feature syntax appends `+feature` or `-feature`: `x86_64+avx2+bmi2`, `cortex_m4+vfp4`. Feature names are listed per CPU in the same `.cpus` section.
+Append `+feature` or `-feature` to adjust features: `x86_64+avx2+bmi2` or `cortex_m4+vfp4`. Feature names are listed per CPU in the same `.cpus` section.

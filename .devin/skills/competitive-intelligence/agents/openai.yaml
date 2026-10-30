@@ -1,0 +1,3 @@
+interface:
+  display_name: "Competitive Intelligence"
+  short_description: "Use when mapping the competitive landscape and battlecards for a developer product from authoritative sources."

@@ -1,6 +1,6 @@
 # Parse, don't validate: patterns by language
 
-Brief constructor-validation patterns. The type is the proof of validity.
+Brief constructor-validation patterns. A private constructor that checks each value at construction upholds the invariant; the type then records that the check ran.
 
 ## Rust
 

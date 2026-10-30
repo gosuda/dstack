@@ -1,3 +1,0 @@
-interface:
-  display_name: "Bootloaders Embedded"
-  short_description: "Use when writing a custom bootloader, jumping to application code, relocating VTOR, or implementing DFU/USB firmware update on Cortex-M."

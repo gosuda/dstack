@@ -1,3 +1,0 @@
-interface:
-  display_name: "Verify Both Ways"
-  short_description: "Use when a claim needs checking both ways, \"fact-check this\", or an artifact or HTML document needs claims verified and corrected in place."

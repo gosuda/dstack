@@ -2,7 +2,7 @@
 
 Go's I/O is composable: `io.Reader`/`io.Writer` are the universal interfaces; stack them like Unix pipes. Program against `io/fs` (not `*os.File`) so code is testable; reach for `os.Root` [1.24] on any user-controlled path; and treat *durability* (`Sync` + atomic rename) as a deliberate protocol, not a side effect of `Write`.
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. API signatures checked against pkg.go.dev/{os,io,bufio,io/fs} and the go1.16-1.27 release notes.
+> Verified against the final Go **1.27** release notes (go1.27.0, 2026-08-19; re-checked 2026-10). Version tags `[1.N]` mark the release a claim applies to. API signatures checked against pkg.go.dev/{os,io,bufio,io/fs} and the go1.16-1.27 release notes.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -67,23 +67,23 @@ defer os.RemoveAll(dir)
 
 ## io.Reader/Writer Composition {#composition}
 
-Stack readers/writers; each layer transforms the stream, nothing buffers the whole payload.
+Stack readers and writers so each layer transforms the stream and nothing buffers the whole payload. The read path runs file → decrypt → decompress → parse; the write path runs the reverse. `Close` on a writer flushes, so check its error.
 
 ```go
-// Read: file → decrypt → decompress → parse
 file, _ := os.Open("data.gz.enc")
 defer file.Close()
 gz, err := gzip.NewReader(cipher.StreamReader{S: stream, R: file})
 if err != nil { return err }
 defer gz.Close()
 if err := json.NewDecoder(gz).Decode(&result); err != nil { return err }
+```
 
-// Write: encode → compress → encrypt → file
+```go
 file, _ := os.Create("data.gz.enc")
 defer file.Close()
 gw := gzip.NewWriter(cipher.StreamWriter{S: stream, W: file})
-if _, err := io.Copy(gw, src); err != nil { return err } // streams; no full-payload buffer
-if err := gw.Close(); err != nil { return err }          // Close FLUSHES — check its error
+if _, err := io.Copy(gw, src); err != nil { return err }
+if err := gw.Close(); err != nil { return err }
 ```
 
 **Composition interfaces & adapters:**
@@ -102,17 +102,13 @@ if err := gw.Close(); err != nil { return err }          // Close FLUSHES — ch
 
 `io.Copy` and its fast paths: per the docs: *"If src implements `WriterTo`, the copy is implemented by calling `src.WriteTo(dst)`. Otherwise, if dst implements `ReaderFrom`, … `dst.ReadFrom(src)`."* For `*os.File`→`*os.File` this dispatches to kernel `copy_file_range`/`sendfile` ; zero userspace copies.
 
+Let `io.Copy` choose the optimal path, and pass a buffer only to control allocation. A hand-rolled loop defeats `WriteTo`/`ReaderFrom` (loses `sendfile`) and is easy to get wrong.
+
 ```go
-// RIGHT — let io.Copy choose the optimal path; pass a buffer only to control allocation.
-n, err := io.Copy(dst, src)               // 32 KiB internal buffer if no fast path
-n, err := io.CopyBuffer(dst, src, buf)    // reuse your own buffer (pool it in hot loops)
-
-// WRONG — a manual loop defeats WriteTo/ReaderFrom (loses sendfile) and is easy to get wrong.
-buf := make([]byte, 32*1024)
-for { n, err := src.Read(buf); /* ... */ }
+n, err := io.Copy(dst, src)
+n, err = io.CopyBuffer(dst, src, buf)
 ```
-
-Critical rules. `defer f.Close()` on every open; but for files you *write*, also check `Close`'s error (a deferred-only `Close` can swallow a final flush failure; see [durability](#durability)). Drain HTTP bodies fully (`io.Copy(io.Discard, resp.Body)`) before `Close` to enable connection reuse. On `Read`, process `n > 0` **before** the error: the final chunk can arrive together with `io.EOF`.
+Critical rules. `defer f.Close()` on every open; but for files you *write*, also check `Close`'s error (a deferred-only `Close` can swallow a final flush failure; see [durability](#durability)). Drain HTTP bodies fully (`io.Copy(io.Discard, resp.Body)`) before `Close` to enable connection reuse on ≤1.26; on 1.27+ HTTP/1 `Close()` auto-drains up to a conservative limit, and HTTP/2 reuses regardless (details: [http-and-apis.md](http-and-apis.md#http-client)). On `Read`, process `n > 0` **before** the error: the final chunk can arrive together with `io.EOF`.
 
 ---
 
@@ -133,13 +129,9 @@ br := bufio.NewReader(file)        // fewer syscalls for many small reads
 line, err := br.ReadString('\n')   // unbounded line length (grows as needed)
 ```
 
-`defer bw.Flush()` hides errors. A deferred `Flush` whose error you ignore can silently drop the last buffer on a full disk. In write paths, `Flush()` explicitly and check the error before you consider the write done (and before `f.Sync()`):
+`defer bw.Flush()` hides errors. A deferred `Flush` whose error is ignored can silently drop the last buffer on a full disk. In write paths, call `Flush` explicitly and check the error before the write counts as done (and before `f.Sync()`):
 
 ```go
-// WRONG — flush error swallowed; truncated file looks like success.
-bw := bufio.NewWriter(f); defer bw.Flush()
-
-// RIGHT
 bw := bufio.NewWriter(f)
 // ... writes ...
 if err := bw.Flush(); err != nil { return err }
@@ -165,12 +157,9 @@ if err := sc.Err(); err != nil {           // ErrTooLong surfaces HERE, not from
 
 The token-size trap. `Scanner.Scan` returns `false` both at EOF *and* on error. A line longer than the buffer's max stops the scan and stores `bufio.ErrTooLong` ("bufio.Scanner: token too long"), invisible unless you check `sc.Err()`. `Buffer(buf, max)` sets the initial buffer **and** the ceiling; the effective max is `max(max, cap(buf))`. For genuinely unbounded lines (logs, NDJSON with huge records), skip `Scanner` and use `bufio.Reader.ReadString('\n')` / `ReadBytes`, which grow without limit.
 
-```go
-// WRONG — long line silently truncates the stream; loop just ends early.
-sc := bufio.NewScanner(r)
-for sc.Scan() { process(sc.Text()) }       // no Err() check → ErrTooLong swallowed
+A loop without an `Err` check ends early on a long line and swallows `ErrTooLong`. For unbounded lines, `ReadString` grows as needed:
 
-// RIGHT for unbounded lines — ReadString grows as needed.
+```go
 br := bufio.NewReader(r)
 for {
     line, err := br.ReadString('\n')
@@ -311,7 +300,7 @@ var templates embed.FS
 count, _ := CountGoFiles(templates)                     // embedded files — embed.FS IS an fs.FS
 ```
 
-Testable file access with `fstest.MapFS` [1.16], no temp dirs, deterministic, fast:
+Testable file access with `fstest.MapFS` [1.16], no temp dirs, deterministic, fast. Assert the tracking invariant, not a fixed count tied to the fixture: adding a `.go` entry grows the count by one, while a non-Go entry leaves it unchanged.
 
 ```go
 import "testing/fstest"
@@ -321,8 +310,15 @@ testFS := fstest.MapFS{
     "lib/util.go": {Data: []byte("package lib")},
     "readme.txt":  {Data: []byte("hello")},
 }
-got, _ := CountGoFiles(testFS)   // 2
-// fstest.TestFS(testFS, "main.go") additionally checks your FS impl obeys the fs.FS contract.
+base, _ := CountGoFiles(testFS)
+testFS["new.go"] = &fstest.MapFile{Data: []byte("package main")}
+grown, _ := CountGoFiles(testFS)
+testFS["notes.txt"] = &fstest.MapFile{Data: []byte("hello")}
+same, _ := CountGoFiles(testFS)
+if grown != base+1 || same != grown {
+    return errors.New("go-file count does not track .go entries")
+}
+// fstest.TestFS(testFS, "main.go") checks the FS implementation obeys the fs.FS contract.
 ```
 
 **Key interfaces & helpers in `io/fs`:**
@@ -338,10 +334,9 @@ got, _ := CountGoFiles(testFS)   // 2
 
 Free functions `fs.WalkDir`, `fs.Glob`, `fs.ReadFile`, `fs.ReadDir`, `fs.Stat`, `fs.Sub` work on **any** `fs.FS`. `fs.FS` is read-only by design; there is no `fs.WriteFS`; for writes use `*os.File`/`os.Root`. `fs.WalkDir` uses slash paths; reach for `path`, never `path/filepath`.
 
+`filepath` corrupts `fs.FS` names with OS separators on Windows and inside archives. Use `path`:
+
 ```go
-// WRONG — OS separators corrupt fs.FS names on Windows / inside archives.
-if filepath.Ext(name) == ".go" { /* ... */ }
-// RIGHT
 if path.Ext(name) == ".go" { /* ... */ }
 ```
 
@@ -444,7 +439,7 @@ Caveats that bite: advisory locks don't stop a non-cooperating writer; locks are
 | **1.24** | **`os.Root`** / `os.OpenRoot` / `os.OpenInRoot` ; traversal- & symlink-safe rooted I/O |
 | **1.25** | `os.Root` expanded (`Chmod`,`Chown`,`Chtimes`,`Lchown`,`Link`,`MkdirAll`,`RemoveAll`,`ReadFile`,`WriteFile`,`Symlink`,`Readlink`, nested `OpenRoot`); `io/fs.ReadLinkFS`; `os.DirFS`/`Root.FS` implement it |
 | **1.26** | I/O surface stable; broader stdlib changes (see errors-and-resilience.md) |
-| **1.27 (RC)** | `encoding/json/v2` GA (affects streaming JSON decoders over readers). Treat as draft until GA (~Aug 2026) `[verify]`. |
+| **1.27** | `encoding/json/v2` + `encoding/json/jsontext` standard (GA 2026-08-19); v1 `encoding/json` re-backed by v2, error text may differ. Affects streaming JSON decoders over readers. |
 
 ---
 

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Grill Core"
+  short_description: "Use when the cause is unknown, the fault recurs as a class, or a review comment needs a root-design repair rather than a patch."

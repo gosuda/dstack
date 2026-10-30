@@ -2,7 +2,7 @@
 
 Most teams reach for a broker before they need one. If your write fits in one Postgres transaction, stop. You don't have an event-driven problem yet. Eventing earns its complexity only when producers and consumers must evolve and scale independently. The load-bearing decisions are *delivery semantics* (at-least-once is the only honest default), *ordering vs. parallelism* (you get one, keyed by partition), and *idempotency* (what makes redelivery safe). Brokers are interchangeable; those three are not.
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06. Library versions checked against pkg.go.dev. Baseline **1.22**. This file is the event-driven *delta*: channel mechanics, goroutine lifecycle, and errgroup live in [concurrency.md](concurrency.md); outbox, sagas, and event sourcing live in [distributed-systems.md](distributed-systems.md).
+> Verified against Go **1.27.x** (stable; go1.27.0 2026-08-19) release notes, re-checked 2026-10. Library versions checked against pkg.go.dev. Baseline **1.27** (current stable; work within the module's `go` line, per SKILL.md). This file is the event-driven *delta*: channel mechanics, goroutine lifecycle, and errgroup live in [concurrency.md](concurrency.md); outbox, sagas, and event sourcing live in [distributed-systems.md](distributed-systems.md).
 
 ## TL;DR: the deltas that matter (read first)
 
@@ -39,6 +39,8 @@ Most teams reach for a broker before they need one. If your write fits in one Po
 
 Before a broker, the idiomatic decoupling primitive is a channel. A typed in-process bus fans one event out to N subscribers without the publisher knowing who they are (useful for cache invalidation, metrics, or audit hooks within *one* process).
 
+Size each subscriber buffer for the expected burst. `Subscribe` maps zero or negative to 64, so pass an explicit size when 64 does not cover the burst: a buffer of 1 drops ordinary traffic, not just overflow. The `default` branch in `Publish` drops whenever a subscriber buffer is full, so keep it off the normal delivery path. If every subscriber must receive every event, buffer for the burst (or block on purpose), and count drops in a metric so a too-small buffer shows up instead of silently losing events.
+
 ```go
 type Bus[T any] struct {
     mu   sync.RWMutex
@@ -47,25 +49,22 @@ type Bus[T any] struct {
 
 func (b *Bus[T]) Subscribe(buf int) <-chan T {
     if buf <= 0 {
-        buf = 64 // sane default: absorb normal bursts. A buffer of 0 or 1 drops
-                 // ordinary traffic (the publisher can't block), not just overflow.
+        buf = 64
     }
     ch := make(chan T, buf)
-    b.mu.Lock(); b.subs = append(b.subs, ch); b.mu.Unlock()
+    b.mu.Lock()
+    b.subs = append(b.subs, ch)
+    b.mu.Unlock()
     return ch
 }
 
-// Publish never blocks the caller. The default branch is an OVERFLOW valve for a
-// genuinely stalled subscriber — NOT normal-case loss: size the buffer to your
-// expected burst and ordinary traffic is delivered in full. If the contract is
-// "every subscriber receives every event," buffer for the burst (or block
-// deliberately) — honor the delivery contract; don't let a tiny buffer silently drop.
 func (b *Bus[T]) Publish(ev T) {
-    b.mu.RLock(); defer b.mu.RUnlock()
+    b.mu.RLock()
+    defer b.mu.RUnlock()
     for _, ch := range b.subs {
         select {
         case ch <- ev:
-        default: // buffer full = a stalled consumer; drop (or count a metric, or block)
+        default:
         }
     }
 }
@@ -95,20 +94,29 @@ Three models exist; the difference is *when you acknowledge relative to the side
 | **At-least-once** | Ack **after** the effect commits | Duplicates on redelivery | **The default.** Pair with idempotency |
 | **Exactly-once** | n/a | *Does not exist end-to-end* | A closed-system illusion (see below) |
 
-```go
-// WRONG — "auto-commit" / autoAck is at-MOST-once wearing an at-least-once costume.
-// A crash between receive and the DB write loses the message with no trace.
-msg := <-deliveries          // broker considers it delivered & acked immediately
-process(msg)                 // crash here → gone forever
+Auto-commit (or auto-ack) is at-most-once wearing an at-least-once costume: a crash between receive and the database write loses the message with no trace. For at-least-once, the broker keeps the message until you ack, and you ack after the effect commits.
 
-// RIGHT — at-least-once: the broker keeps the message until YOU ack, after commit.
-msg, _ := r.FetchMessage(ctx)        // received, NOT acked
-if err := process(ctx, msg); err != nil {
-    return err                       // no ack → broker redelivers
-}
-r.CommitMessages(ctx, msg)           // ack only after the effect is durable
+```go
+msg := <-deliveries
+process(msg)
 ```
 
+The broker marked the message delivered on receipt. A crash after this point loses it.
+
+```go
+msg, err := r.FetchMessage(ctx)
+if err != nil {
+    return err
+}
+if err := process(ctx, msg); err != nil {
+    return err
+}
+if err := r.CommitMessages(ctx, msg); err != nil {
+    return err
+}
+```
+
+The message stays with the broker until `CommitMessages` succeeds, so a crash before that point redelivers it. A failed commit returns an error instead of passing silently.
 **Why "exactly-once" is an illusion.** Kafka's transactional producer and JetStream's `WithMsgID` dedup are real, but they guarantee exactly-once *processing within the broker's own state*: the read-process-write loop where both the write and the offset commit land in one Kafka transaction. The instant your consumer calls an external API, charges a card, or writes to a second datastore, the broker can't make that effect atomic with the ack. A crash after the effect but before the ack *will* redeliver. So:
 
 > The realistic target is **at-least-once delivery + idempotent processing**. Idempotency (dedup keys, `INSERT ... ON CONFLICT DO NOTHING`, conditional writes, a processed-message table) is what makes "deliver twice" equal "happen once." Build it; don't chase exactly-once.
@@ -147,7 +155,7 @@ w.WriteMessages(ctx,
 |---|---|---|---|---|
 | **Kafka** | `twmb/franz-go` | Yes | Partitioned log, replay | Full Kafka (txns, cooperative rebalance) without CGo |
 | **Kafka** | `segmentio/kafka-go` | Yes | Partitioned log | Simple produce/consume; no txns, no cooperative rebalance |
-| **Kafka** | `confluent-kafka-go/v2` | No (CGo) | Partitioned log | Exactly-once-processing txns, librdkafka parity |
+| **Kafka** | `confluent-kafka-go/v2` (v2.16.1) | No (CGo, librdkafka 2.16.0) | Partitioned log | Exactly-once-processing txns, librdkafka parity |
 | **RabbitMQ** | `rabbitmq/amqp091-go` | Yes | Broker w/ exchanges & routing | Complex routing, work queues, native DLX |
 | **Redis Streams** | `redis/go-redis/v9` | Yes | Lightweight log | Redis already deployed; modest throughput |
 | **NATS JetStream** | `nats-io/nats.go/jetstream` | Yes | Streams + consumers | Cloud-native, low-latency, simple ops |
@@ -161,7 +169,7 @@ w.WriteMessages(ctx,
 
 |  | segmentio/kafka-go | franz-go | confluent-kafka-go/v2 |
 |---|---|---|---|
-| Dependency | Pure Go | Pure Go | CGo (librdkafka) |
+| Dependency | Pure Go | Pure Go | CGo (bundles librdkafka 2.16.0) |
 | Cross-compile | Easy | Easy | Needs C toolchain |
 | Transactions (EOS) | **No** | Yes | Yes |
 | Cooperative rebalance | **No** (eager only) | Yes | Yes |
@@ -206,7 +214,7 @@ for {
 }
 ```
 
-`confluent-kafka-go/v2` adds exactly-once-*processing* via `InitTransactions → BeginTransaction → Produce → SendOffsetsToTransaction → CommitTransaction`, which commits the produced records *and* the input offsets atomically: the genuine read-process-write EOS loop, but only inside Kafka.
+`confluent-kafka-go/v2` (v2.16.1, bundling librdkafka 2.16.0) adds exactly-once-*processing* via `InitTransactions → BeginTransaction → Produce → SendOffsetsToTransaction → CommitTransaction`, which commits the produced records *and* the input offsets atomically: the genuine read-process-write EOS loop, but only inside Kafka.
 
 ---
 
@@ -439,7 +447,7 @@ for {
 |---|---|---|
 | `twmb/franz-go` | **Active, recommended** | Kafka in pure Go: txns, cooperative rebalance, perf |
 | `segmentio/kafka-go` | Active, simpler | Straightforward Kafka; no txns/cooperative rebalance |
-| `confluent-kafka-go/v2` | Active (CGo) | librdkafka parity, EOS-processing, accept the C toolchain |
+| `confluent-kafka-go/v2` | Active (v2.16.1, CGo; bundles librdkafka 2.16.0) | librdkafka parity, EOS-processing, accept the C toolchain |
 | `IBM/sarama` | Active (was `Shopify/sarama`) | Legacy Kafka codebases; verbose API |
 | `rabbitmq/amqp091-go` | **Active, official** | RabbitMQ (replaces archived `streadway/amqp`) |
 | `redis/go-redis/v9` | Active | Redis Streams + general Redis |
@@ -485,7 +493,7 @@ for {
 
 ## Sources {#sources}
 
-- pkg.go.dev: [twmb/franz-go](https://pkg.go.dev/github.com/twmb/franz-go) ([kgo](https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo)) | [segmentio/kafka-go](https://pkg.go.dev/github.com/segmentio/kafka-go) | [nats-io/nats.go/jetstream](https://pkg.go.dev/github.com/nats-io/nats.go/jetstream) | [rabbitmq/amqp091-go](https://pkg.go.dev/github.com/rabbitmq/amqp091-go) | [redis/go-redis/v9](https://pkg.go.dev/github.com/redis/go-redis/v9) | [ThreeDotsLabs/watermill](https://pkg.go.dev/github.com/ThreeDotsLabs/watermill) ([message](https://pkg.go.dev/github.com/ThreeDotsLabs/watermill/message)) | [cloudevents/sdk-go/v2](https://pkg.go.dev/github.com/cloudevents/sdk-go/v2)
+- pkg.go.dev: [twmb/franz-go](https://pkg.go.dev/github.com/twmb/franz-go) ([kgo](https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo)) | [segmentio/kafka-go](https://pkg.go.dev/github.com/segmentio/kafka-go) | [confluent-kafka-go/v2](https://pkg.go.dev/github.com/confluentinc/confluent-kafka-go/v2/kafka) (v2.16.1, librdkafka 2.16.0) | [nats-io/nats.go/jetstream](https://pkg.go.dev/github.com/nats-io/nats.go/jetstream) | [rabbitmq/amqp091-go](https://pkg.go.dev/github.com/rabbitmq/amqp091-go) | [redis/go-redis/v9](https://pkg.go.dev/github.com/redis/go-redis/v9) | [ThreeDotsLabs/watermill](https://pkg.go.dev/github.com/ThreeDotsLabs/watermill) ([message](https://pkg.go.dev/github.com/ThreeDotsLabs/watermill/message)) | [cloudevents/sdk-go/v2](https://pkg.go.dev/github.com/cloudevents/sdk-go/v2)
 - [Watermill 1.5 release](https://threedots.tech/post/watermill-1-5/); backends `watermill-kafka/v3`, `watermill-nats/v2`, `watermill-amqp/v3`, `watermill-sql/v4`
 - [Kafka delivery semantics](https://docs.confluent.io/kafka/design/delivery-semantics.html); KIP-429 (incremental cooperative rebalancing) | [RabbitMQ DLX](https://www.rabbitmq.com/docs/dlx) | [NATS JetStream model](https://docs.nats.io/using-nats/developer/develop_jetstream/model_deep_dive)
 - segmentio group balancers (Range/RoundRobin/RackAffinity, no cooperative): [groupbalancer.go](https://github.com/segmentio/kafka-go/blob/main/groupbalancer.go)

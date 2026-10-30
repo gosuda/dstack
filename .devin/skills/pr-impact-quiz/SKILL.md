@@ -4,41 +4,31 @@ description: 'Use when the user invokes this skill to generate targeted question
 disable-model-invocation: true
 ---
 
-# PR impact quiz
+# Quizzing what a change really touches
 
-## Contract
+This skill does not review the change (that belongs to review). It tests whether the author understands what the change does to the existing codebase, by writing three questions only the person who traced the blast radius could answer well. Everything here is read-only: no file, VCS, credential, paid, published, deployed, or remote mutation, and the questions return in chat only.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User wants a small set of impact questions proving the author understands how the change affects the existing codebase. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat output of three impact questions. |
-| Done | Three impact questions are generated for the author to answer. |
+## What you work from
 
-## Inputs
+All material is author-supplied. You never call out to any forge, because provider ambiguity never justifies a remote read.
 
-The skill requires:
+- PR or MR description (required): the authored description of the change, including motivation, scope, and expected behavior.
+- Diff or change summary (required): the diff itself or a structured summary of what changed.
+- Codebase context (required): language, primary modules, and key patterns in the affected area.
+- MR context (GitLab only, optional): source and target branch names plus draft state. When present, one question must probe target-branch compatibility. For fork MRs, bind source and target projects separately.
 
-- PR description: The authored description of the change, including motivation, scope, and expected behavior. Required.
-- Diff or change summary: The diff or a structured summary of what changed. Required.
-- Codebase context: The language, primary modules, and key patterns in the affected area. Required.
+When the description or diff is absent or empty, state what is required and generate nothing. When the diff contains no changed lines, state that no changes are present and generate nothing. No partial output counts: when the completion bar below is not met, no questions go out.
 
-## Procedure
+## How the three questions earn their place
 
-1. Read the PR description and diff or change summary. Done when: the description and diff are read.
-2. Identify the primary modules, interfaces, and data flows the change touches. Done when: the touched modules, interfaces, and data flows are identified.
-3. Identify possible effects on callers, downstream consumers, or shared state. Done when: possible effects on callers, consumers, and shared state are identified.
-4. Write three impact questions that require the author to confirm how the change affects the existing codebase. Each question must target a specific area of the codebase (not a generic concern), require a concrete answer (not a yes/no or "I checked"), and probe a different impact axis (call-site behavior, data invariants, or backward compatibility). Done when: three concrete, non-generic questions probing distinct impact axes are written.
-5. Present the three questions in the chat output. Done when: the three questions are presented in chat.
+Read the description and the diff, then map what the change touches: the primary modules, interfaces, and data flows, and the possible effects on callers, downstream consumers, and shared state. From that map write exactly three impact questions with these properties:
 
-## Failure and recovery
-| Failure class | Condition | Result |
-|---|---|---|
-| Missing input | PR description or diff is absent or empty | State what is required and do not generate questions. |
-| Empty diff | Diff contains no changed lines | State that no changes are present and do not generate questions. |
-| Non-converged | Questions are generic, redundant, or require only yes/no answers | Stop; do not present. The done predicate does not hold. |
+- Each question targets a specific area of this codebase, not a generic concern.
+- Each question demands a concrete answer. Anything answerable with yes, no, or "I checked" fails the bar and is rewritten or dropped.
+- The three questions probe different impact axes: call-site behavior, data invariants, backward compatibility (or the target-branch compatibility probe when GitLab MR context is present).
 
-No rollback is required. No partial result is returned when the done predicate does not hold.
+When the draft questions are generic, redundant, or yes-or-no answerable, stop. Do not present them. The run is non-converged and the done bar below does not hold.
 
-## Output
-Three concrete, non-generic impact questions in chat, each addressing a distinct area of potential effect on the existing codebase.
+## What you hand back
+
+Three concrete, non-generic impact questions in chat, each aimed at a distinct area of effect on this codebase. Nothing else is the deliverable: no review verdict, no fix list, no remote write.

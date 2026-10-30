@@ -1,13 +1,13 @@
-# Experiment mode: metric-driven optimization for broad search spaces
+# Running broad metric searches without losing the plot
 
 An optional extension to the primary hot-path optimization loop. Use when the target has
-a measurable metric but the search space is broad, parameter tuning, prompt optimization,
-threshold finding, configuration search, rather than a single hot-path transform.
+a measurable metric but the search space is broad (parameter tuning, prompt optimization,
+threshold finding, configuration search) rather than a single hot-path transform.
 
 The primary optimize loop (five-lens fan-out, benchmark, gate, commit) remains the default.
 Experiment mode applies only when the conditions below are met.
 
-## When to use experiment mode
+## When this mode earns its keep
 
 - The optimization target has a measurable metric (latency, accuracy, cost, throughput) but
   no single obvious hot-path transform addresses it.
@@ -17,31 +17,29 @@ Experiment mode applies only when the conditions below are met.
   optimize the metric without improving the real objective.
 - NOT for single hot-path transforms. That is the main optimize loop's job.
 
-**First-run advice:** start serial (no parallel experiments), cap iterations at 10-15, use
-the smallest sample sizes that still pass the variance check. Scale up only after the loop
-proves productive.
+Start serial (no parallel experiments), cap iterations at 10-15, and use the smallest sample
+sizes that still pass the variance check. Scale up only after the loop proves productive.
 
-## Benchmark loop discipline
+## Holding the loop to a measured baseline
 
-1. **Define the measurement harness before generating hypotheses.** The harness is the
-   contract: it specifies what is measured, how, and with what parameters. No harness, no
+1. **Set the harness before dreaming up hypotheses.** The harness is the
+   contract: it says what is measured, how, and with what parameters. No harness, no
    experiments.
-2. **Run baseline measurement with variance check.** stddev must be < 20% of median. Fix
-   noise before proceeding (pin CPU, isolate process, widen sample count).
-3. **Each experiment:** apply variant, measure, record result immediately to disk.
-4. **Verify writes.** Read back every critical write. Disk is the source of truth, not
+2. **Pin the baseline and check its variance.** Stddev must be under 20% of the median. Fix
+   noise before proceeding (pin CPU, isolate the process, widen the sample count).
+3. **Each experiment:** apply the variant, measure, and record the result to disk immediately.
+4. **Read back every critical write.** Disk is the source of truth, not
    context or memory.
-5. **Crash-recovery markers.** In worktrees, mark each experiment's state so an interrupted
+5. **Leave crash-recovery markers.** In worktrees, mark each experiment's state so an interrupted
    run can resume without re-running completed work.
-6. **Strategy digest after each batch.** Compress learnings into a short summary after every
-   batch of experiments: what worked, what failed, what to try next. This keeps context
-   bounded across long runs.
+6. **Write a short strategy digest after each batch.** Sum up what worked, what failed, and what
+   to try next. This keeps context bounded across long runs.
 
-## Experiment-log schema
+## What lives in the experiment log
 
 Run state lives at `.outline/optimize/<target>/experiment-log.yaml`.
 
-**Persistence model:** `experiments` is append-only: each experiment record is written
+The `experiments` list is append-only: each experiment record is written
 the moment it completes and never rewritten. The `best` and `hypothesis_backlog` fields
 are mutable checkpoint state: rewritten after each batch evaluation, once the batch
 results are verified on disk. On crash recovery, replay `experiments` to reconstruct
@@ -75,7 +73,7 @@ hypothesis_backlog:      # remaining hypotheses
     priority: <enum>     # high | medium | low
 ```
 
-### Outcome state transitions
+### What each outcome means
 
 - `measured`: raw metrics persisted, awaiting batch evaluation
 - `kept`: improved primary metric, gates passed
@@ -83,7 +81,7 @@ hypothesis_backlog:      # remaining hypotheses
 - `degenerate`: gate failed (metric gamed, output degenerate)
 - `error` / `timeout`: measurement failure
 
-## Stopping rules
+## Knowing when to stop
 
 Evaluate before each new experiment. Stop on the first that trips:
 
@@ -94,12 +92,12 @@ Evaluate before each new experiment. Stop on the first that trips:
 - Judge budget exhausted. Cumulative judge spend >= cap (when using judge mode).
 - Empty backlog. No hypotheses remain and no new ones can be generated.
 
-## Judge rubric (for qualitative metrics)
+## Judging quality a raw number cannot catch
 
 Use when the metric can be gamed or human judgment matters: clustering quality, search
 relevance, summarization quality, prompt quality.
 
-### Three-tier approach
+### Three passes, cheapest first
 
 1. **Degenerate gates** (hard, cheap, fast). Catch obviously broken solutions. Run first.
    If gates fail, skip the expensive judge step. Examples: output length bounds, format
@@ -111,20 +109,20 @@ relevance, summarization quality, prompt quality.
 3. **Diagnostics** (logged, not gated). Distribution stats, counts, timing, useful for
    understanding why a judge score changed, not for accept/reject decisions.
 
-### Rubric design
+### Writing a rubric two judges can share
 
 - 1-5 scale with concrete per-level descriptions (not vague "good/bad").
 - Supplementary diagnostic fields: what specifically was scored, what drove the rating.
 - Specific enough that two independent judge runs on the same output converge.
 
-### Sampling strategy
+### Sampling without fooling yourself
 
 - Stratified by output characteristics (length, complexity, domain).
 - Include edge cases and singletons when coverage matters.
 - Sample size: minimum 5 per stratum for stable estimates; scale up for high-variance
   domains.
 
-## Hypothesis generation
+## Keeping the hypothesis pipeline fed
 
 1. Analyze current code and configuration to identify improvement opportunities.
 2. Generate 10-30 initial hypotheses. Each has: description, category, priority.

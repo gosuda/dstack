@@ -1,0 +1,3 @@
+interface:
+  display_name: "Modernize"
+  short_description: "Use when a human explicitly asks whether an aging pull request should still land, whether an old PR should be rebased, or whether a stale branch should be revived."

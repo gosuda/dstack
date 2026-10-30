@@ -14,6 +14,13 @@ Fill the slots at dispatch time and send this as the whole assignment.
 You are reviewing one pull request. Return findings only. You have no merge, push, comment, or
 close authority, and you will not be asked for a verdict.
 
+Provider: GitHub or GitLab, bound from the verified request URL or repository remote
+before any read. Bind host, project (OWNER/REPO or GROUP/PROJECT), and number/IID
+separately. On GitLab the number is the MR IID in project scope; never use a GitHub
+node ID. On a fork bind the head (source) project apart from the target project, and
+on self-managed GitLab bind its host rather than defaulting to a public one. If the
+provider or any of these is ambiguous, stop the dispatch.
+
 <pr>
 Number: {number}
 Title: {title}
@@ -22,10 +29,23 @@ Base: {base_ref}
 </pr>
 
 <what-to-read>
-Read the file set and the whole diff:
+Read the file set and the whole diff. GitHub:
 
   gh pr diff {number} --name-only
   gh pr diff {number}
+
+GitLab (MR IID {number} in the bound project; `glab mr diff` takes no SHA option,
+so pin the head by reading the MR before and after the diff):
+
+  glab mr view {number} -F json
+  glab mr diff {number}
+  glab mr view {number} -F json
+
+Record `sha` (or `diff_refs.head_sha`) from the first read and review exactly that
+head. If the second read shows a different head SHA, reject the reading and stop:
+the review would otherwise inspect a head the orchestrator will not merge. The
+six finding classes, the return block shape, and the tests-gate questions are
+identical on both providers.
 
 Read the surrounding code for any file the diff changes. A finding you cannot ground in code you
 actually read is not a finding.
@@ -35,7 +55,7 @@ actually read is not a finding.
 Report the file set as one of three shapes:
 
 - A file set spanning unrelated subsystems under a title naming one concern: report as mixed
-  concerns. That mixing is what makes the revert impossible later.
+  concerns. That mixing is what makes the revert harder later.
 - A lockfile or generated path alongside source: report it. A PR that is only a lockfile or only
   generated output is one concern and passes.
 - Otherwise: one concern, no finding.
@@ -89,11 +109,11 @@ look thorough.
 
 | Slot | Source |
 |---|---|
-| `{number}` | The PR number from the queue listing |
-| `{title}` | `title` from the queue listing |
-| `{head_ref}` | `headRefName` from the queue listing |
-| `{head_ref_oid}` | `headRefOid` from the queue listing, so the subagent reviews the head the orchestrator will merge |
-| `{base_ref}` | `baseRefName`, re-read at the PR's turn rather than taken from the graph drawn at the start |
+| `{number}` | GitHub: the PR number from the queue listing. GitLab: the MR IID in the bound project scope |
+| `{title}` | GitHub: `title` from the queue listing. GitLab: `title` from `glab mr view -F json` |
+| `{head_ref}` | GitHub: `headRefName` from the queue listing. GitLab: `source_branch` from `glab mr view -F json` |
+| `{head_ref_oid}` | GitHub: `headRefOid` from the queue listing. GitLab: `sha` (or `diff_refs.head_sha`) from `glab mr view -F json`, so the subagent reviews the head the orchestrator will merge |
+| `{base_ref}` | GitHub: `baseRefName`, re-read at the PR's turn rather than taken from the graph drawn at the start. GitLab: `target_branch`, re-read at the MR's turn the same way |
 
 ## Why the split exists
 

@@ -12,7 +12,7 @@ Color overdose is the first slop tell on `references/anti-slop.md` §1, a TUI th
 
 ## 2. Bubble Tea v2 (Go)
 
-Charm shipped Bubble Tea v2, Lip Gloss v2, and Bubbles v2 stable on **February 23 2026**. The v2 line is the current target for new Go TUIs; v1 is in maintenance. Current lines: Bubble Tea v2.0.x, Lip Gloss v2.0.x, Bubbles v2.2.x. The v2 module paths are `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`; the `github.com/charmbracelet/*` paths are the v1 line.
+Charm shipped Bubble Tea v2, Lip Gloss v2, and Bubbles v2 stable on **February 23 2026**. The v2 line is the current target for new Go TUIs; v1 is in maintenance. Current lines: Bubble Tea v2.1.1, Lip Gloss v2.0.6, Bubbles v2.2.1. The v2 module paths are `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`; the `github.com/charmbracelet/*` paths are the v1 line.
 
 - Bubble Tea v2: ELM-style model/update/view loop with explicit message passing. `View()` now returns a `tea.View` struct rather than a string. Bubble Tea owns I/O (keyboard input, background-color queries via `tea.RequestBackgroundColor`); Lip Gloss is the styling library it drives.
 - Cursed Renderer: new in v2, ncurses-derived diff renderer; reported ~10× faster than the v1 default renderer on update-heavy frames.
@@ -59,10 +59,10 @@ The `BackgroundColorMsg` may never arrive (terminal refused, SSH chain ate it), 
 
 ## 3. Ratatui 0.30+ (Rust)
 
-Ratatui 0.30.x is the current stable line. Immediate-mode TUI: re-render the whole frame each tick. Conceptually inverse to Bubble Tea's retained-mode/ELM loop, there is no model the runtime preserves between frames; the application owns state and re-emits widgets.
+Ratatui 0.30.2 is the current stable line. Immediate-mode TUI: re-render the whole frame each tick. Conceptually inverse to Bubble Tea's retained-mode/ELM loop, there is no model the runtime preserves between frames; the application owns state and re-emits widgets.
 
 - 0.30 workspace split: single monolithic crate split into `ratatui-core`, `ratatui-widgets`, `ratatui-crossterm`, etc., for compile-time and API-stability reasons.
-- WidgetRef stability: remains gated behind the `unstable-widget-ref` feature flag in 0.30; some sources describe it as stabilizing in the 0.30.x line, but the upstream API is still marked unstable. Treat as unstable until a 0.30.x point release lifts the flag.
+- WidgetRef stability: remains gated behind the `unstable-widget-ref` feature flag in 0.30; some sources describe it as stabilizing in the 0.30.2 line, but the upstream API is still marked unstable. Treat as unstable until a 0.30.2 point release lifts the flag.
 
 ```rust
 // Frame::render_widget — the immediate-mode entry point.
@@ -86,7 +86,7 @@ Reach for Ratatui when the surface needs deterministic layout (every frame is re
 
 ## 4. Textual (Python)
 
-Textual 8.2.x ships a CSS-like layout system on top of Python and runs against both terminal and web (via Textual Web). Trade-off: dual-target costs some terminal density and ties the surface to Python startup latency, but gives one codebase for two delivery surfaces.
+Textual 8.2.8 ships a CSS-like layout system on top of Python and runs against both terminal and web (via Textual Web). Trade-off: dual-target costs some terminal density and ties the surface to Python startup latency, but gives one codebase for two delivery surfaces.
 
 - App / Screen / Widget: three-level hierarchy; widgets compose into screens, screens stack inside an app. Reactive properties (`reactive[T]`) trigger automatic re-render on assignment.
 - CSS-in-Python: selectors, pseudo-classes, theme variables (`$primary`, `$surface`), and a subset of CSS properties; not full CSS, but the mental model transfers.

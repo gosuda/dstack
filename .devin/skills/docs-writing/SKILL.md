@@ -5,57 +5,99 @@ description: 'Use when asked to write, restructure, or audit documentation with 
 
 # Docs writing
 
-## Contract
+Good documentation lets a reader find the right page, follow it unaided, and trust what it says. This skill produces docs that each serve one purpose (learning, doing, looking up, or understanding) and that survive a strict audit before they reach the reader.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Write docs, audit docs, restructure documentation, draft a feature docs page, draft documentation or diagram source, Diataxis, API reference, tutorial, how-to guide |
-| Authority | Reversible local: writes only documentation files or diagram sources in the named target set inside the working repository, rejecting paths outside it or protected files; rollback is version control. No remote mutation. |
-| Side effect | Drafts, audits, and writes or restructures docs or diagram sources in the target directory. Presents the draft to the human for review before writing. |
-| Done | Docs follow Diataxis types, pass the rule-based audit with no unmet criteria, are reviewed by the human, and are saved at the target path. |
+Use it when someone asks for new docs, a restructure, an audit, a feature docs page, or a diagram source. Anything that argues why a decision was made belongs elsewhere, not here.
 
-## Inputs
+## What you are allowed to touch
 
-Required: the target documentation directory or file set to write, restructure, or audit; the intent (write new docs, audit existing docs, restructure, or draft feature docs); the documentation subject; the intended audience; and the output format (markdown, plain text, or a diagram source).
+You work only inside the named documentation directory or file set in the working repository. You never write outside that set, never touch protected files, and never mutate anything remote. Every write is a local file write, reversible through version control. If the target path sits outside the repo or on a protected file, stop and name the rejected path before writing anything.
 
-For feature docs drafting, also required: the feature specification or PRD, and the codebase path where the feature is implemented.
+## What you need before you start
 
-Optional: an existing Diataxis map of the doc set; a scope limit naming which files are in bounds; existing documentation to update; diagram type; and length limit.
+Ask for anything missing and write nothing until you have it:
 
-## Procedure
+- The target directory or file set, the intent (new docs, audit, restructure, or feature draft), the subject, the intended audience, and the output format (markdown, plain text, or a diagram source).
+- For feature docs, additionally the feature specification or PRD and the codebase path where the feature is implemented.
+- Helpful when available: an existing Diataxis map, a scope limit naming which files are in bounds, existing docs to update, a diagram type, and a length limit.
 
-1. Bound the target set. Record the target directory, file set, subject, audience, and format. Reject the request if the target path is outside the working repository or would overwrite a protected file. Refuse to write outside the named set. Done when: the target directory, file set, subject, audience, and format are recorded and the target path is in-bounds.
-2. Classify each doc into one Diataxis type: tutorial (learning-oriented, guided path), how-to guide (goal-oriented, steps to achieve a task), reference (information-oriented, API or fact lookup), or explanation (understanding-oriented, context and background). Split or retitle a doc that mixes types until each doc serves one type. Done when: every doc in scope is classified into exactly one Diataxis type.
-3. Draft the documentation prose or diagram source for the named subject and audience, using the structure required by the requested format. Re-derive the wording; do not copy source expression from upstream material. If a diagram requires rendering, write its source and state the render command without executing it unless asked. For feature docs, use the section structure: Overview, Prerequisites, Usage, API Reference, Configuration, Troubleshooting. Populate each section using only information verified in the spec and codebase; include code examples drawn from actual source or tests. Do not invent APIs, flags, defaults, or behaviors not present in the code. Done when: a draft exists for the named subject and audience in the requested format.
-4. Apply the structure audit to every doc: lead with the bottom line; put conditions before the action they gate; one idea per section; no filler sections; tutorials include a quick start and a procedures section; every doc ends with next steps; the first heading gives an overview of the doc. Done when: every doc passes the structure audit.
-5. Apply the clarity audit to prose: one idea per sentence; avoid Latin abbreviations and nominalizations; use the serial comma. Done when: every prose passage passes the clarity audit.
-6. Apply the code-example audit: examples are runnable, use named functions and realistic example names, show error descriptions, and move from isolated snippets to full context; keep a sane code-to-context ratio; handle multiple languages when relevant. Done when: every code example passes the code-example audit.
-7. Apply the format audit: sentence-case headings; bold UI elements and code-font where appropriate; descriptive link text; image alt text; lowercase filenames; periods inside quotes; semantic HTML. Done when: every doc passes the format audit.
-8. Apply the voice audit: no anthropomorphism; no unexplained jargon; use requirements language. Done when: every doc passes the voice audit.
-9. Apply the hygiene audit: delete outdated content; keep a docs directory; no temporal language; label experimental and retconned content; update metadata. Done when: every doc passes the hygiene audit.
-10. Apply the navigation audit: every doc is linked; relative paths; searchable headings; breadcrumbs give context; no repeated nav; limit layer depth. Done when: every doc passes the navigation audit.
-11. Apply the review and scan audit: verify links resolve; API reference uses a three-column layout. Done when: every doc passes the review and scan audit.
-12. Run the Diataxis type validation for each document against its type predicate: tutorial (a beginner completes it unaided, each step yields a visible result), how-to (an experienced user completes it without backtracking), reference (a fact is findable in under 30 seconds, each entry uses the format name then type then default then description then example), explanation (the reader can restate the why). Add cross-links between types: a tutorial links to the how-to and reference it prepares for; a how-to links to the reference and explanation behind it; reference and explanation link back to the practical types. Done when: every document passes its type predicate and cross-links connect each type to its related types.
-13. For feature docs, capture or request screenshots of the feature in action. Embed each screenshot with descriptive alt text and a caption identifying the UI state shown. If the runtime environment cannot produce screenshots, mark the slot with `<!-- screenshot: pending -->` and note the gap in the output. Done when: every screenshot is embedded or marked pending with a reason.
-14. Record every unmet criterion. Fix in-bounds docs until no criterion is unmet, or stop and report the blocked set. Done when: no criterion is unmet or the blocked set is reported.
-15. Present the audited draft to the human for review before writing any file. Revise against feedback and re-present; do not save until approved. Done when: the draft is presented and human review is received.
-16. After human approval, write the documentation file or diagram source to the target path. On partial write failure, delete any partial file written at the target path and report the rollback. Done when: the file exists at the target path.
-17. Confirm the saved file exists at the target path and report the path. Done when: the file existence is confirmed and the path is reported.
+## Bound the work first
 
-## Failure and recovery
+Record the target set, subject, audience, and format. Refuse anything outside the named set. If subject, audience, or format is missing, stop and ask, because guessing any of them produces docs for the wrong reader.
 
-- Unmet criterion that cannot be fixed within scope: stop, leave the doc set in its last consistent state, and report the unmet criterion and the file it blocks. Do not mark done.
-- Ambiguous Diataxis type for a doc that cannot be split: report it as blocked rather than guessing a type.
-- Diataxis type validation failure: keep the document at its classified type and fix the failing predicate. Never reclassify to dodge a failed check.
-- Link verification that cannot run (no resolver available): record the criterion as unverified, which counts as not met.
-- Partial result: never claim the done predicate holds while any criterion is unmet or unverified.
-- Missing subject, audience, or format: stop and request the missing input; write nothing.
-- Target outside the working repository or protected: stop before writing; report the rejected path.
-- Human review rejects the draft: revise against the feedback and re-present; do not save until approved.
-- Generation produces empty or invalid output: discard the draft, report the failure, write nothing.
-- Partial write failure: delete any partial file written at the target path and report the rollback.
-- Codebase mismatch (feature docs): if the code contradicts the spec, document the discrepancy in a note block and flag it for review. Do not silently align the docs to one side.
+## Give every doc one job
 
-## Output
+Classify each doc into exactly one Diataxis type and split or retitle anything that straddles two:
 
-The rewritten, restructured, or newly written documentation files or diagram sources in the target directory, plus a report listing each doc's Diataxis type, the audit result (pass, unmet criterion, or blocked), and each saved path.
+- Tutorial: learning-oriented, a guided path a beginner completes with a visible result at each step.
+- How-to guide: goal-oriented, steps an experienced user follows without backtracking.
+- Reference: information-oriented, facts findable in under 30 seconds, each entry shaped as name, then type, then default, then description, then example.
+- Explanation: understanding-oriented, context a reader can restate in their own words.
+
+A doc that mixes types gets split, never relabeled to dodge its check. Link the types to each other when you finish: tutorials point forward to the how-to and reference they prepare for; how-tos point to the reference and the explanation behind them; references and explanations point back to the practical pages.
+
+## Draft from evidence, not memory
+
+Write the prose or diagram source for the named subject and audience in the requested format, deriving the wording fresh rather than copying upstream expression. For feature docs use the section shape Overview, Prerequisites, Usage, API Reference, Configuration, Troubleshooting, and fill every section only from the spec and the code, with real code examples drawn from source or tests. Never invent APIs, flags, defaults, or behaviors. Where spec and code disagree, note the mismatch in the draft and flag it for review instead of silently picking a side.
+
+When a diagram needs rendering, write its source and state the render command without running it unless asked.
+
+## Audit the draft until it passes everything
+
+Work through each lens below and fix what fails inside your scope. Anything you cannot fix stops the job: leave the docs in their last consistent state and report the unmet criterion with the file it blocks. Never claim success while any check is unmet or unverified.
+
+### Structure
+
+Lead with the bottom line. Put conditions before the action they gate. One idea per section, no filler sections. Tutorials carry a quick start and a procedures section. Every doc ends with next steps, and the first heading gives an overview of the doc.
+
+### Clarity
+
+One idea per sentence. No Latin abbreviations, no nominalizations, serial comma throughout. Prefer concrete names (real files, commands, APIs, paths) over vague nouns, and precise verbs (`configure`, not `set up`; `verify`, not `check`). Use the passive only when the actor is genuinely unknown. Every sentence must carry information no earlier sentence carried; no placeholders, no invented symbols or values. If no draft exists yet, you may scaffold section structure from the document type, but flag every missing value as a gap rather than filling it in.
+
+### Code examples
+
+Examples run, use named functions and realistic names, show error descriptions, and move from isolated snippets to full context with a sane code-to-context ratio, covering more than one language where the docs demand it. For CLI docs, trace every flag, default, precedence claim, and guarantee back to the current parser, resolver, constants, or observed help output; names and templates alone are not evidence. Quote help output and transcripts as verbatim and name the version or source state they describe. Never invent a transcript or claim an example was executed on the strength of reading source. Before trying any executable example, confirm the assignment authorizes its side effects, since documentation authority alone never authorizes builds, installs, network writes, or quickstart mutations. When execution is authorized, run the exact documented block, account for inherited environment and stale binaries, and record the actual exit result; otherwise mark execution unverified. Keep isolation, transactional, platform-support, and safety claims scoped to the components and phases the evidence actually covers. Invent no badges or volatile counts. Validate relative links and heading fragments, not just file existence.
+
+### Format
+
+Sentence-case headings; bold for UI elements and code font where each fits; descriptive link text; alt text on images; lowercase filenames; periods inside quotes; semantic HTML; parallel heading forms; consistently punctuated lists; tables with no empty cells that should hold data; a language tag on every code block.
+
+### Voice
+
+No anthropomorphism, no unexplained jargon, requirements language where obligation is meant.
+
+### Hygiene
+
+Delete outdated content, keep a docs directory, no temporal language, label experimental and retconned content, keep metadata current. When auditing currency across a named doc set, enumerate version claims by syntax class and read status tables and identity claims that carry no version number. Treat each candidate as a current-channel claim, a minimum supported version, a past event, or a machine-consumed literal before proposing any change. Re-ground current claims against their own release or support source and record the access date. Preserve historical events, version floors, exact machine literals, and simulated output, since a prose release label never belongs inside a tool readout. Check spelling variants, surrounding paragraphs, and files the first pass missed. Reconcile volatile claims with their sources before presenting; a changed or unreachable source is reported as uncertainty, never as grounded just because a date marker exists. Configuration changes, manifest bumps, commits, and remote operations stay outside this authority.
+
+### Navigation
+
+Every doc linked, relative paths, searchable headings, breadcrumbs that give context, no repeated navigation, limited layer depth.
+
+### Review and scan
+
+Verify links resolve. A check that cannot run (no resolver available) counts as unmet, not as passed. API references use a three-column layout whose entries still carry all five fields (name, type, default, description, example).
+
+### Screenshots for feature docs
+
+Capture or request a screenshot of the feature in action, each with descriptive alt text and a caption naming the UI state shown. Where the runtime cannot produce screenshots, leave `<!-- screenshot: pending -->` and note the gap in your report.
+
+## Let the human read before anything is written
+
+Present the audited draft for review and iterate in chat; nothing reaches disk until the draft is approved. A request to draft without writing files stays chat-only, still gated on review before any later write, and no file is ever created for it. If review rejects the draft, revise against the feedback and present again. An empty or invalid draft is discarded with the failure reported, never written.
+
+After approval, write the file to the target path. If a partial write fails, delete the partial file and report the rollback. Then confirm the file exists and report its path. For a chat-only request, report instead that no file was written.
+
+## When the job cannot finish
+
+- Missing subject, audience, or format: stop, ask, write nothing.
+- Ambiguous Diataxis type that cannot be split: report it as blocked rather than guessing.
+- Type validation failure: keep the doc at its classified type and fix the failing predicate; never reclassify to pass.
+- Link verification with no resolver: record as unverified, which counts as not met.
+- Codebase contradicts the spec: document the discrepancy in a note and flag it; never silently align to one side.
+- Generation produces empty or invalid output: discard, report, write nothing.
+- Partial write failure: delete the partial file, report the rollback.
+
+## What you hand back
+
+The rewritten, restructured, or newly written documentation files or diagram sources in the target directory, plus a report listing each doc's Diataxis type, its audit result (pass, unmet criterion, or blocked), and each saved path.

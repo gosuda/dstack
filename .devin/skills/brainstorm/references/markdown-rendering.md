@@ -13,24 +13,23 @@ These hold regardless of which skill produced the artifact.
 - Repo-relative paths for file references. Always. Never absolute paths: they break portability across machines, worktrees, teammates.
 - No HTML mixed in. Keep the markdown pure. No `<div>`, no `<details>`, no inline `<style>`. If a layout idea only works as HTML, defer it to the HTML rendering. Markdown stays markdown.
 - No fixed-width line wrapping. Do not hard-wrap prose to a column (e.g. 80 chars). Write one sentence per line, or let each paragraph flow as a single line. The artifact is read rendered and shared, where fixed wraps add nothing and only produce noisy mid-sentence diffs; markdown joins soft line breaks within a paragraph, so wrapping never changes the rendered output.
-- ODIN plan sections use stable headings. For plan artifacts, render the required sections with exact ASCII headings so agents can find them by heading scan: `## Goal Capsule`, `## ODIN spec outline`, `## Planning Outline`, `## Implementation Units`, `## Verification Contract`, `## Definition of Done`, and optional `## Appendix`. Requirements-only artifacts omit the plan-only sections rather than emitting empty placeholders. These stable headings are the wayfinding contract.
-- Goal Capsule is top-loaded. It appears before ODIN spec outline and long appendices for fast orientation: not a hidden machine copy.
+- DStack plan sections use stable headings. For plan artifacts, render the required sections with exact ASCII headings so agents can find them by heading scan: `## Goal Capsule`, `## DStack spec outline`, `## Planning Outline`, `## Implementation Units`, `## Verification Contract`, `## Definition of Done`, and optional `## Appendix`. Requirements-only artifacts omit the plan-only sections rather than emitting empty placeholders. These stable headings are the wayfinding contract.
+- Goal Capsule is top-loaded. It appears before DStack spec outline and long appendices for fast orientation: not a hidden machine copy.
 
 ## Format principles
 
 These shape what "good" markdown looks like; the agent applies them per artifact based on content shape.
 
-### ID prefix format
+### Semantic naming and heading format
 
-Stable IDs (R, U, A, F, AE, KTD) appear as plain prefixes at the start of the bullet or heading, do NOT bold the prefix. The prefix is visually distinctive on its own; bolding it inflates visual noise.
+Headings, requirements, units, flows, and decisions MUST use concise, meaningful names representing their actual purpose, never opaque prefix+counter codes (`R1`, `U1`, `A1`, `F1`, `AE1`, `KTD-N`, `R<N>`, `U<N>`) or parenthesized opaque codes in human headings and labels.
 
 ```markdown
-- R1. The plan returns paginated sessions.   ← right
-- **R1.** The plan returns paginated sessions.   ← wrong (bolded prefix)
+- Session pagination: The plan returns paginated sessions.   ← right (purpose-named)
+- R1. The plan returns paginated sessions.                   ← wrong (opaque counter prefix)
 ```
 
-Same applies to unit headings: `### U1. Cloak detection in preflight contract`.
-
+Same applies to unit headings: `### Unit: Cloak detection in preflight contract` or `### Cloak detection in preflight contract` (never `### U1. Cloak detection in preflight contract`).
 ### Content shape: prose vs bullets vs tables
 
 The same content can be rendered three ways; the agent picks per content shape, not by template default.
@@ -46,11 +45,11 @@ The test: which shape would a reader scan fastest for this content? If items hav
 When a bullet has substructure that benefits from named fields (Key Flows with Trigger / Actors / Steps / Outcome, Acceptance Examples with Covers / Given / When / Then), use bold leader labels at the start of nested bullets, not deeper heading levels.
 
 ```markdown
-- F1. Anonymous capture
+- Anonymous capture
   - **Trigger:** Agent enters Step 2a with no session.
-  - **Actors:** A1, A2
+  - **Actors:** Unauthenticated visitor, Background sync worker
   - **Steps:** Preflight detects cloak; agent launches; capture proceeds.
-  - **Covered by:** R1, R2, R5
+  - **Covered by:** Session pagination, Token-bucket rate limiting, Preflight cloak detection
 ```
 
 This gives the bullet structure without needing H4/H5 headings that would clutter the doc and break TOC generation.
@@ -68,29 +67,29 @@ Use tables for the uniform-shape case in "Content shape" above. Don't use tables
 How section types commonly render in markdown. These are patterns, not contracts, the agent picks the shape that fits the content.
 
 - Goal Capsule: bullets or a small table for objective, authority, execution profile, stop conditions, and tail ownership.
-- ODIN spec outline: H2 section containing Summary, Problem Frame, Requirements, and product-scope subsections. Put Requirements under `### Requirements` so review tools can distinguish Product Requirements from implementation detail.
-- Planning Outline: H2 section for KTDs, high-level technical design, assumptions, and sequencing.
+- DStack spec outline: H2 section containing Summary, Problem Frame, Requirements, and product-scope subsections. Put Requirements under `### Requirements` so review tools can distinguish Product Requirements from implementation detail.
+- Planning Outline: H2 section for technical design decisions, assumptions, and sequencing.
 - Summary / Problem Frame: prose paragraphs.
-- Requirements: bullets with `R<N>.` prefix. When requirements span more than one concern, grouping under bold inline headers is the default shape, not optional polish (group by capability, not by discussion order); render a flat list only when every requirement is about the same thing. When requirements have status, traceability, or severity that warrant additional columns, escalate to a table.
-- Implementation Units: H3 heading per unit with `U<N>.` prefix. Fields (Goal, Files, Patterns, Test Scenarios, Verification) render as bullets with bold leader labels, or as sub-headings if the field has multi-paragraph content.
-- Verification Contract / Definition of Done: use tables when commands, applicability, unit IDs, and done signals share a uniform shape. Name concrete repo commands such as `bun test` rather than generic "run tests" when the repo has known commands.
-- Key Technical Decisions: bullets with bold decision name + prose rationale, or numbered KTD-N pattern when traceability matters.
-- Key Flows / Acceptance Examples: bullets with bold leader labels (Trigger / Actors / Steps / Outcome / Covers / Given-When-Then).
+- Requirements: bullets or subheadings with concise meaningful purpose names and semantic anchors, never opaque `R<N>.` prefixes. When requirements span more than one concern, grouping under bold inline headers is the default shape, not optional polish (group by capability, not by discussion order); render a flat list only when every requirement is about the same thing. When requirements have status, traceability, or severity that warrant additional columns, escalate to a table using purpose names for rows.
+- Implementation Units: H3 heading per unit naming its concrete purpose (e.g. `### Unit: Cloak detection in preflight contract`), never `U<N>.` prefixes. Fields (Goal, Files, Patterns, Test Scenarios, Verification) render as bullets with bold leader labels, or as sub-headings if the field has multi-paragraph content.
+- Verification Contract / Definition of Done: use tables when commands, applicability, unit references, and done signals share a uniform shape. Reference units by their purpose names rather than numeric counters. Name concrete repo commands such as `bun test` rather than generic "run tests" when the repo has known commands.
+- Key Technical Decisions: bullets or cards with bold decision name + prose rationale, never numbered `KTD-N` prefixes.
+- Key Flows / Acceptance Examples: bullets with descriptive flow/scenario names and bold leader labels (Trigger / Actors / Steps / Outcome / Covers / Given-When-Then). Actors and covered requirements are referenced by their semantic names.
 - Scope Boundaries: bullets, optionally split into "Deferred for later" / "Outside this product's identity" sub-headings when the positioning distinction matters.
 
 The agent picks more elaborate or simpler shapes based on what each specific artifact's content needs.
 
 ## Diagrams
 
-When the section contract calls for a diagram (architecture, sequence, flowchart, state machine, swim lane, data-flow), author it per the `diagramming-code` skill: write Mermaid source and rendered artifacts to the selected output directory, then embed the SVG with a caption.
+When the section contract calls for a diagram (architecture, sequence, flowchart, state machine, swim lane, data-flow), author it as a Mermaid source in `assets/` beside the document, rendered to a committed SVG and embedded with a caption.
 
 ````markdown
-![Approval path from draft to publish](diagrams/approval-path.svg)
+![Approval path from draft to publish](assets/approval-path.svg)
 
 > A draft needs one reviewer; anything touching billing needs two.
 ````
 
-The source that produced it lives at `diagrams/approval-path.mmd` alongside the rendered SVG and PNG.
+The source that produced it lives at `assets/approval-path.mmd` and is committed with the SVG.
 
 Markdown's diagram affordances are limited compared to HTML. For quantitative comparisons (bar charts, scatter plots) markdown has no native equivalent, use a table with the data and let prose or caption carry the interpretation. The richer visualization happens in the HTML rendering.
 
@@ -98,7 +97,7 @@ For a **UI/layout shape** that would be a wireframe in HTML, markdown has no inl
 
 ## Inline code and code blocks
 
-- **Inline code** for identifiers (variable names, function names, flag names, file paths, IDs that are not section anchors).
+- **Inline code** for identifiers (variable names, function names, flag names, file paths, technical symbols that are not section anchors).
 - **Fenced code blocks** with language tag for code, shell commands, API request/response samples. Always specify the language for syntax highlighting and accessibility.
 
 ````markdown
@@ -133,7 +132,7 @@ Per-skill frontmatter fields are defined in each skill's section contract (`brai
 
 Before declaring the markdown file written, scan it for these common slips:
 
-- All stable IDs are plain-prefix format, not bolded.
+- Headings, requirements, units, flows, and decisions use concise meaningful purpose names, never visible R1/U1/A1/F1/AE1/KTD-N display counters.
 - No HTML elements mixed in.
 - All file paths are repo-relative.
 - Horizontal rule separators between H2s (for Standard / Deep artifacts).

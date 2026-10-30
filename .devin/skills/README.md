@@ -1,7 +1,7 @@
-# ODIN skills (generated mirror)
+# DStack skills (generated mirror)
 
-657 ODIN skills, flattened from the plugin tree of
-https://github.com/OutlineDriven/odin-claude-plugin at release 2.1.6.
+304 DStack skills, flattened from the plugin tree of
+https://github.com/gosuda/dalcom-skills at release 2.1.8.
 
 Devin reads every immediate child directory here as a project skill
 (`.devin/skills/<skill-name>/SKILL.md`). Flattening drops the plugin a skill was authored

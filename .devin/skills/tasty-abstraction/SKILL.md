@@ -5,41 +5,44 @@ description: 'Use when a user wants to design an abstraction boundary that colla
 
 # Tasty abstraction
 
-## Contract
+Some surfaces are too raw to use directly: too many concepts, too many ways to break, too much expert knowledge per call. This job designs a boundary that collapses that complexity into one simpler interface, and it documents exactly where the raw surface still shows through. It stops at the design. Nothing here gets implemented.
 
-| Field | Bound contract |
+This job is read-only. It creates no files, changes no code, and touches no credentials, remotes, or paid systems. Its only product is a specification delivered as chat output.
+
+## What you need from the user
+
+| Input | Why it matters |
 |---|---|
-| Trigger | User wants to design an abstraction boundary that collapses a complex implementation into a simpler interface |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. Stops before implementation. |
-| Side effect | Chat output: one abstraction specification document |
-| Done | A standalone specification exists detailing the abstraction boundary, leak surface, and usage constraints |
+| Target problem | The concrete complexity, repetition, or leak the abstraction must address. |
+| Raw form | The current unabstracted surface the user works with directly. |
+| Failure modes | The ways the raw form breaks, surprises, or requires expert knowledge. |
 
-## Inputs
+All three are required. Without them there is nothing to design against.
 
-- Target problem (required): the concrete complexity, repetition, or leak the abstraction must address.
-- Raw form (required): the current unabstracted surface the user works with directly.
-- Identified failure modes (required): the ways the raw form breaks, surprises, or requires expert knowledge.
+## Mapping the raw surface
 
-## Procedure
+List every operation, concept, and escape hatch the user touches today, plus every supplied failure mode. If the raw form turns out to have no meaningful complexity, say so and stop. No problem means no specification.
 
-1. **Enumerate the raw form's surface and failure modes.** List every operation, concept, and escape hatch the user touches, plus every failure mode supplied as input. If the raw form has no meaningful complexity to collapse, report that finding and write no specification. Done when: the surface and failure modes are enumerated, or the workflow stops because no problem exists.
+## Proposing the collapsed boundary
 
-2. **Propose a collapsed boundary.** The boundary must collapse at least two raw-form concepts into one interface operation, expose every escape hatch the raw form offers as a direct pass-through or named override, and introduce no concept that does not exist in the raw form. Done when: one boundary is proposed meeting all three constraints.
+Propose one boundary that meets all three of these constraints:
 
-3. **Map escape hatches for raw access.** For every point where the user must reach past the abstraction, state whether the hatch is sealed, exposed as configuration, or documented as a known seam. Done when: every escape hatch is classified.
+1. It collapses at least two raw-form concepts into one interface operation.
+2. It exposes every escape hatch the raw form offers, either as a direct pass-through or as a named override.
+3. It introduces no concept that does not already exist in the raw form.
 
-4. **Document leaked surface and trade-offs.** Every point where the abstraction can break, surprise, or require raw-form knowledge is a leak. For each leak, state the trade-off: what the abstraction gains by leaking here and what the user must still understand. Done when: every leak and trade-off is documented.
+If no boundary can meet all three without leaking the very problem it exists to hide, report which leak breaks the boundary and write no specification.
 
-5. **Write the specification.** The specification contains: abstraction name, boundary definition, surface comparison table (raw-form concepts mapped to abstraction concepts), escape-hatch mapping, leak surface inventory with trade-offs, and usage contract (when to use, when to bypass, what the user must still understand about the raw form). Deliver as chat output. Done when: the specification is complete and delivered.
+## Mapping the escape hatches
 
-## Failure and recovery
+For every point where the user must reach past the abstraction, state whether that hatch is sealed, exposed as configuration, or documented as a known seam. Leave none unclassified.
 
-| Failure class | Rule |
-|---|---|
-| `boundary-violation` | The abstraction cannot collapse the raw form without leaking the problem it exists to hide. Report which leak breaks the boundary. Write no specification. |
+## Naming what still leaks
 
-Partial results are not artifacts. If any step fails, no specification is delivered.
+Every point where the abstraction can break, surprise, or demand raw-form knowledge is a leak. For each one, state the trade-off: what the abstraction gains by leaking here, and what the user must still understand. An abstraction with no documented leaks is an abstraction you have not examined closely enough.
 
-## Output
+## Writing the specification
 
-One abstraction specification delivered as chat output: boundary definition, surface comparison, escape-hatch mapping, leak surface with trade-offs, and usage contract.
+The specification contains the abstraction name, the boundary definition, a table comparing raw-form concepts to abstraction concepts, the escape-hatch mapping, the leak inventory with its trade-offs, and a usage contract stating when to use the abstraction, when to bypass it, and what raw-form knowledge the user still needs. Deliver it as chat output.
+
+A failed step means no specification at all. Partial results are never delivered as artifacts.

@@ -1,3 +1,0 @@
-interface:
-  display_name: "Can I Help"
-  short_description: "Use when the user asks \"where to help\", \"contribution opportunities\", or \"find a good first issue\"."

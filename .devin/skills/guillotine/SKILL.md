@@ -1,51 +1,65 @@
 ---
 name: guillotine
-description: 'Use when dead, duplicate, superseded, or generated residue must leave more than one artifact class of a repo or subsystem, preserving behavior. Not for one enumerated record set: use clean-clean-cut.'
+description: 'Use when dead, duplicate, superseded, or generated residue must leave more than one artifact class of a repo or subsystem, preserving behavior. Not for a single enumerated record set with no cross-artifact consumers.'
 ---
 
 # Guillotine
 
-Remove weight the product does not use. Interior cleanup needs proof, not sentiment.
+Some code is wrong. This skill is for code that is merely heavy: dead paths nobody calls, the same fact owned in two places, an old implementation the active path already covers, or generated copies checked in beside their generator. When that weight spreads across more than one kind of artifact (code plus docs plus tests plus config plus workflows), cut it here. If the mess is a single enumerated record set with no cross-artifact consumers, this is the wrong tool.
 
-## Contract
+Everything you do stays inside version-tracked files, and version control is your rollback. You never touch remote state, rewrite history, migrate stored data, handle credentials, or delete anything untracked or critical. Interior debt with a proven-unchanged boundary needs no second approval; anything reaching an observable surface needs explicit authority first.
 
-| Field | Bound contract |
+## Name what must not change
+
+Before anything else, name the subsystem or repository region under the knife and write down its observable boundary: the commands, public routes, generated outputs, or user scenarios that must behave identically after the cut. Also pin down the repository-native gate command that defines "passes" (required, or discoverable in the repo).
+
+If no boundary can be named, stop before editing. An unprovable boundary means an unprovable cut.
+
+## Build the ledger, then classify it
+
+Walk every artifact class the weight touches (code paths, documents, tests, dependencies, configuration entries, workflows, generated files) and give each candidate one ledger entry: the job it claims, its live callers or readers, its source of truth, and which kind of residue you suspect it is.
+
+Then classify every candidate into exactly one of these five:
+
+| Category | Meaning |
 |---|---|
-| Trigger | A repository or subsystem needs dead, duplicate, superseded, or generated residue removed across more than one artifact class. |
-| Authority | Reversible local: writes only VCS-tracked interior artifacts (edits and deletion); rollback is version control. No remote mutation. No history rewrite, data migration, credential change, or deletion of untracked or critical data. |
-| Side effect | VCS-tracked artifacts are deleted or consolidated; live consumers are migrated to the surviving owner; generated surfaces are regenerated. The observable boundary is unchanged. |
-| Done | Every removed artifact has a proof of non-necessity, no live route to the old path remains, the observable boundary passes, and the repository gate is green. |
+| Dead | No live caller, route, import, loader, build step, or documented consumer. |
+| Duplicate | Another artifact owns the same fact or operation, and all consumers can move to it. |
+| Superseded | The active path covers the required contract and no supported path selects the old one. |
+| Generated residue | The repository generator reproduces the required output and does not select this copy. |
+| Keep | The evidence still names a live job, even if the artifact is ugly. Ugly is not dead. |
 
-## Inputs
+No candidate goes unclassified, and nothing gets two labels.
 
-- The subsystem or repository region to purge. Named explicitly or derived from the observed debt surface.
-- The observable boundary: the commands, public routes, generated outputs, or user scenarios that must remain unchanged. Required; if no boundary can be named, the skill stops before editing.
-- The repository-native gate command that defines "passes". Required, or discoverable in the repo.
+## Prove the cut from both directions
 
-## Procedure
+For each candidate, search outward from the candidate to its consumers, then inward from each required consumer back to its owner. Where static references cannot settle necessity, run a focused behavioral, mutation, build, or generation probe and let it decide.
 
-1. Name the subsystem and its observable boundary. List the commands, public routes, generated outputs, or user scenarios that must remain unchanged. Done when: the subsystem is named and every boundary element is listed, or the skill stops because no provable boundary exists.
-2. Build a candidate ledger. For each code path, document, test, dependency, configuration entry, workflow, or generated file, record its claimed job, live callers or readers, source of truth, and evidence that it is dead, duplicate, superseded, or reproducible. Done when: every candidate has an entry with its job, live consumers, source of truth, and evidence category named.
-3. Classify every candidate into one of five categories. Dead: no live caller, route, import, loader, build step, or documented consumer. Duplicate: another artifact owns the same fact or operation and all consumers can move to it. Superseded: the active path covers the required contract and no supported path selects the old one. Generated residue: the repository generator reproduces the required output and does not select this copy. Keep: evidence still names a live job, even when the artifact looks ugly. Done when: every candidate carries exactly one classification and the five categories are exhaustive with no candidate unclassified.
-4. Prove the cut from both directions. Search from each candidate to its consumers, then from each required consumer back to its owner. Run a focused behavioral, mutation, build, or generation probe when static references cannot prove necessity. Done when: every candidate has a bidirectional proof: consumer-to-candidate search and candidate-to-consumer search both confirm the classification, or a probe was run that settled the ambiguous case.
-5. Stop for approval if the proposed cut reaches an observable API, user command, stored data, history, remote state, untracked file, credential, or critical target. Show the exact consequence and a recoverable alternative. Interior VCS-tracked debt with a proven unchanged boundary does not need a second approval. Done when: every approval-gated target is identified with its consequence and alternative stated, or no target requires approval and the cut proceeds.
-6. Cut one dependency-closed slice at a time. Move live consumers to the single surviving owner, then delete the obsolete implementation, tests that protect only obsolete behavior, dependency entries, configuration, workflow steps, and generated copies. Do not leave aliases, shims, dual paths, tombstones, or "deprecated" wrappers. Done when: the slice is cut with all consumers migrated to one owner and no alias, shim, dual path, tombstone, or deprecated wrapper left behind.
-7. Regenerate every repository-owned surface affected by the cut. Reject a generator that recreates the removed residue; fix its source selection instead of deleting its output again. Done when: every affected generated surface is regenerated and the generator does not reproduce the removed artifact.
-8. Exercise the observable boundary and run the repository-native gate. If behavior changes, restore the smallest failed slice from VCS, correct its ledger classification, and continue with the remaining proven cuts. Done when: every named boundary element passes and the repository gate exits green, or the failed slice is restored and reclassified.
-9. Re-run route, import, registration, and source-of-truth searches. Done when: the old path is absent from every search and every required consumer resolves to one live owner.
+A cut proceeds only on bidirectional proof: both search directions agree with the classification, or a probe settled the ambiguous case.
 
-## Failure and recovery
+## Stop and ask when the cut reaches a live surface
 
-| Failure | Action |
-|---|---|
-| A candidate still has a live consumer | Reclassify it as keep or move that consumer inside the same dependency-closed slice. |
-| Two artifacts both appear canonical | Stop the cut and establish one owner before deleting either copy. |
-| A test fails only because it asserts obsolete internals | Prove the observable contract elsewhere, then delete or rewrite the test. Do not weaken a real boundary test. |
-| A dependency looks unused but participates in loading, build, or delivery | Keep it until a real package or artifact probe proves removal safe. |
-| Generation recreates removed files | Fix the generator or membership source. Do not hand-delete generated output as the final state. |
-| Boundary verification changes | Restore the failed slice from VCS and report the classification error. |
-| The cut reaches an approval-gated boundary | Return the exact target, consequence, evidence, and recovery path; wait for explicit authority. |
+If the proposed cut touches an observable API, a user command, stored data, history, remote state, an untracked file, a credential, or a critical target, stop. Show the exact consequence and offer a recoverable alternative, then wait for explicit authority. Name the target, the evidence, and the recovery path. Nothing proceeds on implication.
 
-## Output
+## Cut one closed slice at a time
 
-Return the candidate ledger with cut or keep verdicts, removed paths grouped by artifact class, surviving owners, observable-boundary evidence, native gate results, and any approval-gated remainder.
+Work in dependency-closed slices: move every live consumer to the single surviving owner first, then delete the obsolete implementation, the tests that protected only obsolete behavior, dependency entries, configuration, workflow steps, and generated copies together. Leave no aliases, shims, dual paths, tombstones, or "deprecated" wrappers behind, so that every required consumer resolves to one live owner.
+
+Then regenerate every repository-owned surface the cut touched. If the generator recreates the removed residue, the generator's source selection is the bug; fix it there instead of hand-deleting its output again.
+
+## Prove the boundary held
+
+Exercise every named boundary element and run the repository-native gate. Then re-run the route, import, registration, and source-of-truth searches: the old path must be absent everywhere, and every required consumer must resolve to one live owner.
+
+When something fails, restore the smallest failed slice from version control, correct its ledger classification, and continue with the remaining proven cuts. A classification error is reported, not hidden.
+
+## When the evidence turns against a candidate
+
+- A candidate still has a live consumer: reclassify it as keep, or widen the slice so that consumer moves inside it.
+- Two artifacts both look canonical: stop cutting and establish one owner before deleting either copy.
+- A test fails only because it asserts obsolete internals: prove the observable contract elsewhere first, then delete or rewrite the test. Never weaken a real boundary test to make the cut pass.
+- A dependency looks unused but participates in loading, build, or delivery: keep it until a real package or artifact probe proves removal safe.
+
+## What you hand back
+
+The candidate ledger with a cut-or-keep verdict per entry, the removed paths grouped by artifact class, the surviving owner of each moved consumer, the observable-boundary evidence, the native gate results, and any approval-gated remainder left for explicit authority.

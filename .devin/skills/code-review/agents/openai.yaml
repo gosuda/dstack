@@ -1,0 +1,3 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Use when a named diff or pull request needs review for bugs, regressions, tests, and standards."

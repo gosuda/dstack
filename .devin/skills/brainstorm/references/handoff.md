@@ -4,7 +4,7 @@ This content is loaded when Phase 4 begins: after the requirements-only plan is 
 
 ## 4.1 Present Next-Step Options
 
-The Phase 4 menu's visible option count varies by state: no plan artifact hides the review option, `OUTPUT_FORMAT=html` also hides the review option (`/doc-review` is markdown-only), unresolved `Resolve Before Planning` hides both `Create the implementation plan` and `Ship it autonomously`, and the ship option is hidden for non-software brainstorms (`execution` other than `code`). Count the visible options and choose the rendering mode:
+The Phase 4 menu's visible option count varies by state: no plan artifact hides the review option, the absence of an approved execution-ready plan hides `Ship it autonomously`, unresolved `Resolve Before Planning` hides both `Create the implementation plan` and `Ship it autonomously`, and the ship option is hidden for non-software brainstorms (`execution` other than `code`). Count the visible options and choose the rendering mode:
 
 - Visible count fits the current platform's option cap: use the platform's blocking question tool (`AskUserQuestion` in Claude Code: call `ToolSearch` with `select:AskUserQuestion` first if its schema is not loaded; `request_user_input` in Codex; `ask_question` in Antigravity CLI (`agy`); `ask_user` in Pi).
 - Visible count exceeds the current platform's option cap: render as a numbered list in chat. Include a hint that free-form input is accepted ("Pick a number or describe what you want.") so the numbered list retains the blocking tool's open-endedness.
@@ -42,13 +42,13 @@ What would you like to do next? (Pick a number or describe what you want.)
 Present only the options that apply. Renumber so visible options stay contiguous starting at 1.
 
 1. **Create the implementation plan** *(recommended)*: enter Claude Code's plan mode (or, on a host without one, draft a written implementation plan for the user to approve) and sharpen the requirements into a complete, testable plan. Shown only when `Resolve Before Planning` is empty.
-2. **Ship it autonomously**: hand the requirements to `/work` for implementation. Shown only for software brainstorms (`execution: code`) with `Resolve Before Planning` empty **and a plan artifact was created**. For a plan-then-decide flow, pick option 1 instead.
-3. **Pressure-test the requirements**: dispatch `/doc-review` to find gaps, conflicts, weak premises, and scope issues in the requirements; auto-apply safe fixes; route the rest interactively. Shown only when a markdown plan exists **and `OUTPUT_FORMAT=md`**; `/doc-review` applies markdown-only mutations and would corrupt an HTML artifact. Under HTML mode, surface a one-line note above the menu: `Requirements review unavailable in output:html mode — /doc-review is markdown-only today. Switch to output:md if you want a review pass.`
+2. **Ship it autonomously**: hand the approved plan to `/autopilot` for gated end-to-end execution. Shown only for software brainstorms (`execution: code`) with `Resolve Before Planning` empty **and an approved execution-ready plan**: plan-mode approval (`ExitPlanMode`) or an equivalent written approval covering a complete, testable plan. Requirements alone are not an execution plan; without the approved plan, pick option 1 instead.
+3. **Pressure-test the requirements**: run a bounded review dialogue over the plan artifact to find gaps, conflicts, weak premises, and scope issues; auto-apply safe fixes; route the rest interactively. Shown whenever a plan artifact exists, in either output format; fixes go through the same rendering pipeline that produced the artifact. Conducted directly in this session, never framed as a dispatched skill, peer agent, or external reviewer.
 4. **Open in browser**: open the HTML plan locally for review and sharing. Shown only when an HTML plan exists.
 5. **More clarifying questions to sharpen the doc**: keep refining scope, edge cases, constraints, and preferences through further dialogue. Always shown.
 6. **Done**: the conversation was the value; no artifact or handoff needed. Always shown.
 
-**Post-review nudge (subsequent rounds only):** If the user has already run `/doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address; pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number. Suppress this nudge when `OUTPUT_FORMAT=html`.
+**Post-review nudge (subsequent rounds only):** If a pressure-test pass already ran this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "The requirements review flagged 2 P1 findings you may want to address; pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number.
 
 ## 4.2 Handle the Selected Option
 
@@ -60,15 +60,17 @@ Immediately enter Claude Code's plan mode (or, where the host has none, draft a 
 
 **If user selects "Ship it autonomously":**
 
-Immediately load `/work` in the current session, passing the plan artifact path as its input. `/work` then owns implementation. Do not also start another implementation skill directly.
+Immediately load `/autopilot` in the current session, passing the approved plan artifact path as its input. `/autopilot` then owns execution under its phase gates. Do not also start another implementation skill directly.
 
-Where the host exposes no skill-invocation primitive, print the `/work <plan-path>` invocation for the user to run.
+Ship only from an approved execution-ready plan. When the only artifact is the requirements-only plan, or approval has not been given, do not start execution: say so and route to `Create the implementation plan` instead.
+
+Where the host exposes no skill-invocation primitive, print the `/autopilot <plan-path>` invocation for the user to run.
 
 Do not print the closing summary first.
 
 **If user selects "Pressure-test the requirements":**
 
-Load `/doc-review`, passing the plan path as the argument. When `/doc-review` returns "Review complete", return to the Phase 4 options and re-render the menu. If residual P0/P1 findings remain unaddressed, include the post-review nudge above the menu. Do not show the closing summary yet.
+Run the review directly in this session as a bounded dialogue: one pass over the plan artifact that finds gaps, conflicts, weak premises, and scope issues, classifies findings P0/P1, auto-applies the safe fixes (edit `.md` artifacts in place; regenerate `.html` artifacts through the same rendering rules that produced them), and brings the remaining findings to the user one at a time, recording each resolution in the artifact. Conduct this review yourself; never present it as dispatched to another skill, agent, or peer. When the pass completes, return to the Phase 4 options and re-render the menu. If residual P0/P1 findings remain unaddressed, include the post-review nudge above the menu. Do not show the closing summary yet.
 
 **If user selects "More clarifying questions to sharpen the doc":**
 

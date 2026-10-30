@@ -1,6 +1,6 @@
 # Worked audits
 
-Three terse examples: prose, code, and decision. Each follows artifact → per-anchor verdict → top-3 fixes → revised.
+Three short audits: one prose, one code, one decision. Each shows the artifact, the per-anchor verdicts, the top three fixes, then the revision.
 
 ## Example 1: Prose (corporate-blog opener)
 

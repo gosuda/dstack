@@ -1,48 +1,33 @@
 ---
 name: fuzzing-dictionary
-description: 'Use when a parser, protocol, or file format fuzzer stalls at fixed-token validation gates and needs a coverage dictionary. Not for patching the SUT: use fuzzing-obstacles.'
+description: 'Use when a parser, protocol, or file format fuzzer stalls at fixed-token validation gates and needs a coverage dictionary. Not for patching the system under test: use fuzzing-obstacles.'
 ---
 
 # Fuzzing dictionary
 
-## Contract
+A fuzzer that cannot guess your magic bytes will never reach the code behind them. Your job is to hand it the exact tokens the target checks for (keywords, protocol commands, chunk types, delimiters, boundary values) in a file the fuzzer parses, wired into one campaign flag, proven to reach the gates.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User needs a focused dictionary for a parser, protocol, or file format whose coverage stalls at fixed tokens. |
-| Authority | Reversible local: writes only the named local dictionary file, the fuzzer campaign configuration, and transient short-campaign corpus or crash artifacts under a single output directory; rollback is deleting the dictionary file, reverting the configuration flag, and removing the short-campaign output directory. No remote mutation. |
-| Side effect | Fuzzer dictionary file, campaign configuration, and transient short-campaign corpus or crash artifacts. |
-| Done | The dictionary parses in the selected fuzzer and its tokens correspond to target validation or parsing gates. |
+This stays local and reversible. You touch only the named dictionary file, the one fuzzer flag that loads it, and transient short-campaign corpus or crash artifacts under a single output directory. Undoing it is deleting the file, reverting the flag, and removing that output directory. Nothing remote, no credentials, no publishing.
 
-## Not for
+## Reach for this only for token gates
 
-- Patching the system under test to bypass obstacles: use fuzzing-obstacles.
-- Coverage measurement or plateau analysis: use fuzzing-coverage-analysis.
-- Remote, credential, publish, deploy, or irreversible changes.
+Patching the system under test to bypass checksums or nondeterminism is a different job, and it belongs to fuzzing-obstacles. Measuring coverage or diagnosing a plateau is out of scope too.
 
-## Inputs
+## What to have in hand
 
-Required: the target source, specification, header files, or binary to extract tokens from; the selected fuzzer (libFuzzer, AFL++, or cargo-fuzz).
-Optional: an existing corpus, known boundary values, and the target's `-max_len` or equivalent input-length limit.
+The target source, specification, header files, or binary you will mine tokens from, and the fuzzer you are feeding (libFuzzer, AFL++, or cargo-fuzz). If they exist, bring the current corpus, known boundary values, and the target's `-max_len` or equivalent input-length limit. An entry longer than that limit gets silently ignored, so you want the limit before you write.
 
-## Procedure
+## Build the dictionary
 
-1. Bound scope: name the single dictionary file path and the single fuzzer configuration flag to set. Do not edit source, harness, or corpus files. Done when: the dictionary path and config flag are named.
-2. Identify the fixed tokens the target compares against: keywords, magic bytes, protocol commands, chunk types, format delimiters, and boundary values. Read them from the target source, header files, specification, or `strings` of the binary. Done when: fixed tokens are extracted from the target.
-3. Write the dictionary file with one entry per line. Use `"token"` for bare strings, `kw="value"` for named entries, `#` for comments, `\\` for backslash, `\"` for embedded quotes, and `\xXX` hex escapes for non-printable bytes. Done when: the dictionary file is written with correct syntax.
-4. Keep the dictionary focused. Deduplicate with `sort -u`. Drop full sentences and prose; keep atomic tokens. Done when: the dictionary has deduplicated atomic entries.
-5. Wire the dictionary into the selected fuzzer with its flag: libFuzzer `-dict=./dictionary.dict`, AFL++ `-x ./dictionary.dict`, cargo-fuzz `-- -dict=./dictionary.dict`. Confirm the fuzzer loads the file without a parse error. Done when: the fuzzer loads the dictionary without error.
-6. Validate effectiveness: confirm the tokens reach the target's validation or parsing gates rather than being filtered before them. Run a short campaign with and without the dictionary to observe whether the tokens reach the gates. If a token is longer than the fuzzer's max input length, shorten it or raise the limit. Done when: the dictionary parses in the selected fuzzer and its tokens correspond to target validation or parsing gates.
+1. Name the single dictionary file path and the single configuration flag it will load through, and touch nothing else. No source, harness, or corpus edits.
+2. Pull the fixed tokens from the target itself. Read keywords, magic bytes, commands, chunk types, and delimiters out of the source, headers, or spec, or out of `strings` on the binary. Guessed tokens do not belong here. If an entry did not come from the target, replace it.
+3. Write one entry per line: `"token"` for bare strings, `kw="value"` for named entries, `#` for comments, `\\` for a backslash, `\"` for an embedded quote, `\xXX` hex escapes for non-printable bytes.
+4. Keep it focused. Deduplicate with `sort -u`, drop full sentences and prose, keep atomic tokens. A bloated dictionary slows the fuzzer and dilutes the tokens that matter, so prune to the entries that map to real gates.
+5. Wire it in with the flag for your engine (libFuzzer `-dict=./dictionary.dict`, AFL++ `-x ./dictionary.dict`, cargo-fuzz `-- -dict=./dictionary.dict`) and confirm the fuzzer loads the file with no parse error.
+6. Prove the tokens land. Check they reach the target's validation or parsing gates instead of being filtered before them, with a short campaign run with and without the dictionary. A token longer than the fuzzer's max input length gets shortened, or the limit gets raised. You are finished when the file parses cleanly and its entries correspond to real gates.
 
-## Failure and recovery
+## When the fuzzer rejects it
 
-- Dictionary parse error: the fuzzer reports a syntax or path error. Fix unescaped quotes, invalid `\xXX` escapes, or the file path; re-run the load check.
-- Tokens do not correspond to target gates: re-extract from the target source or binary rather than guessing; replace irrelevant entries.
-- Oversized dictionary: an excessive number of entries slows the fuzzer and dilutes useful tokens. Prune to the most relevant entries.
-- Entries ignored: a token exceeds `-max_len`. Shorten the entry or raise the limit.
-- Partial result: keep only entries that load and correspond to a gate; discard the rest.
-- Non-mutation rule: on any failure, delete the dictionary file and revert the configuration flag before retrying; never leave a broken dictionary wired into the campaign.
+A syntax or path error on load means an unescaped quote, a bad `\xXX` escape, or a wrong path. Fix it and re-run the load check. Tokens that miss every gate mean re-extraction from the source or binary, not more guessing. Entries over `-max_len` get shortened or the limit raised. Keep only entries that load and map to a gate and discard the rest. On any failure, delete the dictionary file and revert the flag before retrying. A broken dictionary never stays wired into a campaign.
 
-## Output
-
-A fuzzer-parseable dictionary file plus the single fuzzer configuration flag set to load it, with confirmation that the tokens correspond to target validation or parsing gates.
+What you leave behind is the parseable dictionary file, the one flag set to load it, and confirmation that its tokens reach the target's validation or parsing gates.

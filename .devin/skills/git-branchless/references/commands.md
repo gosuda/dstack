@@ -1,7 +1,7 @@
 # Git-branchless command + revset reference
 
 Inventory of every command, key flag, and revset selector used by this skill.
-Baseline version: `git-branchless 0.11.x`.
+Baseline version: `git-branchless 0.11.1`.
 
 **Grounded: 2026-08-26**
 

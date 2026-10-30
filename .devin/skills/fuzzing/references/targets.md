@@ -1,6 +1,6 @@
 # Fuzz targets and corpus reference
 
-Harness templates, flag tables, and CI patterns. Flag defaults confirmed against the libFuzzer documentation shipped with LLVM and `afl-fuzz -h`. Grounded channels: Clang 23.1.0 (libFuzzer ships inside it), AFL++ v5.03c.
+Harness templates, flag tables, and CI patterns. Flag defaults confirmed against the libFuzzer documentation shipped with LLVM and `afl-fuzz -h`. Grounded channels: Clang 23.1.4 (libFuzzer ships inside it), AFL++ v5.03c.
 
 ## libFuzzer flags
 

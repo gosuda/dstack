@@ -6,42 +6,33 @@ disable-model-invocation: true
 
 # Review plugin submission
 
-## Contract
+Marketplace readiness gets a read-only audit here: a plugin directory goes in, a sectioned pass/fail report with a submission recommendation comes back in chat. Files, version control state, credentials, paid actions, published artifacts, deployed targets, and remote state all stay untouched. No file is written; the report is the sole artifact. Remote reads stay limited to what the audit itself needs.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Final marketplace-readiness review of an agent plugin. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat output only; no file writes, no credential use, no remote calls beyond reads needed for the audit. |
-| Done | Sectioned pass/fail report and submission recommendation returned in chat. |
+Reviewing a pull request or code diff belongs to `review`, not to this job.
 
-## Inputs
+You need `plugin_root` (required), the absolute path to the plugin directory under audit. You can also supply `gate_rules_path` (optional), an absolute path to a gate rules file defining the named gates, each gate's pass condition, and the exact failure message for its fail path. Without it, the audit runs three built-in default gates: manifest-present, manifest-complete, and file-valid, with no allowlist entries.
 
-- plugin_root (required): Absolute path to the plugin directory to audit.
-- gate_rules_path (optional): Absolute path to a gate rules file that defines the named gates, each gate's pass condition, and the exact failure message for its fail path. When it is omitted, the audit runs the built-in default gates defined in step 1.
+## Reading the rules and the manifest
 
-## Procedure
+Parse the gate rules file first when one is supplied. Record each named gate (a check, rule, or criterion block) with its pass condition and the exact failure message for its fail path. Also parse the allowlist section when present: each entry is a path prefix, and a file matches when its path relative to `plugin_root` starts with that prefix.
 
-1. Read the gate rules file at `gate_rules_path`. When it is omitted, audit with the built-in default gates instead: manifest-present (step 2), manifest-complete (step 3), and file-valid (step 4a); these defaults define no allowlist entries. Parse every named gate (check, rule, or criterion block). Record each gate's pass condition and the exact failure message for its fail path. Also parse the rules file's allowlist section when present: each entry is a path prefix, and a file is allowlisted when its path relative to `plugin_root` starts with that prefix.
-2. Reject with a failure report if `plugin_root/plugin.json` does not exist.
-3. Reject with a failure report if `plugin_root/plugin.json` lacks `name`, `version`, and `description` fields.
-4. Read every file under `plugin_root` that is reachable by traversing directories and following symlinks that resolve inside `plugin_root`, excluding binary blobs, node_modules, and hidden paths. Skip any symlink whose resolved target is outside `plugin_root`. For each file:
-   a. Verify the file is syntactically valid for its declared format.
-   b. Apply each applicable gate to the file's contents.
-5. Evaluate each named gate across all examined files. A gate fails if any file violates its condition; a gate passes only when every file that is in-scope for that gate satisfies it.
-6. Assemble a report with:
-   - Summary: one line naming every failing gate and the overall recommendation (APPROVE, APPROVE WITH WARNINGS, or REJECT).
-   - Gate results: for each named gate, the status (PASS / FAIL) and a one-line evidence summary.
-   - Warnings: for each file that violates a gate condition but whose path matches an allowlist entry parsed in step 1, the file path and the matched allowlist entry; an allowlisted violation is a warning and does not fail the gate.
-   - Recommendation: APPROVE (all gates pass), APPROVE WITH WARNINGS (all gates pass and allowlist triggered), or REJECT (one or more gates fail).
+Then confirm the manifest. Reject with a failure report when `plugin_root/plugin.json` does not exist. Reject with a failure report when it lacks `name`, `version`, or `description`, naming the missing fields.
 
-## Failure and recovery
-- Missing manifest (`plugin_root/plugin.json` absent): report the absence as REJECT; stop.
-- Incomplete manifest (missing required fields): report the missing fields as REJECT; stop.
-- Parse error (unreadable or syntactically invalid file): report the file path and parse error; do not halt; continue evaluating remaining files.
-- Gate violation (any file fails an applicable gate): mark that gate FAIL; do not halt; continue evaluating remaining gates.
-- Partial-result rule: always produce a report. A report with any FAIL gate is a valid terminal output; do not fabricate a passing result.
-- Non-mutation rule: no file write, no VCS change, no credential use, no remote call beyond reads needed for the audit.
+## Examining every file in scope
 
-## Output
-A chat message containing the complete sectioned report. No file is written. The report is the sole artifact.
+Walk every file under `plugin_root` by traversing directories and following symlinks that resolve inside `plugin_root`. Skip any symlink whose resolved target falls outside `plugin_root`. Leave binary blobs, `node_modules`, and hidden paths out of scope.
+
+For each file in scope, verify syntactic validity for its declared format, then apply each applicable gate to its contents. A gate fails when any file violates its condition; it passes only when every in-scope file satisfies it. Keep evaluating after failures: a parse error for one file (report its path and the error) never halts the rest, and a gate violation marks that gate FAIL while the remaining gates still run.
+
+An allowlisted violation becomes a warning, not a failure: when a violating file's path matches a parsed allowlist entry, record the file path with the matched entry. The gate still passes.
+
+## What you hand back
+
+A chat message carrying the complete sectioned report:
+
+- Summary: one line naming every failing gate, with the overall recommendation (`APPROVE`, `APPROVE WITH WARNINGS`, or `REJECT`)
+- Gate results: per named gate, its status (`PASS` or `FAIL`) with a one-line evidence summary
+- Warnings: per allowlisted violation, the file path and the matched allowlist entry
+- Recommendation: `APPROVE` when all gates pass, `APPROVE WITH WARNINGS` when all gates pass with allowlist triggers, or `REJECT` when one or more gates fail
+
+A report containing a FAIL gate is a valid terminal output. Fabricating a passing result is never acceptable. Non-mutation holds throughout: no file write, no version control change, no credential use, no remote call beyond the reads the audit needs.

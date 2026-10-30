@@ -1,3 +1,0 @@
-interface:
-  display_name: "Cpu Cache Opt"
-  short_description: "Use when diagnosing cache misses with perf, fixing false sharing, choosing AoS or SoA layout, or adding software prefetch."

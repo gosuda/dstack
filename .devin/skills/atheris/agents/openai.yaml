@@ -1,5 +1,0 @@
-interface:
-  display_name: "Atheris"
-  short_description: "Use when a user needs to run coverage-guided fuzzing with Atheris against Python code or a Python native extension."
-policy:
-  allow_implicit_invocation: false

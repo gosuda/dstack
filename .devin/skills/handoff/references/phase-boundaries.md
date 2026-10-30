@@ -20,7 +20,7 @@ Harnesses use different names for these options. Match each option to your harne
 
 At the boundary, work from top to bottom. Stop at the first **yes**.
 
-**1. Can you continue in this session?** The answer is yes when the next phase needs this phase as a **primary source**, or enough **smart zone** remains for the next phase to fit. The smart zone is the stretch of the context window where the model still reasons well, roughly the first 150k tokens; quality degrades beyond it, before the window fills. Interview → implementation is the standard yes because implementation needs the reasoning verbatim, not a summary. Continuing costs nothing and loses nothing, so rule it out before considering another option.
+**1. Can you continue in this session?** The answer is yes when the next phase needs this phase as a **primary source**, or enough **smart zone** remains for the next phase to fit. The smart zone is the stretch of the context window where the model still reasons well, roughly the first 150k tokens; quality degrades beyond it, before the window fills. Interview → implementation is the standard yes because implementation needs the reasoning verbatim, not a summary. Continuing needs no extra artifact and loses no information, so rule it out before considering another option.
 
 **2. Is the context irrelevant to what comes next?** If everything in this session, including the exploration, decisions, and dead ends, is disposable, **discard** it. Discarding takes no time and returns the whole window. It is not terminal because the old session stays resumable.
 

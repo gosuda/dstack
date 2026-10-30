@@ -1,48 +1,30 @@
 ---
 name: fromzero
 description: 'Use when replacing a greenfield attempt with a clean pad of verified requirements. Not for rebuilding from primitives: use from-first-principle. Requires a committed, VCS-recoverable attempt.'
-disable-model-invocation: true
 ---
 
 # Fromzero
 
-## Contract
+Sometimes the honest move is to throw the attempt away and start the pad over, carrying forward only what was actually proven. You confirm the old attempt is safely committed, filter its requirements down to the verified ones, open a fresh branch with a cleared surface, and write the new pad. The old work survives in version control the whole time.
 
-| Field | Bound contract |
+This replaces an attempt, it never patches one. Rebuilding a design from primitives belongs to from-first-principle. Act only on an explicit human request, and change nothing remote. If any precondition below fails, change nothing at all and tell the human exactly which step is blocked and what they must do.
+
+## What you start with
+
+| What | Requirement |
 |---|---|
-| Trigger | The user wants to replace a greenfield attempt with a clean pad carrying only proven requirements. |
-| Authority | Human-gated: requires explicit human invocation before acting; otherwise reversible local: writes only VCS-tracked targets (show the exact set before mutation); rollback is version control. No remote mutation. |
-| Side effect | A new greenfield attempt on a clean pad; the old attempt remains recoverable through VCS. |
-| Done | A new greenfield attempt exists carrying only verified requirement statements, and the old attempt is reachable in VCS history. |
+| The current greenfield attempt | Under version control and committed, with a clean working tree |
+| The requirements list | Each item proven, meaning tested, accepted, or otherwise demonstrated with a named citation (a surviving test, a gate result, a checked schema, or the triggering complaint) |
 
-## Not for
+Speculative or unverified scope is not proven and does not travel.
 
-- Rebuilding a design from primitives: use from-first-principle.
-- Continuing an existing attempt with fixes: this replaces, it does not patch.
-- Operating without a committed, VCS-recoverable current attempt: the old attempt must survive in history.
+## Clear the pad in order
 
-## Inputs
+1. Confirm the current attempt is committed and recoverable through version control. If uncommitted or untracked work exists, stop and ask the human to commit or discard it first. The old attempt must be reachable in history before anything else moves.
+2. Filter requirements to verified ones only. Carry an item forward only with its citation attached, discard everything unevidenced, and record each carry and discard decision with its reason.
+3. Open a new branch from the recoverable commit, then clear the working surface. Before touching anything, show the exact set of tracked targets the clearance will delete. The mutation is branch creation plus clearance of exactly that listed set, nothing else, and never some unspecified reset.
+4. Write the new pad using only the proven requirement statements. Do not reintroduce discarded scope.
 
-- The current greenfield attempt, which must be under version control and committed.
-- A list of proven requirements. A requirement is proven only when it has been verified (tested, accepted, or otherwise demonstrated). Speculative or unverified scope is not proven.
+## What you hand back
 
-## Procedure
-
-1. Verify the current attempt is committed and recoverable through version control. If any uncommitted or untracked work exists, stop and require the human to commit or discard it first. Done when: the working tree is clean and the attempt is in VCS history.
-
-2. Filter requirements to verified only. Carry only requirements that have been verified; discard unproven, speculative, or accumulated scope. Done when: the proven-requirements set is listed and each entry is verified.
-
-3. Branch from the recoverable commit to clear the working surface. Before any mutation, list the exact set of VCS-tracked targets the clearance will delete (the tracked files of the old attempt) and show that set; the mutation is a branch creation followed by the clearance of exactly those listed targets. The old attempt survives in VCS history while the working surface is cleared on the new branch. Do not use an unspecified reset alternative. Done when: the exact target set was shown before mutating, the working surface is clear on the new branch, and the old attempt is reachable in VCS.
-
-4. Write the requirement list into the new pad. Write only the proven requirements as statements. Do not reintroduce discarded scope. Done when: the new pad contains only verified requirement statements.
-
-## Failure and recovery
-
-- Current attempt not committed or not VCS-tracked: stop before mutation; require the human to commit. No files change.
-- Unverified requirements mixed: stop; do not carry unproven scope into the new attempt.
-- Non-mutation fallback: when any precondition fails, no target is changed. Report the blocked precondition and the exact recovery step the human must perform. Do not substitute an unspecified reset alternative.
-- Partial-result rule: never leave a half-replaced pad. The old attempt must be recoverable through VCS before any working-surface mutation begins.
-
-## Output
-
-A new greenfield attempt on a clean pad carrying only verified requirement statements, with the old attempt recoverable through VCS history.
+A new greenfield attempt on a clean pad carrying only verified requirement statements, with the old attempt still reachable in version control history.

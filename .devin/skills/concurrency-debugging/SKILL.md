@@ -5,125 +5,121 @@ description: 'Use when reading TSan race reports, debugging deadlocks with GDB t
 
 # Concurrency debugging
 
-## Contract
+This skill names the fault behind a ThreadSanitizer or Helgrind report, a hung process, or suspect cross-thread code: the race is the pair of conflicting accesses on one address with no synchronization between them, and a deadlock is the cycle of threads and mutexes. Bring the symptom (the TSan or Helgrind report, the hung or deadlocked process, or the code under review), the code paths named in the report, and, for sanitizer or Valgrind runs, a project that rebuilds with the needed flags.
 
-| Field | Bound contract |
+Everything here is read-only. The skill emits analysis, diagnostic commands, and the verification run in chat; the operator runs commands against the target, no file is written, and nothing touches a remote resource. The work is done when the race or deadlock is named by its conflicting accesses or lock cycle, the fix is stated, and the verification run is described: clean TSan or Helgrind output, or the resolved GDB thread state.
+
+## Catch the race with ThreadSanitizer
+
+TSan ships inside GCC and Clang and needs no separate install. An uninstrumented binary produces no report, so rebuild first:
+
+```bash
+gcc -fsanitize=thread -g -O1 -o prog main.c    # clang takes the same flags
+./prog
+TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" ./prog
+```
+
+`halt_on_error` stops at the first report; `second_deadlock_stack` adds the other lock stack to deadlock reports. The step ends with a report in hand or a clean run.
+
+## Read the report as an access pair
+
+A report names the access type and address, the stack of the thread that performed it, the stack of the conflicting earlier access, and where each thread was created:
+
+```text
+WARNING: ThreadSanitizer: data race (pid=12345)
+  Write of size 4 at 0x7f1234 by thread T2:
+    #0 increment /src/counter.c:8:5
+  Previous read of size 4 at 0x7f1234 by thread T1:
+    #0 read_counter /src/counter.c:3:14
+  Thread T2 created at:
+    #0 pthread_create ...
+    #1 main /src/counter.c:28:3
+SUMMARY: ThreadSanitizer: data race /src/counter.c:8:5 in increment
+```
+
+Name the two conflicting accesses, their threads, and the shared address. Then fix by pattern:
+
+| Race pattern | Fix |
 |---|---|
-| Trigger | A ThreadSanitizer or Helgrind report needs reading, a process hangs in a suspected deadlock, `std::atomic` usage needs review, or a cross-thread access needs a happens-before justification. |
-| Authority | Read-only. Emits analysis and commands for the operator to run on the target; no file writes, no rollback needed. No remote mutation. |
-| Side effect | Diagnostic commands and a verdict in chat. Nothing is written. |
-| Done | The race or deadlock is named by its two conflicting accesses or its lock cycle, the fix is stated, and the verification run is described. |
+| Unsynchronized read or write on shared state | Add a mutex or make the variable `std::atomic` |
+| Double-checked locking without atomics | `std::once_flag` with `std::call_once` |
+| Compound update on a shared integer | `fetch_add` or `compare_exchange_strong` |
+| Container mutated during iteration | Hold the lock for the whole critical section |
+| `shared_ptr` control block | Already atomic; the pointed-to object still needs its own synchronization |
 
-## Inputs
+Every reported access pair gets a named fix. A report that is benign by design, such as a statistical counter, still gets silenced explicitly: make it a `memory_order_relaxed` atomic so the intent is on record.
 
-1. Symptom (required): a TSan or Helgrind report, a hung or deadlocked process, or code under review.
-2. Build access (required for TSan and Helgrind): the project rebuilds with a sanitizer flag or runs under Valgrind.
-3. Source (required): the code paths named in the report.
+## Expose lock-order violations with Helgrind
 
-## Procedure
+Helgrind runs on Valgrind and reports acquisition orders that can deadlock:
 
-1. Detect the race with ThreadSanitizer. TSan ships inside GCC and Clang; it needs no separate install.
+```bash
+valgrind --tool=helgrind --log-file=helgrind.log ./prog
+```
 
-   ```bash
-   gcc -fsanitize=thread -g -O1 -o prog main.c    # clang takes the same flags
-   ./prog
-   TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" ./prog
-   ```
+A lock-order report names two observed orders over the same mutex pair: thread T1 takes M1 then M2, thread T2 takes M2 then M1. The fix is one global order: take M1 before M2 at every site. Helgrind reports on custom spinlocks or lock-free code are expected noise; annotate or filter them rather than chasing them as bugs.
 
-   `halt_on_error` stops at the first report. `second_deadlock_stack` adds the other lock stack to deadlock reports. Done when: the instrumented binary runs and a report exists, or the run is clean.
-2. Read the TSan report. A report names the access type and address, the stack of the thread that performed it, the stack of the conflicting earlier access, and where each thread was created. The race is the pair of accesses on one address with no synchronization between them.
+## Find the deadlock cycle in GDB
 
-   ```text
-   WARNING: ThreadSanitizer: data race (pid=12345)
-     Write of size 4 at 0x7f1234 by thread T2:
-       #0 increment /src/counter.c:8:5
-     Previous read of size 4 at 0x7f1234 by thread T1:
-       #0 read_counter /src/counter.c:3:14
-     Thread T2 created at:
-       #0 pthread_create ...
-       #1 main /src/counter.c:28:3
-   SUMMARY: ThreadSanitizer: data race /src/counter.c:8:5 in increment
-   ```
+A process that will not reproduce under the debugger still shows its cycle: attach to the stopped process and read `info threads` with a per-thread backtrace.
 
-   Done when: the two conflicting accesses, their threads, and the shared address are named.
-3. Fix the race by pattern.
+```bash
+gdb -p $(pgrep prog)
+```
 
-   | Race pattern | Fix |
-   |---|---|
-   | Unsynchronized read or write on shared state | Add a mutex or make the variable `std::atomic` |
-   | Double-checked locking without atomics | `std::once_flag` with `std::call_once` |
-   | Compound update on a shared integer | `fetch_add` or `compare_exchange_strong` |
-   | Container mutated during iteration | Hold the lock for the whole critical section |
-   | `shared_ptr` control block | Already atomic; the pointed-to object still needs its own synchronization |
+```gdb
+(gdb) info threads        # threads parked in __lll_lock_wait wait on a mutex
+(gdb) thread 2
+(gdb) bt                  # which lock this thread waits on
+(gdb) p ((pthread_mutex_t*)0x601090)->__data.__owner   # glibc: TID of the owner
+```
 
-   Done when: every reported access pair is covered by a named fix.
-4. Detect lock-order violations with Helgrind. Helgrind runs on Valgrind and reports acquisition orders that can deadlock.
+`__data.__owner` is a glibc implementation detail; on another libc it is absent, so identify the mutex owner from the backtraces instead. To dump every thread at once:
 
-   ```bash
-   valgrind --tool=helgrind --log-file=helgrind.log ./prog
-   ```
+```python
+python
+import gdb
+for t in gdb.selected_inferior().threads():
+    t.switch()
+    print(f"Thread {t.num}: {gdb.execute('bt 3', to_string=True)}")
+end
+```
 
-   A lock-order report names two observed orders over the same mutex pair: thread T1 takes M1 then M2, thread T2 takes M2 then M1. The fix is one global order: take M1 before M2 at every site. Done when: every reported order pair resolves to one order.
-5. Find the deadlock cycle in GDB.
+Name the cycle of threads and mutexes.
 
-   ```bash
-   gdb -p $(pgrep prog)
-   ```
+## Fix std::atomic misuse
 
-   ```gdb
-   (gdb) info threads        # threads parked in __lll_lock_wait wait on a mutex
-   (gdb) thread 2
-   (gdb) bt                  # which lock this thread waits on
-   (gdb) p ((pthread_mutex_t*)0x601090)->__data.__owner   # glibc: TID of the owner
-   ```
+A check followed by a store is two operations, not one; publication across threads needs release on the producer side and acquire on the consumer side:
 
-   `__data.__owner` is a glibc implementation detail; other libcs do not have it. To dump every thread at once:
+```cpp
+// TOCTOU: the check and the store are not one operation
+if (counter == 0) counter = 1;
+// Fix: one atomic compare-exchange
+int expected = 0;
+counter.compare_exchange_strong(expected, 1);
 
-   ```python
-   python
-   import gdb
-   for t in gdb.selected_inferior().threads():
-       t.switch()
-       print(f"Thread {t.num}: {gdb.execute('bt 3', to_string=True)}")
-   end
-   ```
+// Publication needs release/acquire, not relaxed
+data = 42;
+ready.store(true, std::memory_order_release);   // producer
+if (ready.load(std::memory_order_acquire)) {    // consumer
+    use(data);                                 // sees data == 42
+}
+```
 
-   Done when: the cycle of threads and mutexes is named.
-6. Fix `std::atomic` misuse.
+Every shared access ends up atomic or mutex-guarded, and every publication uses release/acquire.
 
-   ```cpp
-   // TOCTOU: the check and the store are not one operation
-   if (counter == 0) counter = 1;
-   // Fix: one atomic compare-exchange
-   int expected = 0;
-   counter.compare_exchange_strong(expected, 1);
+## Justify each cross-thread read with a happens-before edge
 
-   // Publication needs release/acquire, not relaxed
-   data = 42;
-   ready.store(true, std::memory_order_release);   // producer
-   if (ready.load(std::memory_order_acquire)) {    // consumer
-       use(data);                                 // sees data == 42
-   }
-   ```
+The edges are: sequenced-before orders statements inside one thread; `store(release)` synchronizes-with `load(acquire)` on the same atomic; thread creation synchronizes-with the new thread's first action; a thread's last action synchronizes-before `join`; `unlock(M)` synchronizes-with the next `lock(M)`. A cross-thread read with no edge behind it is a race. Give each cross-thread read its named edge or flag it.
 
-   Done when: every shared access is atomic or mutex-guarded and every publication uses release/acquire.
-7. Apply happens-before reasoning. The edges: sequenced-before orders statements inside one thread; `store(release)` synchronizes-with `load(acquire)` on the same atomic; thread creation synchronizes-with the new thread's first action; a thread's last action synchronizes-before `join`; `unlock(M)` synchronizes-with the next `lock(M)`. A cross-thread read with no edge behind it is a race. Done when: each cross-thread read has a named edge or is flagged as a race.
-8. Rust. Ownership rejects data races at compile time: shared mutable state goes behind `Arc<Mutex<T>>` or atomics, and `Send`/`Sync` gate what crosses a thread boundary. TSan works on nightly:
+## Carry the same reasoning into Rust
 
-   ```bash
-   RUSTFLAGS="-Zsanitizer=thread" cargo +nightly test
-   ```
+Ownership rejects data races at compile time: shared mutable state goes behind `Arc<Mutex<T>>` or atomics, and `Send`/`Sync` gate what crosses a thread boundary. TSan works on nightly:
 
-   Done when: shared state sits behind `Arc<Mutex<T>>` or atomics, or the nightly TSan run is clean.
+```bash
+RUSTFLAGS="-Zsanitizer=thread" cargo +nightly test
+```
 
-## Failure and recovery
+Shared state sits behind `Arc<Mutex<T>>` or atomics, or the nightly TSan run is clean.
 
-- TSan needs an instrumented rebuild; an uninstrumented binary produces no report. Rebuild with `-fsanitize=thread -g -O1`.
-- Helgrind reports on custom spinlocks or lock-free code are expected noise. Annotate or filter them; do not chase them as bugs.
-- The deadlock does not reproduce under the debugger: a stopped process still shows the cycle through `info threads` and per-thread `bt`.
-- `__data.__owner` is absent: the libc is not glibc. Identify the mutex owner from the backtraces instead.
-- A reported race is benign by design, such as a statistical counter: make it a `memory_order_relaxed` atomic so the intent is explicit and the report goes quiet.
-
-## Output
-
-A verdict naming the race or deadlock by its conflicting accesses or lock cycle, the fix per pattern, and the verification run: clean TSan or Helgrind output, or the resolved GDB thread state.
+Hand back a verdict naming the race or deadlock by its conflicting accesses or lock cycle, the fix per pattern, and the verification run.

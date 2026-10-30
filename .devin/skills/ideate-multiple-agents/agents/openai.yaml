@@ -1,0 +1,3 @@
+interface:
+  display_name: "Ideate Multiple Agents"
+  short_description: "Use when the user wants divergent ideas or an independently generated candidate pool grounded in the working repository."

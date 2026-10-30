@@ -5,39 +5,32 @@ description: 'Use when asked to partition non-overlapping scopes across subagent
 
 # Partition scopes to subagents
 
-## Contract
+You take work the user has divided into named, non-overlapping scopes and drive every scope to completion with subagents: one implementer per scope, then a different reviewer per scope, then fixes until the reviewer is satisfied. Everything lands in local files (briefs, per-scope artifacts, review and fix reports, and a coordination map); rollback is version control or undo, and nothing touches a remote.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User names work that decomposes into non-overlapping scopes and asks to partition and execute them with subagents. |
-| Authority | Reversible local: writes only each subagent's assigned files, per-scope artifacts, and a coordination map; rollback is version control or undo. No remote mutation. |
-| Side effect | Subagent briefs, per-scope work artifacts, review reports, fix reports, and an actual-work map written to local files only. |
-| Done | All scopes return a review report and a fix report; an actual-work map lists every scope and its terminal status. |
+## Confirm the scopes do not overlap
 
-## Inputs
+Before dispatching anyone, confirm each named scope touches disjoint file sets, or that the user explicitly approved the overlap. If two scopes target the same file, stop and ask the user to clarify boundaries. Include every active worker and your own writes in the occupied-file map; shared manifests and integration surfaces get one named owner. Mark cross-scope findings REPORT, DO NOT EDIT, and route them to their owner. Merge or sequence tasks that need the same file: a shared checkout is not permission for overlapping writers. When scopes need integration, give one owner exclusive writes to the integration surface and have other workers report rather than edit, publishing only complete coherent increments (never placeholder implementations or interface-only changes as accepted work).
 
-- Scopes (required): Named, non-overlapping work units with explicit boundaries. Supplied by the user or derived from a map the user provides.
-- Scope assignment (required): Which subagent owns which scope. Stated explicitly by the user or inferred from a DAG/map the user approves.
-- Review duty (required): Each scope requires a fresh reviewer subagent after the implementer subagent completes. The reviewer is not the implementer.
-- Compiled map (optional): A DAG, war map, or state machine providing deterministic skeleton routing. Provide it if the user supplied one; otherwise derive from the stated scopes.
+## Set up the map and briefs
 
-## Procedure
+Adopt the user's DAG or war map as the execution skeleton when one is supplied; otherwise derive a flat map from the stated scopes, one node per scope with no ordering edges. The map is the source of truth for what each subagent must do.
 
-1. **Validate scope non-overlap.** Before dispatching any subagent, confirm each named scope touches disjoint file sets or the user explicitly approved overlap. Stop if two scopes target the same file. Done when: all scopes are confirmed non-overlapping or overlap is user-approved.
-2. **Compile the map.** If the user supplied a DAG or war map, adopt it as the execution skeleton. If not, derive a flat execution map from the stated scopes: one node per scope, no ordering edges. The map is the source of truth for what each subagent must do. Done when: the execution map is compiled and adopted as source of truth.
-3. **Draft scope briefs.** For each scope, write a self-contained subagent brief containing: goal (one sentence), exact files or directories in scope, constraints from the parent task, and the completion predicate. Briefs are paths, not pasted content. Done when: a self-contained brief is written for each scope.
-4. **Dispatch implementer subagents.** Dispatch one fresh implementer subagent per scope with its brief. Each implementer works in isolation and writes its result to a per-scope artifact file. Done when: one implementer is dispatched per scope with its brief.
-5. **Dispatch fresh reviewer subagents.** After each implementer completes, dispatch a new reviewer subagent to audit that scope's artifact. The reviewer is not the same agent as the implementer. Collect the review report per scope. Done when: a fresh reviewer is dispatched per scope and review reports are collected.
-6. **Route fix reports.** If the reviewer reports findings, dispatch a fix subagent for that scope and collect its fix report. Repeat review until the reviewer reports no blocking findings for that scope. Done when: each scope's reviewer reports no blocking findings.
-7. **Record in the actual-work map.** After each scope reaches its terminal review status, write one entry in the actual-work map: scope name, implementer status, reviewer status, fix count, and terminal verdict. Done when: every scope has an entry in the actual-work map.
-8. **Converge.** Once all scopes have terminal verdicts and all review reports are filed, the skill is done. Done when: all scopes have terminal verdicts and review reports are filed.
+Write one self-contained brief per scope: the one-sentence goal, the exact files or directories in scope, the constraints from the parent task, cross-scope caller migrations that belong to this scope (so workers never repair foreign files), dependencies, non-goals, permitted verification, the report location, and the observable completion predicate. Briefs carry paths, not pasted content.
 
-## Failure and recovery
-- Scope overlap detected: Stop before dispatch. Return the conflicting scopes and ask the user to clarify boundaries.
-- Subagent reports BLOCKED: Record BLOCKED in the actual-work map for that scope. Continue with other scopes. Report the full blocked list after all convergent scopes finish.
-- Reviewer escalation: A reviewer finding that requires cross-scope knowledge returns to the controller, not to the implementer. Record the escalation in the actual-work map and resolve it before marking that scope done.
-- Subagent crash: Re-dispatch the same brief to a fresh implementer subagent for that scope. Do not carry forward partial state from the crashed run.
-- Non-converged result: If any scope remains BLOCKED after one re-dispatch, record the exhaustion and stop. Do not loop indefinitely.
+## Implement, then review with fresh eyes, then fix
 
-## Output
+Dispatch one fresh implementer subagent per scope with its brief. Each works in isolation and writes its result to a per-scope artifact file.
+
+After each implementer finishes, dispatch a new reviewer subagent for that scope. The reviewer is never the implementer. If the reviewer reports findings, dispatch a fix subagent for that scope and collect its fix report, repeating review until the reviewer reports no blocking findings for the scope. A reviewer finding that needs cross-scope knowledge comes back to you, not the implementer: record the escalation in the coordination map and resolve it before marking that scope done.
+
+After each scope reaches its terminal review status, write one entry in the actual-work map: scope name, implementer status, reviewer status, fix count, and terminal verdict. The skill is done when all scopes carry terminal verdicts and all review reports are filed.
+
+Inspect returned artifacts and live file state before accepting reports: validate claimed test selection and failure witnesses rather than accepting a passing count. After all relevant writes land, you perform the authorized integration verification against the assembled tree; pre-integration lane results do not establish integrated success. Do not mark the map done while required integrated checks remain unrun.
+
+## When a scope goes wrong
+
+A subagent reporting BLOCKED goes in the map as BLOCKED for that scope; keep working the other scopes and report the full blocked list after the convergent scopes finish. A crashed subagent gets re-dispatched with the same brief to a fresh implementer for that scope, without carrying forward partial state from the crash. If a scope stays BLOCKED after one re-dispatch, record the exhaustion and stop; do not loop indefinitely. On any worker failure, inspect and preserve existing work before reassignment, record the remaining scope, ensure the predecessor is no longer writing, and never infer agent survival, background-job death, or resume support from a provider error code. Keep this skill's fresh-reviewer policy unless it is separately and explicitly changed.
+
+## What you return
+
 One `actual-work-map.md` listing every scope with terminal status (done, blocked, or failed), reviewer verdict, and fix count, plus one review report per scope, one fix report per scope that required fixes, and one brief file per scope.

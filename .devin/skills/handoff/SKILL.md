@@ -5,47 +5,47 @@ description: 'Use when work reaches a session boundary or the user asks to hand 
 
 # Session continuity and handoff
 
-## Contract
+You carry context across the gaps where sessions end: interruptions, session exits, and explicit requests to hand work to someone (or something) else. While work is underway you keep one small live record. Only when the human explicitly asks for a handoff do you package anything, and you never launch the receiver. Two package shapes exist. Mode `brief` writes a compact continuity brief to a file or stdout. Mode `prompt` assembles a clipboard-ready delegation prompt with no filesystem paths in it.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Substantive work starts, reaches a significant boundary, resumes after interruption, completes, or must move to another session, agent, harness, directory, repository, or person. An explicit handoff request selects the mode. |
-| Authority | Reversible local: mode brief writes only ignored repository-local continuity files and one brief under `.handoff/handoffs/` or stdout; mode prompt writes only the assembled prompt text and the clipboard. Rollback is version control or undo. No remote mutation. |
-| Side effect | Continuity files under `.handoff/continuity/`, portable briefs under `.handoff/handoffs/`, or clipboard text. No receiver launch, data-at-rest changes outside these artifacts, bulk mutation, or irreversible effects. |
-| Done | Continuity status (`fresh`, `resumed`, `interrupted`, or `completed`) with the death-point path. On explicit handoff: mode brief, one compliant brief path or stdout result; mode prompt, a path-free prompt on the clipboard or printed with a stated unavailability. |
+Follow [resume.md](references/resume.md) whenever you decide whether to resume prior state or start fresh.
 
-## Inputs
+## Keep one live record while you work
 
-- Mode (required on explicit handoff): `brief` for a session continuity brief file or stdout, `prompt` for a clipboard-ready, path-free delegation prompt.
-- Current repository identity, session handle, goal, scope, active files, and current time.
-- Current tasks, decisions with rationale, blockers, evidence, and next action.
-- Existing continuity artifacts, when present.
-- Mode `brief`: optional source handle, destination path, and project exclude list.
-- Mode `prompt`: the task the user names or clearly implies, plus optional repo or product identity, issue/PR/branch names or URLs, likely modules, constraints, known symptoms, and desired output shape, inferred from nearby context when the user gives only a short label.
+Your continuity set is three files under `.handoff/continuity/`: `notes.md` for goals, scope, and rationale, `graph.md` for the directed graph of task, decision, and blocker nodes with dependency, sequence, and resolution edges, and `death-point.md` for the last completed action, the exact next action, blockers, timestamp, and status. Before the first write, prove `.handoff/` is ignored; if it is not, add the repository-local exclusion and prove it again. Never stage these files.
 
-Use `.handoff/continuity/` for `notes.md`, `graph.md`, and `death-point.md`. Use `.handoff/handoffs/` for portable briefs. Before the first write, prove `.handoff/` is ignored. If it is not, add the repository-local exclusion and prove it again. Do not stage these files.
+When starting fresh, write `death-point.md` first with whatever goal, repository identity, session handle, timestamp, status (`active`), and next action you have, and flush that minimal marker before creating the other two files. Then record the goal, scope, repository identity, session handle, and initial rationale in `notes.md`, build the graph, and bring the death point up to date. When resuming, append a timestamped resumption record, mark the prior death-point node `resumed`, and reconcile current facts without rewriting prior decisions or rationale.
 
-## Procedure
+Update all three artifacts before continuing whenever a decision lands, a discovery changes the plan, a task changes state, a blocker changes, a phase ends, interruption threatens, or scope shifts. Record what changed and why it matters; leave out tool chatter and intermediate noise. You are done updating when the changed fact is recorded and all three files are flushed.
 
-1. **Choose resume or fresh.** Follow [resume.md](references/resume.md). Resume only from the complete, readable, unfinished continuity set whose recorded repository identity matches the current repository. Start fresh when it is absent, completed, corrupt, stale, incomplete, or belongs to another project. A minimal emergency death point starts a fresh record with its available context. Preserve unusable files and report why they were rejected. Done when: the continuity mode is selected and the source is ready for resume or fresh initialization.
+Endings get marked, not implied. On interruption or ordinary exit, set the death point to `interrupted` with the last completed action, the exact next action, active blockers, and a timestamp. On goal completion, append the achieved result and residual work to the notes, resolve or classify every open graph node, and set the death point to `completed`. A later session always starts fresh after a `completed` marker.
 
-2. **Initialize continuity state.** In fresh mode, write `death-point.md` first with the available goal, repository identity, session handle, timestamp, status `active`, and next action `initialize continuity state`. Flush that minimal death point before creating `notes.md` and `graph.md`. Then write the goal, scope, repository identity, session handle, and initial rationale to `notes.md`; create a directed graph of task, decision, and blocker nodes with dependency, sequence, and resolution edges; and replace the death point with the last completed action, next action, blockers, timestamp, and status `active`. In resume mode, append a timestamped resumption record, mark the prior death-point node `resumed`, and reconcile current facts without rewriting prior decisions or rationale. Done when: the continuity set is consistent with current facts and the death point is up to date.
+If the prior state is unusable, preserve it, name the reason (`corrupt`, `stale`, `incomplete`, `completed`, or `wrong project`), and start fresh. A lone valid minimal `death-point.md` is an emergency recovery marker: start fresh from its goal and timestamp, then rebuild notes and graph from current evidence. Any other partial set is not a resumable point, so keep every complete artifact and report which file failed.
 
-3. **Maintain one live record.** At each decision, discovery that changes the plan, task-state transition, blocker change, phase boundary, interruption risk, or scope change, update the rationale notes, graph, and death point before continuing. Record the changed fact and why it matters; omit tool chatter and intermediate noise. Flush all three artifacts after the update. Done when: the changed fact is recorded and the artifacts are flushed.
+## Package only when asked, in the requested mode
 
-4. **Mark the ending.** On interruption or ordinary session exit, set the death point to `interrupted` with the last completed action, exact next action, active blockers, and timestamp. On goal completion, append the achieved result and residual work to the notes, resolve or classify every open graph node, and set the death point to `completed`. A later session always starts fresh after a `completed` marker. Done when: the session is correctly classified and the death point is flushed.
+Packaging starts from an exact source. Use the supplied source handle when one is given, otherwise the current live state. In mode `brief`, a supplied destination path selects where the brief lands. Reject ambiguity and wrong-project matches, and stop to request an exact handle rather than guessing. Before reading source content into a package, apply the exclude list to the canonical project identity and every candidate path; if any source is excluded, refuse the package and name what matched. A stale index never overrides the current exclude list. If the user gave no task and none is inferable from nearby context, stop and ask for the task; emit no prompt.
 
-5. **Package only on explicit handoff.** Resolve the requested source by exact handle when supplied; otherwise use the current live state. Reject ambiguity and wrong-project matches. Before reading source content into a package, apply the exclude list to the canonical project identity and every candidate path. Refuse the package if any source is excluded; a stale index does not override the current exclude list. Then select the mode: `brief` packages a session continuity brief; `prompt` builds a path-free delegation prompt. Done when: the source is resolved, excluded items are refused, and the mode is selected.
+When a reference arrives as a bare name or description with no locator, stop and ask for one stable handle (a permalink, resource URI, or file:line reference). Never invent the handle; if none is supplied, mark the reference unresolved and carry that status into the package.
 
-6. **Mode brief: print the source receipt.** Show session or harness kind, canonical project identity, short session handle, source timestamp, and computed age. Treat future or invalid timestamps as unknown age. For work older than seven days, print a warning with its age before continuing. If policy withholds newer matching work, disclose that this is the newest visible source. Done when: the receipt is printed, age warnings are shown, and any visibility policy is disclosed.
+## Mode brief: a portable snapshot under 6,144 bytes
 
-7. **Mode brief: build one UTF-8 brief of at most 6,144 bytes.** Include typed sections for source receipt, goal and scope, active files, task/decision/blocker graph, decisions with rationale, evidence, next action, and `Where it stopped`. Filter raw transcript, tool output, command dumps, JSON or CLI walls, system reminders, repeated material, and long token runs. Preserve conclusions in order. Reserve at least one quarter of the budget for `Where it stopped`, containing the final substantive, noise-filtered exchanges or the death-point facts. When truncation is required, end that section with `[cut for handoff budget]`; do not leave an empty heading or append content after the marker. Done when: the brief is at most 6,144 bytes and every required section is nonempty.
+Print the source receipt first: session or harness kind, canonical project identity, short session handle, source timestamp, and computed age (treat future or invalid timestamps as unknown age). Warn visibly about work older than seven days, and disclose it when policy withholds newer matching work and this is only the newest visible source.
+Write the brief to the supplied destination path when one is given, otherwise under `.handoff/handoffs/` or to stdout, then close with this line:
+Then build one UTF-8 brief of at most 6,144 bytes with typed sections for the source receipt, goal and scope, active files, the task/decision/blocker graph, decisions with rationale, evidence, the next action, and `Where it stopped`. Filter out raw transcript, tool output, command dumps, JSON and CLI walls, system reminders, repeated material, and long token runs; keep conclusions in order. Reserve at least one quarter of the budget for `Where it stopped`, which holds the final substantive noise-filtered exchanges or the death-point facts. When truncation is needed, end that section with `[cut for handoff budget]` and put nothing after the marker; never emit an empty heading. Emit no brief until its byte count fits and every required section is nonempty.
 
-8. **Mode brief: emit and stop.** Write the brief under `.handoff/handoffs/` or emit it to stdout. End with: `Continue from this compact context; do not re-derive completed work.` Report the path or stdout result and current continuity status. Never launch or instruct tooling to launch the receiver. Done when: the brief is written or emitted and the continuity status is reported.
+Write the brief under `.handoff/handoffs/` or emit it to stdout, then close with this line:
 
-9. **Mode prompt: identify the task and gather context.** Name the task in one sentence, recording the inference source when the user gave only a short label. Gather enough to orient a fresh agent: repo or product identity, issue/PR/branch names or URLs, likely modules, constraints, known symptoms, and the desired output shape. Stop short of doing the receiving agent's review or picking its technical direction. Done when: the task is named, context is gathered or marked absent, and no receiving-agent review was performed.
+`Continue from this compact context; do not re-derive completed work.`
 
-10. **Mode prompt: assemble the prompt from portable anchors.** Use repo owner/name, product or module names, issue/PR URLs, branch names, public symbols, command names, config keys, exact error text, docs titles, and search terms. Include no absolute, home-directory, checkout, or repo-relative paths unless the user explicitly requested them. Make the first instruction to the receiving agent a review-and-assess instruction, not a command-only work order, and state that the agent owns that review and decides whether the task is still real, stale, already solved, over-scoped, or better handled differently. Include constraints, non-goals, validation expectations, the desired output shape, an instruction to re-check live repo/GitHub/CI state, and a ban on pushing, merging, closing issues/PRs, labeling, or posting without explicit request. Fill this shape by default:
+Report the path or stdout result with the current continuity status (`fresh`, `resumed`, `interrupted`, or `completed`) and the death-point path. On resume, also name any rejected continuity set and why.
+
+## Mode prompt: a path-free delegation
+
+Name the task in one sentence, noting the inference source when the user gave only a short label. Gather enough to orient a fresh agent (repo or product identity, issue, PR, or branch names or URLs, likely modules, constraints, known symptoms, desired output shape) without doing the receiving agent's review or picking its technical direction.
+
+Assemble the prompt from portable anchors only: repo owner and name, product or module names, issue or PR URLs, branch names, public symbols, command names, config keys, exact error text, docs titles, and search terms. Include no absolute, home-directory, checkout, or repo-relative paths unless the user explicitly requested them; a drafted line containing a filesystem path gets rewritten as a portable anchor before copying, or dropped with a noted omission when it cannot be rewritten. Any drafted claim not checked against the repo, issue, PR, or docs gets removed or marked unverified, never presented as reviewed fact.
+
+The first instruction to the receiving agent is review-and-assess, not a work order: the agent owns that review and decides whether the task is still real, stale, already solved, over-scoped, or better handled differently. State constraints, non-goals, validation expectations, and the desired output shape; require a re-check of live repo, GitHub, and CI state; and ban pushing, merging, closing issues or PRs, labeling, or posting without explicit request. When naming where the next session resumes, prefer an addressable compaction-surviving thread (a comment permalink on the tracked issue or review) over a chat-only relay, and cite the thread handle rather than paraphrasing it. Fill every template field below or mark it as needing user input:
 
 ```text
 I want to discuss and possibly work on: <short task title>
@@ -80,25 +80,4 @@ Output:
 - Do not push, merge, close issues/PRs, label, or post public comments unless explicitly told.
 ```
 
-Done when: every anchor is portable, no unrequested filesystem path appears, the first instruction is review-and-assess, and every template field is filled or marked as needing user input.
-
-11. **Mode prompt: deliver to the clipboard.** Copy the full prompt with a temp file or pipe, never inline shell quoting. On macOS use `pbcopy`; otherwise use the platform clipboard tool (`wl-copy`, `xclip`, `clip.exe`). When none is available, print the prompt and state that clipboard copy was unavailable. Done when: the prompt is on the clipboard or printed with a stated unavailability.
-
-12. **Mode prompt: confirm tersely.** Reply with the task title only; do not paste the full prompt unless the user asks. Done when: the confirmation names the task title and no unprompted full paste occurred.
-
-## Failure and recovery
-
-- Unusable prior state: preserve it, name `corrupt`, `stale`, `incomplete`, `completed`, or `wrong project`, and start fresh.
-- Unverified ignore rule: stop before writing continuity state and name the failed ignore check.
-- Ambiguous or absent handoff source: stop packaging and request an exact handle; keep maintaining current continuity state.
-- Excluded source: name the matched project or path and emit no brief.
-- Budget failure: emit no complete brief until its UTF-8 byte count is at most 6,144 and every required section is nonempty.
-- Partial write: preserve every complete artifact and report the failed file. A complete minimal `death-point.md` is an emergency recovery marker: the next session starts fresh from its available goal and timestamp, then rebuilds notes and graph from current evidence. Any other partial set is not a usable resume point.
-- Missing task: the user gave no task and none is inferable from nearby context. Stop and ask for the task; emit no prompt.
-- Path leakage: a drafted line contains a filesystem path. Rewrite it as a portable anchor before copying. If a path cannot be rewritten without losing meaning and the user did not explicitly request it, drop the line and note the omission in the confirmation.
-- Invented facts: a drafted claim was not checked against the repo, issue/PR, or docs. Remove or mark it unverified; never present an unchecked claim as reviewed fact.
-- Clipboard unavailable: no platform clipboard tool exists. Print the prompt and report that clipboard copy was unavailable.
-
-## Output
-
-During work, output the ignored local continuity status: `fresh`, `resumed`, `interrupted`, or `completed`, with the death-point path. On resume, also name any rejected continuity set and its reason. On explicit handoff, output the source receipt, any age or visibility warning, and one compliant brief path or stdout result (mode `brief`), or a standalone path-free prompt on the clipboard with a terse confirmation naming the task title (mode `prompt`). The procedure ends there; no receiver is launched.
+Copy the full prompt with a temp file or pipe, never inline shell quoting. On macOS use `pbcopy`; otherwise use the platform clipboard tool (`wl-copy`, `xclip`, `clip.exe`). When none is available, print the prompt and state that clipboard copy was unavailable. Confirm tersely with the task title only; do not paste the full prompt unless the user asks.

@@ -4,43 +4,35 @@ description: 'Use when the user asks to discover, group, and summarize work reco
 disable-model-invocation: true
 ---
 
-# Work records summary
+# Summarizing work across systems
 
-## Contract
+You gather work records from several source systems for one period or project, group them, draft the summary for human review, and only then publish one summary document through the target system API. The human asks for the run explicitly and reviews the draft before anything is published. You produce no local file.
 
-| Field | Bound contract |
+The run is finished when a published summary document holds every grouped cross-source record with no truncation, and you hand back its URL. A partially written or truncated publish is a failure, never a pass.
+
+## What you start with
+
+| Input | Required |
 |---|---|
-| Trigger | User asks to discover, group, and summarize work records across multiple systems for a given period or project. |
-| Authority | Remote: creates one summary document via the target system API; requires explicit human invocation, and human review of the draft precedes publishing. |
-| Side effect | Creates one summary document via the target system API after human review of the draft. |
-| Done | A published summary document with grouped cross-source records and no content truncation. |
+| Date range for the records | Yes |
+| Source system credentials and API keys, for each configured source | Yes, missing or refused credentials stop the run before any partial action |
+| Grouping approach (by project, by team, by area, or another explicit scheme) | Yes |
+| Target document parent ID for the summary | Yes |
+| Target system API credentials with create permissions on that parent | Yes |
+| Repositories or sources to include or exclude | Optional, when the human specifies |
 
-## Inputs
+## Confirming the scope
 
-- Date range (required): the period to gather records for.
-- Source system credentials and API keys (required): credentials for each configured source system. Missing or refused credentials stop the skill without partial action.
-- Grouping approach (required): how records are organized: by project, by team, by area, or another explicit scheme.
-- Target document parent ID (required): the identifier of the parent document under which the summary is created.
-- Target system API credentials (required): valid credentials with create permissions on the target parent.
-- Specific repositories or sources to include or exclude (optional): human specifies.
+Present the date range, the configured sources, and the proposed grouping approach, and get explicit confirmation before proceeding. If the human revokes confirmation at any point before the write, stop immediately; no rollback is needed while nothing is written.
 
-## Procedure
+## Gathering records
 
-1. Confirm the date range and system access. Present the date range, configured sources, and proposed grouping approach. Obtain explicit confirmation before proceeding. Done when: the human confirms the scope.
-2. Retrieve records from each configured source system. Query each source for records in the specified date range. Extract title, URL, date, and project or area metadata. If a source fails, stop gather for that source and report what was gathered and what source failed. Done when: records are gathered from each source, or the failed source is reported.
-3. Group records logically based on the provided grouping approach. Each group holds the records assigned to it. Use record titles, descriptions, and metadata for grouping. Generate the draft summary with one section per group. Write all records; do not truncate or abbreviate. Done when: every record is assigned to a group and the draft is generated.
-4. Present the draft to the human for correction. Wait for explicit confirmation or adjustments. Done when: the human confirms the draft.
-5. Publish the final summary. Using the confirmed target parent ID and credentials, create the summary document with one section per group. Each group section contains a group name header, a summary line counting records per source, and subsections listing every record as a link with its date. Done when: the summary document is created with all records.
-6. Confirm creation and return the document URL. Done when: the document URL is returned.
+Query each configured source for records in the date range, extracting title, URL, date, and project or area metadata. If a source API fails, stop gathering for that source and report what was gathered and which source failed; do not proceed to publish with partial data. If credentials are missing, stop before any network call and name the absent or unconfirmed credential. If the gather yields zero records, stop, report zero, and fabricate nothing.
 
-## Failure and recovery
+## Grouping and drafting
 
-- Missing credentials: stop before any network call. Return the credential name that is absent or unconfirmed.
-- Source API failure during gather: stop gather for that source. Report what was gathered and what source failed. Do not proceed to publish with partial data.
-- Empty results: stop. Report zero records. Do not fabricate content.
-- Publish partial or truncated: treat as failure. Report the last successfully written group. Do not claim done.
-- Human revokes confirmation mid-flow: stop immediately. No rollback needed if the write has not occurred.
+Assign every record to a group under the agreed approach, using titles, descriptions, and metadata. Generate the draft summary with one section per group, writing all records with no truncation or abbreviation. Then present the draft to the human for correction and wait for explicit confirmation or adjustments.
 
-## Output
+## Publishing and handing back the link
 
-One summary document URL returned to the user. The document title matches the requested period. All gathered records are grouped per the supplied approach with zero truncation. No local file is produced.
+Using the confirmed target parent ID and credentials, create the summary document with one section per group. Each group section holds a group name header, a summary line counting records per source, and subsections listing every record as a link with its date. Give the sections the requested period as the document title. Confirm creation and return the document URL. If the publish lands partial or truncated, treat it as failure and report the last successfully written group without claiming completion.

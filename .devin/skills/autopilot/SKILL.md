@@ -1,48 +1,73 @@
 ---
 name: autopilot
-description: 'Use when a human has an approved delivery plan and wants the full chain run under phase gates. Not for planning, open-ended debugging, or single-step execution: use work directly.'
-disable-model-invocation: true
+description: 'Use when a human has an approved delivery plan and wants the full chain run under phase gates. Not for planning, open-ended debugging, or single-step execution.'
 ---
 
 # Autopilot
 
-## Contract
+You run an approved delivery plan from first edit to observed close-out, under phase gates that halt the chain the moment something is unproven or unauthorized. You never write the plan. An approved plan is the entry ticket, and without one you stop before touching anything and send the work back to planning.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A human explicitly invokes `/autopilot` with a feature description and an approved execution plan. |
-| Authority | Human-gated: previews the exact target and consequence before credentials, paid actions, data-at-rest changes, publication, deployment, remote bulk mutation, or irreversible deletion, continuing only when the invocation covers that consequence; every other write is reversible local, with version control as the rollback. Pass authorized push and PR targets to `review-and-ship`; do not publish directly. |
-| Side effect | Delegates implementation, simplification, review, and finalization to their respective skills; local artifacts are written by `work`, commits and PR are created by `review-and-ship`. No mutation is performed by autopilot itself. |
-| Done | Return `DONE` only after the requested close-out state is observed. Otherwise return `BLOCKED` with a resumable handoff. |
+## Start only with an approved plan
 
-## Inputs
+You need a feature description, an approved execution plan, the repository, acceptance criteria, and a close-out condition. Scope limits, an assigned executor, the target branch, remote and PR destination, required checks, and shipping instructions ride along when given. When something optional is missing you may fill it in only if repository evidence gives exactly one safe answer.
 
-Required: feature description, approved plan, repository, acceptance criteria, and close-out condition.
+Read the plan first and reject contradictions, naming the conflicting pair. If the invocation names an executor that is not available, stop and say so. Then confirm approval: plan-mode approval (`ExitPlanMode`) or an equivalent written approval the user has given. With no approval record there is no implementation and no delegation. Route to planning instead.
 
-Optional: scope limits; assigned executor; target branch, remote, and PR destination; required checks; shipping instructions. Derive an omitted value only when repository evidence gives one safe, unique answer.
+## Bind every step to the repository
 
-## Procedure
+Before changing anything, gather enough repository evidence to tie each plan step to a concrete artifact (a file, directory, or remote target) and to the behavior, verification, and remote destination behind it. State the scope boundary plainly: what is inside the campaign and what is excluded from it. Everything after this point stays inside that boundary.
 
-1. Parse the plan, scope, assignments, acceptance criteria, repository, required proof, shipping destination, and close-out condition. Reject contradictions and unavailable assigned executors. Done when: every required input is parsed and bound to a concrete value, contradictions are rejected with the conflicting pair named, and unavailable executors are reported; or the run stops on the first unresolvable input.
-2. Confirm that the human approved the plan. If not, stop before implementation and route to planning. Done when: an approval record is confirmed; the plan was approved through plan mode or an equivalent written approval; or the run stops and routes to planning with no delegation.
-3. Inspect enough repository evidence to bind the plan to exact artifacts, behavior, verification, and remote targets. Keep the campaign inside the approved scope. Done when: every plan step maps to a named repository artifact (file, directory, or remote target) and the scope boundary is stated with the artifacts inside it and the artifacts excluded from it.
-4. Preview each risky consequence. Stop when authority is absent or the target is ambiguous. Done when: every credential, paid, data-at-rest, publication, deployment, remote bulk, or irreversible consequence is previewed with its exact target, or the run stops naming the absent authority or ambiguous target.
-5. Delegate the bounded plan to `work` in orchestrated mode. Include acceptance criteria, constraints, repository evidence, required verifier, and the required structured return. `work` owns implementation and local verification; autopilot does not reproduce those steps. Apply the gate state machine in `references/pipeline-gates.md`: a failing work verifier gets one `strike-the-root` pass and one recheck; a second failure halts the chain. Done when: `work` returns a structured result with implementation summary and local verification passing, or the gate halts the chain with the verifier failure and diff recorded.
-6. Delegate simplification to `simplify` on the completed diff. Gate: `simplify` exits `0`, `11`, or `12` with behavior preserved. Halt on exit `14` (new bloat) or `15` (mixed-concern). Done when: `simplify` returns exit `0`, `11`, or `12` with behavior preserved confirmed by its output, or the chain halts on exit `14` or `15` with the exit code and cause recorded.
-7. Delegate review to `review` on the in-scope change. If critical or high findings remain, delegate one `strike-the-root` pass and re-review the changed files. Halt on residual critical or high findings. Done when: `review` returns zero critical and zero high findings on the changed files, or the chain halts with the residual findings listed.
-8. Delegate finalization to `review-and-ship`. Pass the reviewed diff, explicit delegated shipping authority, branch, remote, PR destination, required checks, and shipping instructions. The finalizer owns checks, commits, publication classification, push, and PR creation or update; autopilot performs none of them. Done when: `review-and-ship` returns its report with checks green and PR created or updated (full mode) or commits made and push skipped (local-only), or the finalizer returns blocked with its reason.
-9. Observe authorized close-out. Route any supported in-scope fix back through `work` in orchestrated mode, repeat affected gates, and invoke `review-and-ship` for each authorized update. Do not merge, deploy, or publish elsewhere without matching authority. Done when: the close-out condition named in the inputs is observed in repository or remote state, or the run stops for absent authority.
-10. Return the terminal classification and include the finalizer report. The gate and handoff formats in `references/pipeline-gates.md` are binding. Done when: the terminal result is `DONE` with the finalizer report attached and close-out state quoted, or `BLOCKED` with the failed stage, reason, and next action named.
+## Keep dangerous consequences human-gated
 
-## Failure and recovery
+Some consequences always need the human's explicit cover: credentials, paid actions, changes to data at rest, publication, deployment, remote bulk mutation, and irreversible deletion. Preview the exact target and consequence first, and continue only when this invocation covers it. Everything else is reversible local work with version control as the rollback. You push or publish only when the invocation covers that exact target, otherwise you leave changes local. An ambiguous target or absent authority stops the run.
 
-Stop on a missing approved plan, contradictory input, unavailable executor, ambiguous target, absent authority, failed gate, non-converging review, rejected remote mutation, or incomplete close-out. Preserve successful in-scope work and observed remote state. Recover only mutations made by this run, using reversible repository or hosting operations; never discard unrelated work.
+When an iteration loop waits on a human gate, name the smallest gate that unblocks it: the exact action, the signal it contributes, where that signal lives, and the observable condition that permits the next iteration. A gate comes out only through the narrowest existing mechanism, which is one of an invokable command with a deterministic exit status or structured response, a named persisted log file, a read-only metrics or log query yielding an explicit pass, fail, or warn with retained values, or an executable assertion of the observable completion condition. Never introduce a credential, payment, publication, deployment, remote mutation, data-at-rest mutation, or irreversible action to close a gate. Every gate that remains is either one outer-loop human approval before autonomous iteration, or a discrete handoff stating the required action, inputs, and return artifact.
 
-Return `BLOCKED` with the failed stage, exact reason, autofix result, partial artifacts, remote mutations, proof state, recovery state, and the single concrete requirement to resume. Never claim rollback, publication, or close-out without observing it.
+## Follow the chain in order
 
-## Output
+The chain runs execute, then simplify, then review, then finalize, then report. Report always runs, for success and halt alike. The exact gate mechanics and invariants live in `references/pipeline-gates.md` and that file is binding. On any conflict within autopilot, it governs directly.
 
-Exactly one terminal result:
+Each phase follows the same state machine: run the phase, check its gate, advance on pass. A failing gate fires its autofix arm at most once, then rechecks. A failing recheck halts the chain, never a second autofix. A red gate never advances to the next phase.
 
-- `DONE`: delivered behavior, changed artifacts, verification evidence, branch and PR, the complete `review-and-ship` report, and observed close-out state.
-- `BLOCKED`: failed stage, reason, partial result, remote state, proof and recovery status, and the next required action.
+- execute: Execute the bounded plan against acceptance criteria, constraints, repository evidence, and the required verifier, and record an implementation summary with local verification evidence. This phase covers implementation and local verification only, never the simplify, review, finalize, or CI phases, which autopilot owns. On verifier failure, `grill-core` runs once in findings and verifier-failure mode on the failing output, then one recheck. A second failure halts with the verifier output and diff recorded.
+- simplify: Simplify the completed diff with behavior preserved. A `simplify` exit of `0`, `11` (empty diff), or `12` (false-positive-only) passes. A behavior regression (exit `13`) is self-reverted inside `simplify`. New bloat (exit `14`) or a mixed-concern commit (exit `15`) halts the chain for a human re-plan, with the cause recorded.
+- review: Review the in-scope change for critical and high findings, unhandled error paths, scope creep, and stubs. When critical or high findings occur, `grill-core` runs once as the autofix arm on those findings, followed by a re-review of the changed files only. Zero critical and zero high findings remain, or the chain halts with the residual findings listed. `grill-core` is an autofix arm for `execute` and `review`, never an independent phase.
+- finalize: Finalize the reviewed change: run the required checks, create atomic commits, and only with explicit shipping authority covering the exact branch, remote, and PR destination push or create-or-update the PR. Otherwise leave changes local. A finalizer refusal (push refused, checks blocked) is a deliberate safety stop, not a defect to patch. When `git remote` is empty, or `mode:local` is set, run local-only: local checks, atomic commits, no push or PR creation, no invented remote, and the report states `mode: local-only` with the unpushed commit list.
+- report: Emit the handoff on a halt or the finalization report on success, always.
+
+After close-out is authorized and observed, route any supported in-scope fix through execution again, repeat the gates its mutation could disturb, and finalize each authorized update. Never merge, deploy, or publish elsewhere without matching authority.
+
+## A halt hands off, never hides
+
+Stop on a missing approved plan, contradictory input, an unavailable executor, an ambiguous target, absent authority, a failed gate, non-converging review, a rejected remote mutation, or incomplete close-out. Preserve successful in-scope work and observed remote state. Undo only mutations this run made, using reversible repository or hosting operations. Never discard unrelated work.
+
+Every halt produces a handoff in the binding format from `references/pipeline-gates.md`:
+
+```
+HALT at <phase> (gate <gate-name>)
+reason:        <one line — what the gate measured and why it stayed red>
+autofix tried: <A(P) name + outcome | none — not autofixable>
+residual:      <the findings / verifier output / refusal that remain>
+state:         <commits made (sha + subject), pushed? PR url?, working-tree dirty?>
+next:          <the single action that unblocks>
+```
+
+Return `BLOCKED` carrying the failed stage, the exact reason, the autofix result, partial artifacts, remote mutations, proof state, recovery state, and the single concrete requirement to resume. Never claim a rollback, publication, or close-out you did not observe.
+
+## The run ends one of two ways
+
+There is exactly one terminal result. `DONE` delivers the behavior, the changed artifacts, verification evidence, the branch and PR, the complete finalization report (checks, commits, push or PR status), and the close-out state quoted as observed in repository or remote state:
+
+```
+autopilot report
+mode:          <full | local-only> [+ headless]
+task:          <one line>
+phases:        execute <✓ | HALT> · simplify <✓ | HALT | skipped> · review <✓ | HALT | skipped> · finalize <✓ | local-only | HALT | skipped> · report ✓
+autofix:       grill-core <ran once in <execute | review> | skipped, gates clean>
+gates:         <execute simplify review finalize pass/fail, with the autofix arm noted where it fired>
+commits:       <sha + subject per commit>
+remote:        <pushed branch / PR url | local-only, not pushed>
+outcome:       <shipped | HALT at <phase> (gate <gate-name>), see handoff above>
+```
+
+`BLOCKED` carries the halt handoff above: what failed, why, what survives, and the one action that unblocks it.

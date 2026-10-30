@@ -1,0 +1,239 @@
+#!/usr/bin/env bash
+
+# Enumerate one PR feedback batch for resolve.
+# Read-only. Resolves OWNER/REPO from the current checkout unless OWNER/REPO
+# is passed explicitly. Emits one JSON object with five keys:
+#   review_threads     - unresolved inline review threads, edge-wrapped as
+#                        [{ node: { id, isResolved, isOutdated, path, ...,
+#                                   comments: { totalCount, nodes: [...] } } }]
+#   all_review_threads - every inline review thread including resolved ones,
+#                        same shape; the accounting census. resolution state
+#                        alone never proves an answer was posted.
+#   pr_comments        - top-level PR conversation comments (excludes PR author
+#                        and structurally non-actionable CI/status bots)
+#   review_bodies      - review submissions with non-empty body text (same
+#                        filtering as pr_comments)
+#   coverage           - fetch accounting that distinguishes a complete empty
+#                        result from a partial or failed fetch
+
+set -e
+
+if [ $# -lt 1 ]; then
+    echo "Usage: get-pr-comments PR_NUMBER [OWNER/REPO]"
+    echo "Example: get-pr-comments 123"
+    echo "Example: get-pr-comments 123 OWNER/REPO"
+    exit 1
+fi
+
+PR_NUMBER=$1
+
+if [ -n "$2" ]; then
+    OWNER=$(echo "$2" | cut -d/ -f1)
+    REPO=$(echo "$2" | cut -d/ -f2)
+else
+    OWNER=$(gh repo view --json owner -q .owner.login 2>/dev/null || true)
+    REPO=$(gh repo view --json name -q .name 2>/dev/null || true)
+fi
+
+if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
+    echo "Error: could not resolve owner/repo. Run get-pr-comments from inside the target git repository, or pass OWNER/REPO as the second argument (e.g., get-pr-comments $PR_NUMBER OWNER/REPO)." >&2
+    exit 1
+fi
+
+threads_pages=$(gh api graphql --paginate --slurp \
+  -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
+  -f query='
+query Threads($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      author { login }
+      reviewThreads(first: 100, after: $endCursor) {
+        nodes {
+          id
+          isResolved
+          isOutdated
+          path
+          line
+          originalLine
+          startLine
+          originalStartLine
+          comments(first: 100) {
+            totalCount
+            nodes {
+              id
+              author { login }
+              body
+              createdAt
+              url
+            }
+            commentPageInfo: pageInfo { hasNextPage endCursor }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}')
+
+comments_pages=$(gh api graphql --paginate --slurp \
+  -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
+  -f query='
+query Comments($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      comments(first: 100, after: $endCursor) {
+        nodes {
+          id
+          author { login }
+          body
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}')
+
+reviews_pages=$(gh api graphql --paginate --slurp \
+  -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
+  -f query='
+query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviews(first: 100, after: $endCursor) {
+        nodes {
+          id
+          author { login }
+          body
+          state
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}')
+
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-get-pr-comments.XXXXXX")
+trap 'rm -rf "$tmp_dir"' EXIT
+threads_file="$tmp_dir/threads.json"
+comments_file="$tmp_dir/comments.json"
+reviews_file="$tmp_dir/reviews.json"
+printf '%s' "$threads_pages" > "$threads_file"
+printf '%s' "$comments_pages" > "$comments_file"
+printf '%s' "$reviews_pages" > "$reviews_file"
+truncated_ids=$(jq -r '
+  (if (.[0]|type) == "array" then .[0] else . end)[]
+  | .data.repository.pullRequest.reviewThreads.nodes[]
+  | select((.comments.commentPageInfo.hasNextPage // false) or ((.comments.totalCount // (.comments.nodes | length)) > (.comments.nodes | length)))
+  | .id' "$threads_file")
+
+thread_idx=0
+while IFS= read -r thread_id; do
+    if [ -z "$thread_id" ]; then
+        continue
+    fi
+    gh api graphql --paginate --slurp \
+      -f thread="$thread_id" \
+      -f query='
+query ThreadComments($thread: ID!, $endCursor: String) {
+  node(id: $thread) {
+    ... on PullRequestReviewThread {
+      id
+      comments(first: 100, after: $endCursor) {
+        nodes {
+          id
+          author { login }
+          body
+          createdAt
+          url
+        }
+        totalCount
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}' > "$tmp_dir/thread-$thread_idx.json"
+    thread_idx=$((thread_idx + 1))
+done <<< "$truncated_ids"
+
+thread_pages_all="$tmp_dir/threadcomments-all.json"
+if [ "$thread_idx" -gt 0 ]; then
+    jq -s '.' "$tmp_dir"/thread-*.json > "$thread_pages_all"
+else
+    printf '[]' > "$thread_pages_all"
+fi
+
+jq -n \
+  --slurpfile tp "$threads_file" \
+  --slurpfile cp "$comments_file" \
+  --slurpfile rp "$reviews_file" \
+  --slurpfile tc "$thread_pages_all" '
+  (if ($tp[0]|type) == "array" then $tp[0] else $tp end) as $threads |
+  (if ($cp[0]|type) == "array" then $cp[0] else $cp end) as $comments |
+  (if ($rp[0]|type) == "array" then $rp[0] else $rp end) as $reviews |
+  ($tc[0] // []) as $thread_pages |
+  ([$thread_pages[][]?]
+    | map(select(type != "object"
+      or .data.node == null
+      or ((.errors // []) | length > 0))) | length) as $bad_thread_pages |
+  ([$thread_pages[][]?
+    | select(type == "object"
+      and .data.node != null
+      and (((.errors // []) | length) == 0))]) as $good_thread_pages |
+  (reduce ($good_thread_pages[]) as $p ({};
+    .[($p.data.node.id)] = ((.[($p.data.node.id)] // []) + ($p.data.node.comments.nodes // [])))) as $extra_comments |
+  (reduce ($good_thread_pages[]) as $p ({};
+    .[($p.data.node.id)] = $p)) as $last_thread_page |
+  ([$threads[], $comments[], $reviews[]]
+    | map(select(type != "object"
+      or .data.repository.pullRequest == null
+      or ((.errors // []) | length > 0))) | length) as $bad_pages |
+  ([$threads[] | ((.data.repository.pullRequest.reviewThreads.nodes // [])[])]) as $raw_threads |
+  [(($raw_threads[]) |
+    .comments.nodes = ($extra_comments[.id] // .comments.nodes) |
+    .comments.pageInfo = ($last_thread_page[.id].data.node.comments.pageInfo // .comments.commentPageInfo // .comments.pageInfo) |
+    del(.comments.commentPageInfo))] as $all_threads |
+  ([$comments[] | ((.data.repository.pullRequest.comments.nodes // [])[])]) as $all_comments |
+  ([$reviews[] | ((.data.repository.pullRequest.reviews.nodes // [])[])]) as $all_reviews |
+  ($threads[0].data.repository.pullRequest.author) as $author |
+  ["codecov"] as $ci_bot_logins |
+  [$all_threads[] | select(.isResolved == false)] as $unresolved |
+  [$all_threads[] | select(((.comments.pageInfo.hasNextPage // false) and ($extra_comments[.id] == null)) or ((.comments.totalCount // (.comments.nodes | length)) > (.comments.nodes | length))) | .id] as $truncated |
+  (($threads | length) == 0
+    or (($threads[-1].data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage) != false)) as $threads_open |
+  (($comments | length) == 0
+    or (($comments[-1].data.repository.pullRequest.comments.pageInfo.hasNextPage) != false)) as $comments_open |
+  (($reviews | length) == 0
+    or (($reviews[-1].data.repository.pullRequest.reviews.pageInfo.hasNextPage) != false)) as $reviews_open |
+  ([$last_thread_page[] | select(.data.node.comments.pageInfo.hasNextPage != false)] | length > 0) as $thread_pages_open |
+  if $bad_pages > 0 then
+    error("get-pr-comments: incomplete fetch: a top-level page is missing data or reports GraphQL errors")
+  elif $bad_thread_pages > 0 then
+    error("get-pr-comments: incomplete fetch: a per-thread comment page is missing data or reports GraphQL errors")
+  elif $threads_open or $comments_open or $reviews_open or $thread_pages_open then
+    error("get-pr-comments: incomplete fetch: a connection still hasNextPage on its last page (page dropped?)")
+  elif ($truncated | length) > 0 then
+    error("get-pr-comments: incomplete fetch: thread(s) still short of totalCount after follow-up pagination")
+  else
+  {
+    review_threads: [$unresolved[] | { node: . }],
+    all_review_threads: [$all_threads[] | { node: . }],
+    pr_comments: [$all_comments[]
+      | select(.author.login != $author.login)
+      | select(.author.login as $l | $ci_bot_logins | index($l) | not)
+      | select(.body | test("^\\s*$") | not)],
+    review_bodies: [$all_reviews[]
+      | select(.body != null and .body != "")
+      | select(.author.login != $author.login)
+      | select(.author.login as $l | $ci_bot_logins | index($l) | not)],
+    coverage: {
+      threads_fetched: ($all_threads | length),
+      threads_unresolved: ($unresolved | length),
+      truncated_comment_threads: $truncated,
+      threads_complete: ($truncated | length == 0),
+      comments_complete: ($comments_open | not),
+      reviews_complete: ($reviews_open | not),
+      thread_comments_complete: (($thread_pages_open or (($truncated | length) > 0)) | not),
+      complete: (($threads_open or $comments_open or $reviews_open or $thread_pages_open) | not)
+    }
+  }
+  end'

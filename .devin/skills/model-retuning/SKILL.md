@@ -1,48 +1,56 @@
 ---
 name: model-retuning
-description: 'Use when asked to run /model-retuning to retune a skill corpus for a new model, measurement-first. Not for static audits: use deslop.'
+description: 'Use when asked to run /model-retuning to retune a skill corpus for a new model, measurement-first. Static audits are out of scope here.'
 disable-model-invocation: true
 ---
 
 # Model retuning
 
-## Contract
+Measurement decides what changes. Given a target model or symptom, this job retunes a skill corpus through small surgical passes until a pre-registered bar clears: a fixed number of consecutive clean runs, written down before anything changes. Each pass fixes one problem class across disjoint file ownership and lands as its own commit, so any pass reverts independently with `git revert`. Only named local corpus files and measurement artifacts are touched; nothing remote mutates. When the bar will not clear, the run reports the exact claim it could not support instead of presenting activity as success.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | /model-retuning [target model or symptom] [corpus path] [bar:<n> consecutive clean runs] |
-| Authority | Reversible local: writes only named local corpus files and measurement artifacts; rollback is reverting the per-pass commits. No remote mutation. |
-| Side effect | Runs measurement passes and edits corpus files in surgical, measured passes; one problem class per pass over disjoint file ownership. |
-| Done | The pre-registered bar clears, or the run reports the specific claim it could not support. |
+Invoke as `/model-retuning [target model or symptom] [corpus path] [bar:<n> consecutive clean runs]`. The target model or symptom is required: it names what the corpus degrades on. The corpus path is optional and defaults to `./skills`. The bar is required and registered in writing before any change exists; a bar chosen after seeing results is not a bar. A benchmark harness able to run two builds of the corpus side by side is required. Refuse the run without it, and never present a static audit as retuning.
 
-## Inputs
+## Confirming the measurement foundation
 
-- Target model or symptom: required. Names what the corpus degrades on.
-- Corpus path: optional, defaults to `./skills`. The skill directories to retune.
-- `bar:<n>`: required. The number of consecutive clean runs the corpus must clear, registered in writing before any change exists.
-- A benchmark harness that can A/B two builds of the corpus: required. Refuse without it.
+Three things must exist before any work starts. A run archive (or a harness that produces one) carries per-run tool-call traces, terminal markers, token counts, and final messages. A build selector points a run at a specific corpus checkout so two builds stay comparable under one runner. A repeatable task exercises the corpus end to end. Name whichever is missing and stop.
 
-## Procedure
+## Mining the archive before spending a run
 
-1. **Measurement gate.** Confirm all three before any work: a run archive (or harness that produces one) carrying per-run tool-call traces, terminal markers, token counts, and final messages; a build selector that points a run at a specific corpus checkout so two builds are comparable under one runner; and a repeatable task the corpus executes end to end. Name whichever is missing and stop. Do not fall back to a static audit and present it as retuning. Done when: all three foundation requirements are confirmed or the missing one is named and the run stops.
-2. **Mine the archive** before spending a run. Zero model cost: read files already on disk. Derive a phase-marker map from the corpus's own spine, one observable marker per phase (a tool call or a file that exists, never a phrase in prose), before writing an extractor. Extract one row per run by script, not by hand, with at least: run id, model, settings, session and child ids, ordered phase trace, terminal marker present, output tokens, wall clock, helper dispatch count, max parallel dispatch, and the verbatim final message. Derive `task_done` (deliverable exists) and `process_followed` (every required phase appears in spine order) independently; never let one imply the other or let the marker stand in for either. Score outcomes first-match-wins with `blocked`, `running`, `timeout/halt`, `task-done-shortcut` (task_done true, process_followed false), `done` (both true), and `unclear` in that order: the row is scored exactly once and unscored rows remain unscored until classified.
-3. **Establish the noise floor.** Run the harness against two identical copies of the corpus, same commit on both sides; whatever difference appears is the floor every later claim must clear. Register the bar now, in writing, before any change exists, a bar chosen after seeing results is not a bar. Run arms serial within an arm and interleaved across arms with nothing else running; contention destroys wall-clock-derived metrics and can manufacture a timeout that reads as a halt, so a contended run cannot support a latency claim and cannot be counted as a halt. Done when: the noise floor is measured, the bar is registered in writing, and no corpus change exists yet.
-4. **Audit the corpus adversarially.** One agent per skill directory proposes cuts; a second per skill defends the existing prose. The two passes require independent contexts. If the host exposes no way to run them as separate agents, report that as a blocker and stop: do not argue both sides in one context and present the result as an audit. Budget the defense as first-class work: the removals are the phase's product as much as the proposals. Done when: both passes complete in independent contexts or the host limitation is reported as a blocker.
-5. **Cut in surgical passes.** One problem class per pass, no bundling. Fan out by disjoint file ownership, never by item: one agent owns one skill directory and applies the class everywhere inside it, so ownership is a checkable filesystem partition with every path in exactly one manifest row. Discover byte-identical duplicated assets before dispatch and assign every copy to exactly one owner who propagates the edit to all copies in the same pass; list them as forbidden for everyone else. When a rewrite's strings cross-reference each other, author the canonical mapping (old string to new string, exact) serially first, then fan out verbatim application; an uncovered occurrence is a contract gap to resolve serially, not a variant to improvise. Reconcile every cross-reference before the pass closes. Done when: one problem class is applied across all owned paths and every cross-reference is reconciled.
-6. **Measure, then let the failure choose the next fix.** A failure that moves to a later phase is progress and names the next target; a failure at the same site means the fix missed; a run that completes the task while skipping the workflow is a different defect than a halt and only shows up if step 2's two metrics stayed separate. Audit the phases the instrument cannot reach: a probe that skips a phase can never fail in it, so a green streak certifies only what it exercised. Loop steps 5 and 6 until the registered bar clears, then stop. Report the paths that remain unmeasured and what would be needed to measure them; one clean run proves nothing. Done when: the registered bar clears or the run reports the specific claim it could not support and the unmeasured paths.
-7. **Ship.** Commit each pass separately with its own message so history says which change was made and why. Keep the measurement artifacts. Write the finding where the next person will hit it: the mechanism, before and after, the measured numbers, and the hypotheses that died; the dead ends are what stops the next attempt re-running them. Done when: every pass is committed separately and the finding is written at the point of next impact.
+Files already on disk cost no model calls, so read them first. From the corpus's own workflow order, derive a phase-marker map with one observable marker per phase: a tool call or a file that exists, never a phrase in prose. Build the extractor only after the map exists. Extract one row per run by script, never by hand, with at least run id, model, settings, session and child ids, ordered phase trace, terminal marker present, output tokens, wall clock, helper dispatch count, max parallel dispatch, and the verbatim final message.
 
-Cross-cutting rules for every fan-out: pass large context by path plus a short gist, not inlined contents; decide every artifact's path before the phase that writes it and keep them together; give a schema to anything that will be aggregated; budget the serial tail and name serial segments separately when reporting elapsed time; state what a fan-out did not cover: units queued past the cap, units skipped, files outside every owner's set.
+Score `task_done` (the deliverable exists) and `process_followed` (every required phase appears in required order) independently. One never implies the other, and the marker stands in for neither. Outcomes score first-match-wins in this order:
 
-## Failure and recovery
+- `blocked`
+- `running`
+- `timeout/halt`
+- `task-done-shortcut` (`task_done` true, `process_followed` false)
+- `done` (both true)
+- `unclear`
 
-- Missing measurement foundation: any of the gate's three requirements absent. Stop and name what to build. Do not substitute a static audit.
-- No independent agent contexts for the audit: the host cannot run proposal and defense as separate agents. Report as a blocker and stop the audit; do not collapse both sides into one context.
-- Shared-asset parity break: a per-unit agent edited its own copy of a byte-identical file. Recover by assigning all copies to one owner and propagating in one pass; a parity test failure surfacing in a different pass is attributed to the wrong change until ownership is fixed.
-- Over-cut: a removed mandate handed a required decision to the model. Recover by naming the new decider and restoring the gate if the decider is not allowed to decide it.
-- Non-convergence: the bar does not clear after the affordable passes. Partial results stand as a ranked hypothesis list with measured numbers; do not pretend the done predicate holds. Report the specific claim the run could not support and the paths still unmeasured.
-- Rollback is `git revert` of the per-pass commits; each pass is one commit, so any pass is independently reversible.
+Each row scores exactly once; unscored rows wait until they classify.
 
-## Output
+## Setting the noise floor
 
-A retuned corpus whose measured behavior on the target model clears the pre-registered bar, with each removal attributable to a named problem class and a per-pass commit. Plus a written finding: the mechanism, before and after, measured numbers, and the hypotheses that died. If the bar does not clear, a report naming the specific unsupported claim and the unmeasured paths, not a green suite presented as success.
+Run the harness with two identical copies of the corpus at the same commit on both sides. Whatever difference appears is the floor every later claim must clear. Contended runs prove nothing about latency: run arms serially within an arm and interleaved across arms with nothing else running, since contention destroys wall-clock-derived metrics and can manufacture a timeout that reads as a halt. A contended run supports no latency claim and counts as no halt.
+
+## Auditing from two independent sides
+
+One agent per skill directory proposes cuts; a second per skill defends the existing prose. Budget the defense as first-class work, since the removals are the phase's product as much as the proposals. Both passes need independent contexts. Where the host offers no way to run them as separate agents, report that as a blocker and stop the audit rather than arguing both sides in one context.
+
+## Cutting in surgical passes
+
+Fix one problem class per pass, never bundled. Fan out by disjoint file ownership, never by item: one agent owns one skill directory and applies the class everywhere inside it. Ownership forms a checkable filesystem partition with every path in exactly one manifest row. Before dispatch, find byte-identical duplicated assets, assign every copy to exactly one owner who propagates the edit to all copies in the same pass, and list those copies as forbidden for everyone else. For rewrites whose strings cross-reference each other, author the canonical mapping (old string to new string, exact) serially first, then fan out verbatim application. An uncovered occurrence signals a contract gap for serial resolution, not a variant to improvise. Reconcile every cross-reference before the pass closes.
+
+## Letting the failure choose the next fix
+
+Progress has a shape: a failure reaching a later phase names the next target, a failure at the same site means the fix missed, and a run completing the task while skipping the workflow is a different defect from a halt, visible only because the two metrics stayed separate. Probes cannot fail in phases they skip, so audit the phases the instrument never reaches; a green streak certifies only what it exercised. Loop cutting and measuring until the registered bar clears, then stop. Report the paths still unmeasured and what measuring them would take. One clean run proves nothing.
+
+Every fan-out follows the same discipline: pass large context by path plus a short gist, never inlined contents; decide each artifact's path before the phase that writes it and keep artifacts together; give aggregation targets a schema; budget the serial tail and name serial segments separately when reporting elapsed time; state what the fan-out skipped (units queued past the cap, units skipped, files outside every owner's set).
+
+Ship each pass as its own commit with a message saying what changed and why. Keep the measurement artifacts. Write the finding where the next person will hit it: the mechanism, before and after, the measured numbers, and the hypotheses that died, since dead ends stop the next attempt from re-running them.
+
+Recovery follows the fault. A missing measurement foundation stops the run with the missing piece named; no static audit substitutes. Collapsed audit contexts stop the audit as a reported blocker. A shared-asset parity break (a per-unit agent edited its own copy of a byte-identical file) recovers by assigning all copies to one owner and propagating in one pass; note that a parity failure surfacing in a later pass will misattribute until ownership is fixed. An over-cut (a removed mandate handed a required decision to the model) recovers by naming the new decider and restoring the gate where the decider may not decide. Non-convergence leaves partial results standing as a ranked hypothesis list with measured numbers, never as a passing suite.
+
+## What you hand back
+
+A retuned corpus whose measured behavior on the target model clears the pre-registered bar, each removal attributable to a named problem class with a per-pass commit. With it, a written finding covering mechanism, before and after, measured numbers, and dead hypotheses. Where the bar did not clear, a report naming the specific unsupported claim and the unmeasured paths.

@@ -4,7 +4,7 @@ This is a format-rendering reference: it describes how to render any artifact in
 
 It is paired with a section contract (`brainstorm-sections.md`, etc.) that describes *what* the artifact contains. This reference describes *how* HTML specifically presents it.
 
-The HTML artifact is the *only* artifact the skill produces for that run, output mode is exclusive (markdown OR HTML, never both). Readers of the HTML artifact (`/work`, humans) use it directly. `/doc-review` is *not* currently an HTML consumer, its mutation mechanics are markdown-only, so the Phase 4 handoff gates the doc-review pass to `OUTPUT_FORMAT=md` runs and skips it for HTML.
+The HTML artifact is the *only* artifact the skill produces for that run, output mode is exclusive (markdown OR HTML, never both). Readers of the HTML artifact (`/autopilot` executing an approved plan, humans) use it directly. The Phase 4 pressure-test runs as a direct bounded review dialogue in either output format, so no review pass is gated on `OUTPUT_FORMAT=md`.
 
 ## Hard invariants
 
@@ -14,10 +14,10 @@ These hold regardless of which skill produced the artifact.
 - All metadata appears as visible text: single source of truth. The artifact's metadata (title, type, date, etc.; exact fields per-skill, defined in the section contract) renders as visible HTML elements. No hidden machine-readable copy: no `<script type="application/json">` frontmatter block, no `data-*` attribute mirror, and no `<meta name="created">` / `<meta name="origin">` in `<head>` duplicating visible values.
 
   The text-and-attribute redundancy in `<time datetime="2026-05-12">2026-05-12</time>` is acceptable because the attribute is a parser hint, not a hidden copy.
-- Stable IDs as anchor IDs AND visible text. Every ID-bearing item (R-IDs, U-IDs, A-IDs, F-IDs, AE-IDs, KTDs) gets `id="r1"` on its element AND appears as visible text inside the element.
-- Source / composition signal. A visible footer at the bottom names the composition timestamp and the source identifier (the user prompt context, the upstream brainstorm doc when one exists, or just the composing skill name when there is no external source). Example: `<footer class="composition-signal">Composed 2026-05-17T14:23Z by /brainstorm from <code>docs/plans/...-requirements.md</code></footer>`.
+- Semantic anchors and visible purpose names. Every addressable item (requirements, units, actors, flows, acceptance examples, technical decisions) gets a meaningful semantic slug on its element (e.g. `id="req-session-pagination"`, `id="unit-cloak-detection"`) and displays a concise, human-readable purpose title as visible text inside the element. Visible headings, table cells, and cards must never display opaque prefix and counter codes (such as R1, U1, F1, AE1, KTD-1).
+- Source and composition signal. A visible footer at the bottom names the composition timestamp and the source identifier (the user prompt context, the upstream brainstorm doc when one exists, or just the composing skill name when there is no external source). Example: `<footer class="composition-signal">Composed 2026-05-17T14:23Z by /brainstorm from <code>plans/brainstorm-session-pagination.html</code></footer>`.
 - ASCII identifiers. Class names, element IDs, data attribute names are ASCII-only.
-- ODIN plan navigation. ODIN plan artifacts include a visible navigation region near the top linking to stable section anchors for `goal-capsule`, `odin-spec-outline`, `planning-outline`, `implementation-units`, `verification-contract`, `definition-of-done`, and `appendix` when those sections exist. Requirements-only artifacts omit links to absent implementation sections.
+- DStack plan navigation. DStack plan artifacts include a visible navigation region near the top linking to stable section anchors for `goal-capsule`, `odin-spec-outline`, `planning-outline`, `implementation-units`, `verification-contract`, `definition-of-done`, and `appendix` when those sections exist. Requirements-only artifacts omit links to absent implementation sections.
 - Visible readiness metadata. If the artifact has `source` or `execution`, render those values in the visible header metadata.
 
 ## Precedence stack for style preferences
@@ -99,14 +99,14 @@ Do not invent URLs. If `origin` is not a GitHub URL and the equivalent main-tree
 
 Scope: reference index only, not inline prose. Inline `<code>` mentions of paths or PRs inside paragraph prose stay as code or text.
 
-### Stable section anchors for ODIN plans
+### Stable section anchors for DStack plans
 
-When rendering an ODIN plan, every major logical section gets a stable anchor ID and visible heading text:
+When rendering a DStack plan, every major logical section gets a stable anchor ID and visible heading text:
 
 | Logical section | Required id |
 |---|---|
 | Goal Capsule | `goal-capsule` |
-| ODIN spec outline | `odin-spec-outline` |
+| DStack spec outline | `odin-spec-outline` |
 | Product Requirements | `odin-spec-requirements` |
 | Planning Outline | `planning-outline` |
 | Implementation Units | `implementation-units` |
@@ -122,11 +122,11 @@ Every text-on-background pairing must hold up on its own. A color that works for
 
 ### Body bold not colored by default
 
-Reserve accent text color for status chips, ID chips, links, and section borders. Do NOT color `<strong>` in body content by default. CSS should leave `strong` at `color: inherit` unless a specific surface (status pill, ID chip) is being styled.
+Reserve accent text color for status chips, category chips, links, and section borders. Do NOT color `<strong>` in body content by default. CSS should leave `strong` at `color: inherit` unless a specific surface (status pill, category chip) is being styled.
 
 ### Chips and pills: uniform shape, no one-sided accent
 
-Status chips, ID chips, and metric pills in the same row share one shape: same border-radius, border weight, and fill treatment. Differentiate categories only by the chip's overall fill/text color (applied to the whole pill), never by an accent on one edge.
+Status chips, purpose tags, and metric pills in the same row share one shape: same border-radius, border weight, and fill treatment. Differentiate categories only by the chip's overall fill/text color (applied to the whole pill), never by an accent on one edge.
 
 ### No JS framework runtimes
 
@@ -137,9 +137,9 @@ A small inline `<script>` for active-section TOC tracking or anchor-permalink be
 How section types commonly render in HTML. These are patterns, not contracts.
 
 - Summary / Problem Frame: semantic `<section>` with prose paragraphs. Optionally precede with an eyebrow label.
-- Requirements: `<table>` is the default at 5+ uniform items; bullets at smaller counts. Concern-grouping takes precedence: group under bold inline headers (or per-group sections) first, then apply the 5+ table default *within* each group. Each row has the R-ID as visible text in its own column.
-- Implementation Units: repeating `<article>` cards with a stable ID chip, a metadata strip (`<dl>` with field labels and values), and secondary content inside `<details>` collapsibles, **default-closed**. At 3+ units the default-closed rule is load-bearing. The metadata strip is for *descriptive* fields; a *directive* field (e.g., "start with a failing integration test") belongs in an advisory callout.
-- Key Technical Decisions: repeating cards with the decision ID, bold decision title, and prose rationale. Flat cards, not collapsibles.
+- Requirements: `<table>` is the default at 5+ uniform items; bullets at smaller counts. Concern-grouping takes precedence: group under bold inline headers (or per-group sections) first, then apply the 5+ table default within each group. In tabular rendering, name requirements by their concise semantic purpose title with a semantic anchor (e.g. `id="req-session-pagination"`), never displaying an opaque R-number column.
+- Implementation Units: repeating `<article>` cards with a semantic purpose title and anchor (e.g. `id="unit-cloak-detection"`), a metadata strip (`<dl>` with field labels and values), and secondary content inside `<details>` collapsibles, **default-closed**. At 3+ units the default-closed rule is load-bearing. The metadata strip is for *descriptive* fields; a *directive* field (e.g., "start with a failing integration test") belongs in an advisory callout.
+- Key Technical Decisions: repeating cards with a semantic anchor slug, bold decision title, and prose rationale, without opaque numeric counters. Flat cards, not collapsibles.
 - Risks: cards with a color-coded status eyebrow and prose body.
 - Scope Boundaries: callout cards distinguished by colored eyebrow/label plus subtle full-card tint.
 
@@ -151,7 +151,7 @@ When the section contract calls for a diagram (architecture, sequence, flowchart
 
 **Conceptual diagrams are not wireframes.** The wireframe affordance below is scoped to *UI-shaped requirements*; a data model, sync protocol, or agent workflow earns a conceptual diagram.
 
-**Diagrams complement prose; they never replace it.** The IDed prose stays complete and standalone; a reader who ignores every diagram still gets the full content in text, and a text-reading downstream agent is never left with a relationship that exists only in the picture.
+**Diagrams complement prose; they never replace it.** The structured prose stays complete and standalone; a reader who ignores every diagram still gets the full content in text, and a text-reading downstream agent is never left with a relationship that exists only in the picture.
 
 ### Layout legibility for hand-authored SVG
 
@@ -192,14 +192,14 @@ Common HTML affordances the agent can reach for when content benefits:
 
 ## Agent-consumability rules
 
-Downstream agents that read HTML today (`/work`, a skill re-reading its own prior artifact, future consumers) reason over the HTML as text. These rules make that safe:
+Downstream agents that read HTML today (`/autopilot` executing an approved plan, a skill re-reading its own prior artifact, future consumers) reason over the HTML as text. These rules make that safe:
 
 - Use semantic HTML over `<div>` soup. `<article>` per unit card, `<dl>` for metadata pairs, `<table>` for tabular content, `<details>` / `<summary>` for collapsibles, `<section>` for top-level doc sections.
 - Render field labels as visible text, not attributes. Emit `<dt>GOAL</dt><dd>...</dd>`, not `<dd data-field="goal">...</dd>`.
-- Keep U-IDs, R-IDs, and similar as visible text in headings and table cells, not only as `id=""` attributes.
+- Display concise meaningful purpose names in headings and table cells, with semantic anchor slugs on element `id` attributes, never displaying opaque prefix and counter codes (`R1`, `U1`, `F1`, `AE1`, `KTD-1`).
 - Match section heading vocabulary to the section contract. When the contract says "Implementation Units," the HTML heading is "Implementation Units", not "How we'll build it."
 - All semantic content lives in actual HTML text. No CSS `::before { content: "..." }` carrying meaning, no background images as content.
-- Stable structure is the public API. Element types, ID/label scheme, and field-label vocabulary do not break across versions. Visual styling can change freely.
+- Stable structure is the public API. Element types, semantic anchor scheme, and field-label vocabulary do not break across versions. Visual styling can change freely.
 
 ## Post-compose audit
 
@@ -207,7 +207,7 @@ Before returning the artifact, scan for common slips:
 
 - Single self-contained file. No companion `.css` / `.js` / `.svg`.
 - No hidden machine-readable metadata copy.
-- All stable IDs appear as both `id=""` and visible text.
+- All addressable items use semantic element `id` attributes and display concise meaningful purpose names as visible text (no visible R1, U1, F1, AE1, or KTD-N display counters).
 - Section heading vocabulary matches the section contract names.
 - Source / composition signal is present as a visible footer.
 - Repeating cards with 3+ instances put secondary content inside default-closed `<details>`.

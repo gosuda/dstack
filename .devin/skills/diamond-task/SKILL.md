@@ -5,39 +5,40 @@ description: 'Use when one issue or PR is too large for a worker and partitions 
 
 # Diamond task
 
-## Contract
+One issue or pull request is too large or too entangled for a single worker, yet its whole writable surface splits cleanly into pieces no two workers need to touch at once. This skill turns that issue into a small production line: partition the work into disjoint write sets, run one isolated worker per set, union their diffs mechanically, and have a fresh reviewer approve the result. It is the sole generator of production task DAGs, and it works only on the local machine: named local run artifacts and declared target write sets, with the pre-run checkpoint as rollback. Nothing here reaches a remote or makes an irreversible change.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Use when one issue or pull request is too large or too entangled for one worker and its complete writable surface can be partitioned into disjoint write sets. |
-| Authority | Reversible local: writes only the named local run artifacts and declared target write sets; rollback is restoring the pre-run checkpoint. No remote mutation. This is the sole production task-DAG generator. |
-| Side effect | Run isolated workers and apply their returned diffs by mechanical union within their declared write sets; the composer authors no content and changes nothing outside those sets. |
-| Done | Produce one result that reproduces every worker diff byte-for-byte within disjoint declared write sets and has approval from a fresh isolated reviewer who was neither a worker nor the composer, or stop with no partial composition and identify the falsified worker node or split. |
+For genuinely independent parallel tasks that share no issue and no writable surface, use parallel-launch instead.
 
-## Inputs
+## What you need before starting
 
-Required inputs are one issue or pull request with its acceptance criteria, the local target workspace, the checks each worker and the composed result must satisfy, and named local locations for the checkpoint, isolated composition, and run report. Supply any fixed ordering constraints between units of work; otherwise the partition determines independent worker nodes. The target's current bytes and metadata are the composition base. The production task DAG is derived from the supplied units of work and their declared ordering constraints only.
+One issue or pull request with its acceptance criteria; the local target workspace, whose current bytes and metadata are the composition base; the checks each worker and the final composed result must satisfy; named local locations for the checkpoint, the isolated composition, and the run report; and any fixed ordering constraints between units of work (otherwise the partition itself decides which worker nodes are independent). The production task DAG comes from those units of work and their declared ordering constraints only. If required input, a checkpoint, isolation, or a required check is unavailable, return `blocked` without touching the target.
 
-## Procedure
+## Checkpointing the base
 
-1. Capture the exact target base in the named checkpoint. Enumerate every target byte the task may create, replace, or delete, including integration edits, formatting changes, and generated output that the final result requires. **Done when:** the checkpoint captures the exact base and the complete writable surface is enumerated.
+Capture the exact target base in the named checkpoint first. Then enumerate every target byte the task may create, replace, or delete: integration edits, formatting changes, and generated output the final result requires all count. An unenumerated byte is an uncovered byte later.
 
-2. Design the production task DAG by partitioning that complete writable surface into worker nodes with pairwise-disjoint write sets. Define each set by canonical target paths and, when a path is shared, non-overlapping byte regions or insertion boundaries. Give each node its task, allowed write set, required checks, required proof, and only the inputs it needs. Every content byte the composer might otherwise need to author must belong to a worker node. Stop before worker execution if coverage is incomplete, any sets overlap, or isolation cannot be provided. **Done when:** the DAG partitions the surface into disjoint covering write sets with every content byte owned by a node, or the skill stops on incomplete coverage, overlap, or missing isolation.
+## Splitting the surface into worker nodes
 
-3. Run every ready node in an isolated copy of the base. Each worker may change only its declared write set and must return its exact diff, check results, and proof. A worker may not approve either its own result or the composition. **Done when:** every ready node runs in isolation and returns its diff, check results, and proof.
+Partition the complete writable surface into worker nodes with pairwise-disjoint write sets. Define each set by canonical target paths and, where a path is shared, by non-overlapping byte regions or insertion boundaries. Give every node its task, its allowed write set, the checks it must satisfy, the proof it must return, and only the inputs it needs. Every content byte the composer might otherwise have to author must belong to some worker node, because the composer authors nothing: it applies returned diffs by mechanical union inside the declared sets and changes nothing outside them.
 
-4. Validate each returned diff against its node contract before composition. An overlap, an out-of-set byte, or a failing check falsifies the responsible node. Re-run only that node in fresh isolation, then repeat validation. If the failure spans write sets or exposes missing partition coverage, falsify the split instead. **Done when:** every returned diff is validated in-set with checks passing, or a node or split is falsified.
+Stop before running any worker if coverage is incomplete, any two sets overlap, or isolation cannot be provided. That stop is `split-falsified`: discard any isolated compositions, restore the target from the checkpoint if application began, keep the evidence, and emit no partial composition.
 
-5. Recreate the isolated composition from the checkpoint and mechanically union the validated worker diffs. Reproduce every diff byte-for-byte, make no change outside the declared write sets, and author no content to reconcile, improve, format, or complete the result. Verify the composed bytes against every returned diff and run the declared composed-result checks. **Done when:** the composition reproduces every diff byte-for-byte within the write sets and the composed-result checks pass.
+## Running and vetting the workers
 
-6. Attribute any composition mismatch or failing check to exactly one worker node and re-run only that node, then rebuild the composition from the checkpoint and repeat downstream validation. If attribution spans write sets, falsify the split. **Done when:** the mismatch or failing check is attributed to one node and re-run, or the split is falsified.
+Run every ready node in an isolated copy of the base. Each worker may change only its declared write set and must return its exact diff, its check results, and its proof. No worker approves its own result, and no worker approves the composition.
 
-7. Give the validated composition and all proofs to a fresh isolated reviewer who was neither a worker nor the composer. A review finding falsifies exactly one worker node; re-run only that node, rebuild from the checkpoint, and repeat composition, checks, and fresh review. A finding that spans write sets falsifies the split. Only the fresh reviewer may approve the result. **Done when:** the fresh reviewer approves the result, or a node or split is falsified.
+Validate each returned diff against its node contract before composing anything. An overlap, an out-of-set byte, or a failing check falsifies the responsible node: re-run only that node in fresh isolation and validate again. When the failure spans write sets or exposes missing partition coverage, the split itself is falsified instead of any one node.
 
-8. After approval, apply the reviewed mechanical union to the named target and verify its bytes equal the approved composition. Record the node contracts, diffs, proofs, composed checks, reviewer identity and verdict, and final byte comparison in the run report. **Done when:** the approved composition is applied, bytes match, and the run report is recorded.
+## Composing without authoring
 
-## Failure and recovery
-Return `blocked` without target mutation when required input, a checkpoint, isolation, or a required check is unavailable. Return `split-falsified` when the surface cannot be partitioned into disjoint covering write sets, an overlap or uncovered byte appears, or a failure or finding spans write sets. Return `node-falsified` when one node repeats an equivalent out-of-set change, check failure, composition mismatch, or review finding after its isolated re-run. For every terminal failure, discard isolated compositions, restore the named target from the checkpoint if application began, retain the returned diffs and proof as evidence, and emit no partial composition. Never report approval unless the composed checks, byte comparison, and fresh-review verdict all pass in the same replay.
+Rebuild the isolated composition from the checkpoint and union the validated worker diffs mechanically: reproduce every diff byte-for-byte, change nothing outside the declared write sets, and write no reconciling, improving, formatting, or completing content of your own. Verify the composed bytes against every returned diff and run the declared composed-result checks.
 
-## Output
-On success, return `approved` with the applied composed local result and a run report containing the complete partition, worker diffs and proofs, composed check results, byte-for-byte comparison, and fresh-review approval; on a clean stop, return `blocked`, `split-falsified`, or `node-falsified` with the unchanged or restored target, no partial composition, the responsible node or split, and the falsifying evidence, ordered checkpoint → partition → run → validate → compose → attribute → review → apply.
+Attribute any composition mismatch or failing check to exactly one worker node, re-run only that node, then rebuild from the checkpoint and repeat validation. A mismatch that spans write sets falsifies the split. If a node repeats an equivalent out-of-set change, check failure, composition mismatch, or review finding after its isolated re-run, that node is terminally falsified (`node-falsified`): stop with the target unchanged or restored, the responsible node named, the falsifying evidence retained, and no partial composition emitted.
+
+## The fresh review and the landing
+
+Hand the validated composition and all proofs to a fresh isolated reviewer who was neither a worker nor the composer; only that reviewer may approve. A review finding falsifies exactly one worker node (re-run it, rebuild from the checkpoint, repeat composition, checks, and fresh review), or the split when the finding spans write sets.
+
+After approval, apply the reviewed mechanical union to the named target and verify its bytes equal the approved composition. Record everything in the run report: the node contracts, the diffs, the proofs, the composed check results, the reviewer identity and verdict, and the final byte comparison. Never report approval unless the composed checks, the byte comparison, and the fresh-review verdict all pass in the same replay.
+
+On success return `approved` with the applied composed local result and that run report. On a clean stop return `blocked`, `split-falsified`, or `node-falsified` with the unchanged or restored target, no partial composition, the responsible node or split, and the falsifying evidence. Report either case in run order: checkpoint → partition → run → validate → compose → attribute → review → apply.

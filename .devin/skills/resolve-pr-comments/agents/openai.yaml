@@ -1,0 +1,3 @@
+interface:
+  display_name: "Resolve PR Comments"
+  short_description: "Use when handling GitHub PR or GitLab MR review threads, top-level comments, or review bodies on one named PR/MR in a single batch: enumerate completely, judge against current code, repair valid findings at the root, and post only explicitly approved replies and resolutions."

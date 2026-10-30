@@ -33,13 +33,13 @@ Evaluate the surface against these eight items.
 - [ ] Working memory: does the user need to remember information from a previous screen to act on the current one?
 - [ ] Progressive disclosure: is complexity revealed only when the user needs it?
 
-Scoring: 0: 1 failures = low cognitive load (good). 2,3 = moderate (address soon). 4+ = critical fix needed.
+Scoring (a triage heuristic, not a measurement): 0-1 failures = low cognitive load (good). 2-3 = moderate (address soon). 4+ = critical fix needed.
 
 ---
 
 ## The working memory rule
 
-Humans hold ≤4 items in working memory at once (Miller's law as revised by Cowan, 2001).
+Humans hold around 4 items in working memory at once (Cowan, 2001, revising Miller). Treat 4 as a planning heuristic, not a hard limit; capacity varies by person, content, and stress.
 
 At any decision point, count the distinct options, actions, or pieces of information the user must simultaneously consider.
 

@@ -7,7 +7,7 @@ Every memory file must start with YAML frontmatter between `---` delimiters.
 name: short human-readable title
 description: one-line summary used to decide relevance in future conversations, be specific
 type: user | feedback | project | reference
-originSessionId: <uuid of the session where this was saved>
+originSessionId: <uuid of the session where this was saved> # optional
 ---
 ```
 
@@ -22,7 +22,7 @@ originSessionId: <uuid of the session where this was saved>
 
 ## Filename convention
 
-`<type>_<slug>.md`: slug is lowercase, hyphens only, ≤ 40 chars.
+`<type>_<slug>.md`: slug is lowercase letters, digits, and hyphens only, ≤ 40 chars.
 
 Examples:
 - `feedback_no-html-comments.md`

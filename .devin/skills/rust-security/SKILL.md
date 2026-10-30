@@ -5,25 +5,17 @@ description: 'Use when auditing Rust dependencies for vulnerabilities, enforcing
 
 # Rust security
 
-## Contract
+You audit a Rust project's supply chain and report what is vulnerable, what violates policy, and what needs hardening. You never change source files: every result lands in a chat-output report with findings, recommended commands, and a remediation order.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Rust supply chain, dependency auditing, `cargo-audit`, `cargo-deny`, RUSTSEC, safe FFI, or fuzzing for security. |
-| Authority | Read-only. Chat output only. No remote mutation. |
-| Side effect | Emits a security audit report with findings and recommendations; does not modify source files. |
-| Done | A report is emitted that lists vulnerabilities, policy violations, FFI risks, and recommended tools. |
+What you need before starting: the Cargo project path or dependency list, and which tool the job calls for (`cargo-audit`, `cargo-deny`, `cargo-fuzz`, Miri, or manual review). License allowlists, banned crates, allowed sources, and CI context are optional but shape the policy checks.
 
-## Inputs
+## Auditing dependencies with cargo-audit
 
-1. **Audit target** (required): the Cargo project path or dependency list.
-2. **Tool** (required): `cargo-audit`, `cargo-deny`, `cargo-fuzz`, Miri, or manual review.
-3. **Policy context** (optional): license allowlist, banned crates, allowed sources, CI environment.
+Install `cargo-audit 0.22.2` with `cargo install cargo-audit --locked`, then run `cargo audit`. For CI use `cargo audit --deny warnings`; to pin the lockfile use `cargo audit --file Cargo.lock`; for machine-readable output use `cargo audit --json`, with `--format json` and `--format sarif` also available. The step is done when the output either lists advisories or reports none. A reported vulnerability is resolved by upgrading, replacing the dependency, or ignoring it with a written rationale (never a bare ignore).
 
-## Procedure
+## Enforcing policy with cargo-deny
 
-1. **Run `cargo-audit`.** Install `cargo-audit 0.22.2` with `cargo install cargo-audit --locked`, then run `cargo audit`. Use `cargo audit --deny warnings`, `cargo audit --file Cargo.lock`, or `cargo audit --json` for CI. The `--format json` and `--format sarif` options are also available. Done when: the audit output lists advisories or reports none.
-2. **Run `cargo-deny`.** Install `cargo-deny 0.20.2` with `cargo install cargo-deny --locked`, run `cargo deny init` for a template, then run `cargo deny check [advisories|licenses|bans|sources|all]`. Configure `deny.toml` as shown below. Done when: the check runs and any policy violation is reported.
+Install `cargo-deny 0.20.2` with `cargo install cargo-deny --locked`, run `cargo deny init` for a template, then run `cargo deny check [advisories|licenses|bans|sources|all]`. Configure `deny.toml` along these lines:
 
 ```toml
 [advisories]
@@ -58,25 +50,28 @@ allow-git = [
 ]
 ```
 
-3. **Check the RUSTSEC database.** Use `cargo audit` or browse `https://rustsec.org/`. Classify advisories as `vulnerability`, `unmaintained`, or `unsound`. Done when: the advisory list and categories are known.
-4. **Review FFI boundaries.** For each `extern "C"` function, validate pointer and length arguments, document the C invariant, and prefer safe wrapper crates. Done when: each FFI entry point has explicit validation.
-5. **Fuzz for security bugs.** Install `cargo-fuzz` with `cargo install cargo-fuzz`, run `cargo fuzz init`, `cargo fuzz add <target>`, and `cargo fuzz run --sanitizer address <target>`. Reproduce crashes with `cargo fuzz run <target> <artifact>`. Done when: a fuzz target runs or a crash is reproduced.
-6. **Confirm soundness with Miri.** Run `cargo +nightly miri test` on unsafe code. Use `MIRIFLAGS="-Zmiri-disable-isolation -Zmiri-backtrace=full"` when needed. Done when: Miri reports UB or completes cleanly.
-7. **Harden the supply chain.** Keep `Cargo.lock` for binaries, run `cargo fetch --locked`, review duplicates with `cargo tree -d`, consider `cargo vet` for peer-reviewing new dependencies, and use `cargo-machete` to find unused dependencies. Done when: the supply-chain state is reported.
+The step is done when the check runs and any policy violation is reported. A violation is resolved by editing `deny.toml` or by fixing the underlying license, banned-crate, or source problem.
 
-## Failure and recovery
+## Reading RUSTSEC advisories
 
-| Failure class | Behavior |
-|---|---|
-| `cargo-audit` reports a vulnerability | Upgrade, ignore with a rationale, or replace the dependency. |
-| `cargo-deny` policy violation | Edit `deny.toml` or resolve the license, banned crate, or source issue. |
-| FFI input cannot be validated | Add checks or change the C contract to require valid pointers and lengths. |
-| Fuzz target finds no bugs | Let it run longer, add a seed corpus, or add a dictionary. |
-| Miri reports unsupported FFI | Stub the foreign function under `#[cfg(miri)]`. |
+Use `cargo audit` or browse `https://rustsec.org/`, and classify each advisory as `vulnerability`, `unmaintained`, or `unsound`. The step is done when the advisory list and its categories are known.
 
-## Output
+## Checking FFI boundaries
 
-1. A security report with vulnerabilities, advisories, policy violations, and FFI risks.
-2. Recommended commands and configuration files.
-3. A fuzzing and Miri test plan.
-4. A prioritized remediation list.
+For each `extern "C"` function, validate pointer and length arguments, document the C-side invariant, and prefer safe wrapper crates where one exists. The step is done when every FFI entry point has explicit validation. When an FFI input cannot be validated as written, add checks or renegotiate the C contract to require valid pointers and lengths.
+
+## Fuzzing for security bugs
+
+Install `cargo-fuzz` with `cargo install cargo-fuzz`, then `cargo fuzz init`, `cargo fuzz add <target>`, and `cargo fuzz run --sanitizer address <target>`. Reproduce a crash with `cargo fuzz run <target> <artifact>`. The step is done when a fuzz target runs or a crash is reproduced. A target that finds nothing gets more time, a seed corpus, or a dictionary. An empty short run never counts as proof of safety.
+
+## Confirming soundness with Miri
+
+Run `cargo +nightly miri test` on the unsafe code, using `MIRIFLAGS="-Zmiri-disable-isolation -Zmiri-backtrace=full"` when the harness needs it. The step is done when Miri reports undefined behavior or completes cleanly. When Miri reports an unsupported foreign function, stub it under `#[cfg(miri)]` rather than skipping the run.
+
+## Hardening the supply chain
+
+Keep `Cargo.lock` for binaries, run `cargo fetch --locked`, review duplicates with `cargo tree -d`, consider `cargo vet` for peer-reviewing new dependencies, and use `cargo-machete` to find unused ones. The step is done when the supply-chain state is reported.
+
+## What you hand back
+
+A security report listing vulnerabilities, advisories, policy violations, and FFI risks; the recommended commands and configuration files; a fuzzing and Miri test plan; and a prioritized remediation list.

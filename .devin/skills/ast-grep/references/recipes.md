@@ -1,6 +1,6 @@
 # ast-grep recipes: per-language copy-paste reference
 
-Structural search/rewrite recipes adapted from the official ast-grep catalog (https://ast-grep.github.io/catalog/). Rows flagged **(community)** are not in the official catalog and need closer review. Meta-var rules across every language: meta-vars must be UPPERCASE (`$A`, not `$a`); `$VAR` binds one named node; `$$$` binds zero-or-more nodes; `$$` binds unnamed nodes.
+Structural search and rewrite recipes by language. Rows flagged **(community)** are not in the official catalog and need closer review. Meta-var rules across every language: meta-vars must be UPPERCASE (`$A`, not `$a`); `$VAR` binds one named node; `$$$` binds zero-or-more nodes; `$$` binds unnamed nodes.
 
 ## TypeScript / JavaScript
 

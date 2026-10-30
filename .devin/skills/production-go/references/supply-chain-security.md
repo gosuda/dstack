@@ -2,7 +2,7 @@
 
 Go's supply-chain story is unusually strong by default: the `go` command verifies every dependency against `go.sum` and a public **transparency log** (`sum.golang.org`) before a single byte compiles. The delta you own is the rest; proving *reachability* of vulns (`govulncheck`, not version-matching), keeping `go.sum` honest in CI, generating an **SBOM** (no first-party tool exists), and signing/attesting your *own* artifacts. This file is the supply-chain layer; module mechanics live in [modules-and-dependencies.md](modules-and-dependencies.md), app-level crypto/auth in [security.md](security.md).
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06. Tool versions: `govulncheck` **v1.3.0**, `cosign` v2.x, `syft` v1.x. Version tags `[1.N]` mark the Go release a claim applies to. No research corpus; written from expert knowledge, verified against primary sources; `[verify]` marks anything you should re-check before relying on it.
+> Verified against Go **1.27.3** (current stable pin per SKILL.md, GA 2026-08-19, patch 2026-10-19; final Go 1.27 release notes) + historical Go 1.26 research (1.26 still supported), re-checked 2026-10 after 2026-06 RC research. Tool versions: `govulncheck` **v1.9.0**, `cosign` v3.1.4, `syft` v1.55.0. Version tags `[1.N]` mark the Go release a claim applies to. No research corpus; written from expert knowledge, verified against primary sources; `[verify]` marks anything you should re-check before relying on it.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -60,17 +60,21 @@ example.com/mod v1.2.3/go.mod h1:<hash of just the go.mod>
 The `/go.mod` hash lets MVS verify the dependency *graph* without downloading every module's full source. Both are `h1:` (SHA-256, base64). `go.sum` is **additive and append-only in practice** ; entries accumulate; `go mod tidy` prunes unused ones. Never hand-edit it.
 
 ```bash
-go mod verify   # recompute hashes of cached modules, compare to go.sum → "all modules verified"
+go mod verify
 ```
+
+It recomputes the hashes of cached modules and compares them to `go.sum`.
 
 `GOSUMCHECK` / `GONOSUMCHECK` are myths. The real knobs:
 
 ```bash
-GOSUMDB=sum.golang.org      # default; the transparency log
-GOSUMDB=off                 # disable sumdb ENTIRELY — new modules trusted on first use, NO log check
-GONOSUMDB=corp.example.com/* # skip sumdb for matching paths (private code); public deps still checked
-GOPRIVATE=corp.example.com/*  # umbrella: implies GONOPROXY + GONOSUMDB for those paths
+GOSUMDB=sum.golang.org
+GOSUMDB=off
+GONOSUMDB=corp.example.com/*
+GOPRIVATE=corp.example.com/*
 ```
+
+`sum.golang.org` is the default transparency log. `off` disables the sumdb entirely, so new modules are trusted on first use with no log check. The last two skip the sumdb for matching private paths while public dependencies stay checked; `GOPRIVATE` is the umbrella that implies `GONOPROXY` plus `GONOSUMDB` for those paths.
 
 The distinction models blur: `GOSUMDB=off` is a *global* trust downgrade: a *new* dependency is then recorded on first sight with **no transparency-log check** (trust-on-first-use). `GONOSUMDB`/`GOPRIVATE` are *scoped*: only matching private paths skip the log, which is correct (the public sumdb can't see private code). **Wrong instinct:** `GOSUMDB=off` to "fix" a private-module error. **Right:** `GOPRIVATE=<prefix>`, sumdb on for everything else. For air-gapped builds, run a private sumdb proxy; `-mod=readonly` (default) + a committed `go.sum` is the reproducibility floor.
 
@@ -78,16 +82,18 @@ The distinction models blur: `GOSUMDB=off` is a *global* trust downgrade: a *new
 
 ## govulncheck: reachability, not versions {#govulncheck}
 
-The headline: `govulncheck` builds a **call graph** and reports a vuln only when a vulnerable *symbol* (not just module) is reachable from your code. A CVE in a function you never call is silently dropped. This is categorically better signal than presence-based scanners.
+`govulncheck` builds a **call graph** and reports a vuln only when a vulnerable *symbol* (not just module) is reachable from your code. A CVE in a function you never call is silently dropped. That reachability signal is far more precise than presence-based scanners.
+
+Install with `go install golang.org/x/vuln/cmd/govulncheck@latest` (v1.9.0 at last check; re-verify before pinning).
 
 ```bash
-go install golang.org/x/vuln/cmd/govulncheck@latest   # v1.3.0 [verify: latest]
-
-govulncheck ./...                       # source scan (default) — full call stacks
-govulncheck -mode binary ./bin/app      # scan a compiled binary (no source needed)
-govulncheck -mode extract ./bin/app > app.blob   # tiny blob for offline/air-gapped scan
-govulncheck -mode binary app.blob       # ...analyze the blob later
+govulncheck ./...
+govulncheck -mode binary ./bin/app
+govulncheck -mode extract ./bin/app > app.blob
+govulncheck -mode binary app.blob
 ```
+
+Source scan is the default and gives full call stacks. Binary mode scans a compiled binary with no source. Extract mode writes a tiny blob for offline or air-gapped analysis, which binary mode reads back later.
 
 It queries the **Go vulnerability database** at `https://vuln.go.dev` (curated by the Go security team from CVEs, GHSA, and Go-specific reports; IDs look like `GO-2024-1234`). Requests send only *module paths already known to the DB*: not your code. Use `-db <url>` for a mirror.
 
@@ -99,20 +105,21 @@ It queries the **Go vulnerability database** at `https://vuln.go.dev` (curated b
 | `-show traces,verbose,color` | full call stacks / progress / color |
 | `-test` | include test files; `-tags` for build tags |
 
-Exit codes (the CI-critical bit): `0` = no vulns; **`3`** = vulns affecting your code (text mode). But with `-json`/`-format sarif`/`-format openvex` it **always exits 0** ; so a CI step that only checks `$?` on JSON output will *never* fail. Either gate on the text-mode exit code, or parse the structured output yourself.
+Exit codes (the CI-critical bit): `0` = no vulns; **`3`** = vulns affecting your code (text mode). But with `-json`/`-format sarif`/`-format openvex` it **always exits 0**. Either gate on the text-mode exit code, or parse the structured output yourself. This example gates on nothing and never trips:
 
 ```bash
-# WRONG — JSON mode exits 0 even with vulns; this gate never trips:
 govulncheck -format json ./... ; if [ $? -ne 0 ]; then exit 1; fi
-
-# RIGHT — text mode returns 3 on findings; let it fail the step:
-govulncheck ./...        # exit 3 fails the job naturally
-# ...or produce SARIF for Code Scanning AND a separate failing gate:
-govulncheck -format sarif ./... > results.sarif   # exit 0 (upload artifact)
-govulncheck ./... > /dev/null                      # exit 3 = the gate
 ```
 
-Limitations (verbatim-faithful to the docs): function-pointer and interface calls are analyzed **conservatively** (possible false positives / imprecise stacks); calls via `reflect` are **invisible** (false negatives); `unsafe` may cause false negatives. **Binary mode omits call stacks** (no source) and reports for *all* modules when symbols can't be extracted; binaries built pre-[1.18] yield stdlib-only findings. There is **no way to silence a finding** yet ([go.dev/issue/61211](https://go.dev/issue/61211)), triage out-of-band.
+Gate on text mode instead. It returns 3 on findings, which fails the step naturally. When you also need SARIF for code scanning, run both: one SARIF step for the upload artifact (exit 0), one text step as the gate.
+
+```bash
+govulncheck ./...
+govulncheck -format sarif ./... > results.sarif
+govulncheck ./... > /dev/null
+```
+
+Limitations (from the docs): function-pointer and interface calls are analyzed **conservatively** (possible false positives / imprecise stacks); calls via `reflect` are **invisible** (false negatives); `unsafe` may cause false negatives. **Binary mode omits call stacks** (no source) and reports for *all* modules when symbols can't be extracted; binaries built pre-[1.18] yield stdlib-only findings. There is **no way to silence a finding** yet ([go.dev/issue/61211](https://go.dev/issue/61211)), triage out-of-band.
 
 IDE/gopls: `"go.diagnostic.vulncheck": "Imports"` (fast, import-based; false positives) vs. the reachability code-lens on `go.mod`. CI granularity should stay `symbol`.
 
@@ -125,24 +132,28 @@ Every Go binary embeds its own dependency manifest: no external file needed. Rea
 ```go
 import "runtime/debug"
 
-bi, ok := debug.ReadBuildInfo()   // ok=false only if built without module info
+bi, ok := debug.ReadBuildInfo()
 if ok {
-    fmt.Println(bi.GoVersion)              // e.g. "go1.26.4"
+    fmt.Println(bi.GoVersion)
     fmt.Println(bi.Main.Path, bi.Main.Version)
-    for _, dep := range bi.Deps {          // []*debug.Module — transitive deps + versions + sums
+    for _, dep := range bi.Deps {
         fmt.Println(dep.Path, dep.Version, dep.Sum)
     }
-    for _, s := range bi.Settings {        // []debug.BuildSetting — build flags + VCS info
-        fmt.Println(s.Key, s.Value)        // vcs.revision, vcs.time, vcs.modified, -trimpath, GOARCH...
+    for _, s := range bi.Settings {
+        fmt.Println(s.Key, s.Value)
     }
 }
 ```
 
+`ok` is false only when the binary was built without module info. `Deps` holds every transitive dependency with its path, version, and sum. `Settings` holds build flags and VCS stamps such as `vcs.revision`, `vcs.time`, `vcs.modified`, `-trimpath`, and `GOARCH`.
+
 The CLI view of the same data:
 
 ```bash
-go version -m ./bin/app        # GoVersion, all deps + h1: sums, build settings, VCS stamp
+go version -m ./bin/app
 ```
+
+It prints the Go version, every dependency with its `h1:` sum, the build settings, and the VCS stamp.
 
 This is the *ground truth* for what shipped; versions and checksums baked into the artifact, immune to a later `go.mod` edit. It's the input to SBOM tools and the thing to embed a build version into via `-ldflags="-X main.version=..."`. **Trap:** `dep.Replace` is non-nil for `replace`d modules: an SBOM that ignores it misreports the real source. `vcs.modified=true` means the tree was dirty at build (see reproducibility below).
 
@@ -153,18 +164,16 @@ This is the *ground truth* for what shipped; versions and checksums baked into t
 Go ships the *manifest* (`go version -m`) but **no SBOM generator** ; you convert. Two maintained tools, different sweet spots:
 
 ```bash
-# cyclonedx-gomod — Go-native, most precise; `app` evaluates build constraints
 go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
-cyclonedx-gomod app -json -output sbom.json ./cmd/app   # ONLY modules actually compiled in
-cyclonedx-gomod mod -json -output sbom.json             # whole module graph (incl. unused)
-cyclonedx-gomod bin -json -output sbom.json ./bin/app   # from a compiled binary
+cyclonedx-gomod app -json -output sbom.json ./cmd/app
+cyclonedx-gomod mod -json -output sbom.json
+cyclonedx-gomod bin -json -output sbom.json ./bin/app
 
-# syft (Anchore) — multi-ecosystem; CycloneDX *or* SPDX, source or binary
-syft scan dir:.        -o cyclonedx-json=sbom.cdx.json
+syft scan dir:. -o cyclonedx-json=sbom.cdx.json
 syft scan file:./bin/app -o spdx-json=sbom.spdx.json
 ```
 
-Choosing: `cyclonedx-gomod app` is the most accurate for a Go *application*; it evaluates build tags and includes *only what's compiled in* (not test-only/unimported deps), resolving licenses via go-license-detector. `mod` includes the full, noisier graph. Use `syft` for SPDX, multi-language, or container images. CycloneDX vs. SPDX is a *consumer-driven format* choice (CycloneDX is vuln/VEX-friendly; SPDX license/compliance-friendly). Scan the result with `osv-scanner --sbom=sbom.json` for *non-Go* components, but keep `govulncheck` as the Go gate; attach the SBOM as a build attestation (below).
+`cyclonedx-gomod` is Go-native and the most precise: `app` evaluates build constraints and lists only the modules actually compiled in, `mod` covers the whole module graph including unused entries, `bin` reads a compiled binary. `syft` (Anchore) covers multiple ecosystems and emits CycloneDX or SPDX from source or binary. `app` resolves licenses via go-license-detector; prefer it for a Go application. Use `syft` for SPDX, multi-language, or container images. CycloneDX vs. SPDX is a *consumer-driven format* choice (CycloneDX is vuln/VEX-friendly; SPDX license/compliance-friendly). Scan the result with `osv-scanner --sbom=sbom.json` for *non-Go* components, but keep `govulncheck` as the Go gate; attach the SBOM as a build attestation (below).
 
 ---
 
@@ -197,34 +206,41 @@ Go's compatibility promise [1.21+]: when a release changes runtime/library behav
 ```
 // go.mod
 go 1.22
-godebug (                 // [1.23+] explicit per-setting override; toolchains <1.23 reject this
+godebug (
     asynctimerchan=1
     tlsmlkem=0
 )
 ```
 
+The `godebug` stanza is an explicit per-setting override [1.23+]; older toolchains reject it.
+
 ```go
-//go:debug panicnil=1     // [1.21+] source directive, before `package` (main package only)
+//go:debug panicnil=1
 package main
 ```
 
+That source directive [1.21+] comes before `package`, in the main package only.
+
 ```bash
-GODEBUG=httpmuxgo121=1 ./app   # runtime override (highest precedence)
+GODEBUG=httpmuxgo121=1 ./app
 ```
+
+The environment variable is a runtime override and takes the highest precedence.
 
 Only the **main module's** `go.mod` is consulted for defaults. Settings are kept for a **minimum of two years (≈4 releases)**; some indefinitely. Recent security-relevant knobs: `tls10server`/`tls10client` (min TLS raised), `tlsmlkem` (post-quantum key exchange), `fips140` ([1.24], `off`/`on`/`only`), `x509sha1`, `containermaxprocs` ([1.25]). Full crypto context in [security.md](security.md#post-quantum); GC/scheduler GODEBUGs in [debugging-and-diagnostics.md](debugging-and-diagnostics.md#godebug).
 
 ---
 
 ## Dependency auditing & minimal trust {#dependency-auditing}
-
 ```bash
-go mod graph                          # full module dependency graph (one edge per line)
-go mod why -m github.com/pkg/foo      # WHY is this module here? shortest import path
-go mod verify                         # cached modules still match go.sum
-go list -m -u all                     # which deps have newer versions
-go mod tidy && git diff --exit-code go.mod go.sum   # CI: fail if not tidy
+go mod graph
+go mod why -m github.com/pkg/foo
+go mod verify
+go list -m -u all
+go mod tidy && git diff --exit-code go.mod go.sum
 ```
+
+In order: the full module graph, the shortest import path that pulls a module in, a check that cached modules still match `go.sum`, available upgrades, and a CI gate that fails when the module files are not tidy.
 
 Minimal-trust hygiene (the delta over "it compiles"):
 - Pin, don't float. `go.mod` records exact versions and **MVS picks the minimum** satisfying constraints. Go has no build-time "latest" resolution, itself a supply-chain feature. Review every `go.mod`/`go.sum` diff like code.
@@ -235,10 +251,11 @@ License gating (a supply-chain *compliance* concern):
 
 ```bash
 go install github.com/google/go-licenses@latest
-go-licenses check ./...     # nonzero exit on forbidden/unknown licenses → CI gate
-go-licenses report ./...    # CSV of every dep's license
+go-licenses check ./...
+go-licenses report ./...
 ```
 
+`check` exits nonzero on forbidden or unknown licenses, so it works as a CI gate. `report` prints a CSV of every dependency's license.
 ---
 
 ## Capability analysis (capslock) {#capslock}
@@ -247,9 +264,11 @@ go-licenses report ./...    # CSV of every dep's license
 
 ```bash
 go install github.com/google/capslock/cmd/capslock@latest
-capslock                       # capabilities of packages in the current module
-capslock -output=json          # machine-readable, for diffing in CI
+capslock
+capslock -output=json
 ```
+
+Bare `capslock` lists the capabilities of packages in the current module. The JSON form is machine-readable, for diffing across upgrades in CI.
 
 The supply-chain use: **alert on capability *changes* across a dependency upgrade.** A logging library that suddenly gains `CAPABILITY_NETWORK` between minor versions is a red flag a vuln scanner won't catch (no CVE yet). Capslock is a *signal*, not a gate; combine with `govulncheck` and human review. Caveats: capabilities are coarse and conservative (reflection/`unsafe` widen them); a high-capability package isn't necessarily malicious. `[verify]` exact capability category names against the current README before scripting on them.
 
@@ -262,25 +281,27 @@ name: Go Supply Chain
 on:
   push:
   pull_request:
-  schedule: [{ cron: '0 6 * * 1' }]   # weekly — new CVEs land against pinned deps
+  schedule: [{ cron: '0 6 * * 1' }]
 
 permissions:
-  contents: read            # least privilege; widen per-job only when needed
+  contents: read
 
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1 — pinned by SHA
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491  # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with: { go-version: stable, check-latest: true }
       - run: go mod verify
-      - run: go mod tidy && git diff --exit-code go.mod go.sum   # fail if not tidy
-      - uses: golang/govulncheck-action@v1                        # exits nonzero on findings
+      - run: go mod tidy && git diff --exit-code go.mod go.sum
+      - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f  # v1.1.0
         with: { go-version-input: stable, go-package: ./... }
 ```
 
-Add SARIF for GitHub Code Scanning: run `govulncheck -format sarif ./... > results.sarif` (exits 0: keep a separate text-mode step as the failing gate) then `github/codeql-action/upload-sarif@v3`.
+The schedule runs weekly because new CVEs land against pinned dependencies. Token permissions stay least-privilege at the top and widen per job only where needed. The tidy step fails when the module files drift. The govulncheck action exits nonzero on findings, so it gates the job. Keep each action's version in a comment next to its SHA so humans and bots can read it.
+
+Add SARIF for GitHub Code Scanning: run `govulncheck -format sarif ./... > results.sarif` (exits 0: keep a separate text-mode step as the failing gate) then upload via `github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370` (`# v4.39.1`, Node 24 runner requirement) or `github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8` (`# v3.39.1` on Node 20 runners). Note that uploading SARIF requires `permissions: { security-events: write }` on the job.
 
 Automated updates: Dependabot (`.github/dependabot.yml`: `package-ecosystem: "gomod"`, weekly) and Renovate (`renovate.json`: `"extends": ["config:recommended"]`, `"postUpdateOptions": ["gomodTidy"]`, native gomod support) both raise PRs. Configure Renovate/Dependabot to **also bump GitHub Actions** (`package-ecosystem: "github-actions"`) so pinned SHAs stay current; otherwise SHA-pinning rots. Expert note: Dependabot *security* alerts have poor signal for Go (presence-based); let `govulncheck` be the merge gate and use the update bots for *freshness*, not vuln triage.
 
@@ -292,11 +313,11 @@ CI *is* part of your supply chain: a compromised action runs with your secrets. 
 
 - Pin actions by full commit SHA, never a tag. `@v4` is a *moving pointer*; a SHA is immutable. The `tj-actions/changed-files` incident (2025) moved tags to malicious commits and dumped secrets from thousands of repos. SHA-pinned users were unaffected. Renovate/Dependabot can keep SHAs updated with a comment showing the version.
 
+The first line is the rejected form. Copy the second.
+
 ```yaml
-# WRONG — mutable tag; an attacker who re-points it runs in your pipeline:
 - uses: actions/checkout@v4
-# RIGHT — immutable SHA (keep the version in a comment for humans + bots):
-- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 ```
 
 - Least-privilege `GITHUB_TOKEN`. Set top-level `permissions: { contents: read }` and widen *per job* only where needed (`id-token: write` for OIDC signing, `attestations: write` for provenance). The default token is over-scoped.
@@ -325,18 +346,25 @@ permissions: { id-token: write, contents: read, attestations: write }
 steps:
   - uses: actions/checkout@<sha>
   - run: go build -trimpath -o app ./cmd/app
-  - uses: actions/attest-build-provenance@v3    # signs provenance via Sigstore [verify: latest major]
+  - uses: actions/attest-build-provenance@v3    # signs provenance via Sigstore [verify: latest major; pin to SHA before use]
     with: { subject-path: app }
 ```
 
 ```bash
-gh attestation verify app -o my-org    # verify provenance (gh >= 2.49.0)
+gh attestation verify app -o my-org
 ```
 
-Sigstore / cosign for container images (and blobs), keyless signing binds the signature to an OIDC identity, recorded in the Rekor transparency log (no long-lived keys to leak):
+Verification needs gh 2.49.0 or later.
+
+Sigstore / cosign signs container images and blobs without long-lived keys: the signature binds to an OIDC identity and lands in the Rekor transparency log.
 
 ```bash
-cosign sign --yes ghcr.io/myorg/app:v1.0.0      # keyless; --yes for non-interactive CI
+cosign sign --yes ghcr.io/myorg/app:v1.0.0
+```
+
+`--yes` keeps the signing non-interactive for CI.
+
+```bash
 cosign verify ghcr.io/myorg/app:v1.0.0 \
   --certificate-identity=https://github.com/myorg/repo/.github/workflows/release.yml@refs/tags/v1.0.0 \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
@@ -351,14 +379,14 @@ Verification is the point: signing without consumers verifying identity *and* is
 | Tool | Status [2026] | Use for |
 |---|---|---|
 | `go` (sumdb, `go.sum`, `go mod verify`) | **Built-in, default** | The trust chain; nothing to install |
-| `govulncheck` v1.3.0 | **Default vuln gate** (Go team) | Reachability-based CVE scan in CI/IDE |
+| `govulncheck` v1.9.0 | **Default vuln gate** (Go team) | Reachability-based CVE scan in CI/IDE |
 | `go version -m` / `debug.ReadBuildInfo` | **Built-in** | Embedded dependency manifest |
 | `cyclonedx-gomod` | Active (CycloneDX) | Go-native SBOM; `app` = compiled-in only |
 | `anchore/syft` | Active | Multi-ecosystem SBOM (CycloneDX/SPDX), images |
 | `google/osv-scanner` | Active | Presence-based scan incl. non-Go SBOM components |
 | `google/capslock` | Active (Google) | Capability analysis; alert on capability drift |
 | `google/go-licenses` | Active | License compliance gate |
-| `sigstore/cosign` v2.x | **Standard** | Keyless artifact/container signing |
+| `sigstore/cosign` v3.1.4 | **Standard** | Keyless artifact/container signing |
 | `actions/attest-build-provenance` | Active (GitHub) | SLSA provenance attestations |
 | `GoReleaser` | Active | Reproducible release builds + signing + SBOM |
 | `slsa-framework/slsa-github-generator` | Active | SLSA L3 provenance via reusable workflows `[verify]` |
@@ -376,7 +404,7 @@ Verification is the point: signing without consumers verifying identity *and* is
 | **1.24** | `fips140` GODEBUG + `GOFIPS140` (FIPS 140-3 mode); `GOAUTH` credential pipeline; `tool` directive in `go.mod` (track tool deps in the module) |
 | **1.25** | `containermaxprocs` GODEBUG (GOMAXPROCS from cgroup quota); `embedfollowsymlinks` |
 | **1.26** | Green Tea GC default (unrelated to supply chain, but a toolchain bump to plan for); GODEBUG churn continues |
-| **1.27 (RC)** | `encoding/json/v2` GA; no headline supply-chain change; treat as draft until GA (~Aug 2026) |
+| **1.27** | `encoding/json/v2` + `encoding/json/jsontext` stable (v1 `encoding/json` now backed by v2: behavior preserved, error text may differ; `GOEXPERIMENT=nojsonv2` opt-out); `go mod tidy` merges duplicate `require` blocks for `go 1.27`+ modules; `go` command drops `bzr` VCS support. GA 2026-08-19, confirmed against the final release notes. |
 
 ---
 

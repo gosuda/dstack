@@ -7,25 +7,18 @@ description: 'Use when calling C libraries from Rust, generating bindings with b
 
 Rust calls C through `unsafe extern` blocks and exports to C through `extern "C"` functions. The unsafe surface stays at the boundary; everything behind it is a safe API.
 
-## Contract
+Scope stays local and reversible. This skill writes only the target crate's `Cargo.toml`, `build.rs`, wrapper header, source files, and the generated C header inside the project, with version control as the rollback. bindgen output lands in `OUT_DIR`; cbindgen output lands at the named header path. The work is done when `cargo build` succeeds, the boundary is declared or generated, and every unsafe call sits behind a safe wrapper or an exported `extern "C"` function.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Calling a C library from Rust, generating bindings with bindgen, exporting a Rust API to C with cbindgen, wrapping an unsafe FFI boundary in a safe API, or linking a system or vendored C library. |
-| Authority | Reversible local. Writes only the target crate's Cargo.toml, build.rs, wrapper header, source files, and the generated C header inside the project. Rollback is version control. No remote mutation. |
-| Side effect | Creates or edits crate build and source files; bindgen output lands in `OUT_DIR`, cbindgen output at the named header path. |
-| Done | `cargo build` succeeds, the FFI boundary is declared or generated, and every unsafe call sits behind a safe wrapper or an exported `extern "C"` function. |
+What you need before starting:
 
-## Inputs
+- The C library (required). Headers, library name, and whether it is system installed, vendored, or built from source.
+- The direction (required). C to Rust, Rust to C, or both.
+- The crate layout (optional). Single crate or a `-sys` crate plus a safe wrapper crate; inferred from the workspace when omitted.
+- The edition (optional). Edition 2024 is assumed, so extern blocks are `unsafe extern` and `no_mangle` is written `#[unsafe(no_mangle)]`.
 
-1. **C library** (required): headers, library name, and whether it is system-installed, vendored, or built from source.
-2. **Direction** (required): C-to-Rust, Rust-to-C, or both.
-3. **Crate layout** (optional): single crate or a `-sys` crate plus a safe wrapper crate; inferred from the workspace when omitted.
-4. **Edition** (optional): edition 2024 is assumed, so extern blocks are `unsafe extern` and `no_mangle` is written `#[unsafe(no_mangle)]`.
+## Declaring a small surface by hand
 
-## Procedure
-
-1. **Pick the binding strategy.** Declare functions by hand for a handful of calls; use bindgen when the header surface is real. Done when: the strategy is named.
+For a handful of calls, declare them directly and skip generation:
 
 ```rust
 use std::ffi::{c_char, c_int, c_void, CString};
@@ -37,12 +30,11 @@ unsafe extern "C" {
 }
 ```
 
-2. **Generate bindings with bindgen when the header surface is large.** Restrict output with allowlists so system headers do not leak into the generated file. Done when: `build.rs` writes `bindings.rs` into `OUT_DIR` and `lib.rs` includes it.
+Move on when the strategy is named.
 
-```toml
-[build-dependencies]
-bindgen = "0.70"
-```
+## Generating bindings with bindgen
+
+When the header surface is real, add `bindgen = "0.73"` under `build-dependencies` and restrict output with allowlists so system headers do not leak in:
 
 ```rust
 // build.rs
@@ -77,7 +69,11 @@ fn main() {
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 ```
 
-3. **Structure the sys crate.** A `-sys` crate owns the link and the raw bindings; the safe crate depends on it. The `links` manifest key tells Cargo which native library the crate links. Done when: the layout matches the pattern.
+This step lands when `build.rs` writes `bindings.rs` into `OUT_DIR` and `lib.rs` includes it. When bindgen cannot parse the header, shrink `wrapper.h` to the needed includes and pass include paths and defines through `clang_arg`. When the library is missing at link time, add `cargo:rustc-link-search`, probe with pkg-config, or build the vendored source with `cc`.
+
+## Structuring the sys crate
+
+A `-sys` crate owns the link and the raw bindings; the safe crate depends on it. The `links` manifest key tells Cargo which native library the crate links:
 
 ```text
 mylib-sys/
@@ -107,7 +103,9 @@ fn main() {
 }
 ```
 
-4. **Wrap every unsafe call in a safe API.** Check for null handles, map C error codes to `Result`, free resources in `Drop`, and add `Send` or `Sync` only after verifying the C library's threading contract. Done when: no safe public function reaches `unsafe` without a validity check.
+## Wrapping every unsafe call
+
+Check for null handles, map C error codes to `Result`, free resources in `Drop`, and add `Send` or `Sync` only after verifying the C library threading contract:
 
 ```rust
 pub struct MyLib {
@@ -132,7 +130,11 @@ impl Drop for MyLib {
 }
 ```
 
-5. **Export Rust to C with cbindgen.** Exported functions are `extern "C"` with `#[unsafe(no_mangle)]`; ownership crosses the boundary through `Box::into_raw` and `Box::from_raw`. Done when: the generated header exists at the configured path.
+No safe public function should reach `unsafe` without a validity check. Map a null-returning C constructor to `Result` or `Option` and never store a null handle. Keep the default of neither `Send` nor `Sync` while the C locking contract stays unverified. Never let a panic cross the boundary: return an error code or use `catch_unwind`, since unwinding out of an `extern "C"` function aborts. Use `extern "C-unwind"` only when the C side is built to propagate.
+
+## Exporting Rust to C with cbindgen
+
+Exported functions are `extern "C"` with `#[unsafe(no_mangle)]`; ownership crosses the boundary through `Box::into_raw` and `Box::from_raw`:
 
 ```rust
 #[unsafe(no_mangle)]
@@ -156,23 +158,12 @@ fn main() {
 }
 ```
 
-6. **Link the library.** Emit link directives from build.rs: `cargo:rustc-link-lib=static=name`, `dylib=name`, or `framework=name` on macOS, plus `cargo:rustc-link-search=` for nonstandard paths. Done when: `cargo build` links without unresolved `-l` errors.
+This step lands when the generated header exists at the configured path.
 
-7. **Verify the boundary.** Build the crate, confirm the generated bindings or header exist, and exercise one call across the boundary. Done when: the call returns the expected result.
+## Linking and proving the boundary
 
-## Failure and recovery
+Emit link directives from `build.rs` (`cargo:rustc-link-lib=static=name`, `dylib=name`, or `framework=name` on macOS, plus `cargo:rustc-link-search=` for nonstandard paths). `cargo build` should link without unresolved `-l` errors. Then build the crate, confirm the generated bindings or header exist, and exercise one call across the boundary. The call should return the expected result. When the boundary stays unproven, files already written remain and the report names the failed step with its command output, with version control as the rollback. Full builder options, `cbindgen.toml` keys, `cc`, pkg-config, and safety patterns live in `references/bindgen-cbindgen.md`.
 
-| Failure class | Behavior |
-|---|---|
-| bindgen cannot parse the header | Reduce `wrapper.h` to the needed includes and pass include paths and defines through `clang_arg`. |
-| Library not found at link time | Add `cargo:rustc-link-search`, probe with pkg-config, or build the vendored source with `cc`. |
-| C constructor returns null | Map it to `Result` or `Option`; never store a null handle. |
-| Thread-safety unknown | Do not add `Send` or `Sync`; the default is neither until the C library's locking contract is verified. |
-| Panic would cross the boundary | Return an error code or use `catch_unwind`; unwinding out of an `extern "C"` function aborts. Use `extern "C-unwind"` only when the C side is built to propagate. |
-| Partial result | Files already written remain; the report names the failed step and its command output. Rollback is version control. |
+## What you hand back
 
-## Output
-
-1. A crate that builds with a verified call across the FFI boundary.
-2. A report listing files written, the safe API surface, and the link directives emitted.
-3. bindgen builder options, cbindgen.toml keys, `cc`, pkg-config, and safety patterns are in `references/bindgen-cbindgen.md`.
+A crate that builds with a verified call across the FFI boundary, plus a report listing files written, the safe API surface, and the link directives emitted.

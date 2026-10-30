@@ -1,10 +1,10 @@
-# Project Patterns, DI, and Architecture
+# Project patterns, DI, and architecture
 
 Go rewards **starting flat and letting structure emerge**. The only structural rule the toolchain enforces is `internal/`; everything else (`cmd/`, `pkg/`, layer trees) is convention, and most of it is over-applied. Name packages by what they *provide*, define interfaces where they're *consumed*, accept interfaces and return structs, and wire dependencies with plain constructors in `main` until that genuinely hurts.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** draft notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. Triangulated from two deep-research reports + go.dev / pkg.go.dev primary sources.
+> Verified against Go **1.26.4** (stable) + the final **Go 1.27** release notes (GA 2026-08-19; current stable pin 1.27.3 per SKILL.md), re-checked 2026-10 after 2026-06 RC research. Version tags `[1.N]` mark the release a claim applies to. Triangulated from two deep-research reports + go.dev / pkg.go.dev primary sources.
 
-## TL;DR: the modern deltas (read first)
+## Start here: what is new
 
 - `golang-standards/project-layout` is NOT official: its own README says so, and Russ Cox filed issue #117 objecting to the "standard" framing. The authoritative reference is **`go.dev/doc/modules/layout`**: start flat, add `internal/` only when a package outgrows the root, use `cmd/` for multiple binaries, and **never `pkg/`**.
 - `pkg/` is an anti-pattern for most repos. It adds 4 chars to every import path and buys nothing `internal/` doesn't. The stdlib itself dropped `pkg/` in Go 1.4. Library code belongs at/near the root; app-private code belongs in `internal/`.
@@ -13,23 +13,23 @@ Go rewards **starting flat and letting structure emerge**. The only structural r
 - `go tool doc` removed [1.26]: use `go doc`. `go mod init` writes a `go` line two minors back [1.26].
 - Clean Architecture / DDD ported wholesale from Java/C# fights Go. Group by *capability*, not by *layer*; don't pre-declare interfaces; skip the ceremony for CRUD.
 
-## Table of Contents
+## Contents
 1. [Package layout that scales](#package-design)
-2. [The `internal/` boundary & why `pkg/` is an anti-pattern](#internal-vs-pkg)
+2. [The `internal/` boundary and why `pkg/` is an anti-pattern](#internal-vs-pkg)
 3. [Package naming](#naming)
-4. [Interface placement & "accept interfaces, return structs"](#interfaces)
-5. [Dependency injection: manual vs Wire vs fx/dig vs do](#di)
-6. [Functional-options constructors](#options)
+4. [Interface placement (accept interfaces, return structs)](#interfaces)
+5. [Dependency injection: manual wiring or a framework](#di)
+6. [Constructors with functional options](#options)
 7. [Config loading](#config)
-8. [Domain-vs-transport layering & testability seams](#layering)
-9. [Domain-Driven Design in Go](#ddd)
-10. [Clean Architecture mapping](#clean-architecture)
-11. [Avoiding import cycles & god packages](#cycles)
+8. [Separating domain, transport, and test seams](#layering)
+9. [Domain-driven design in Go](#ddd)
+10. [Clean architecture mapping](#clean-architecture)
+11. [Avoiding import cycles and god packages](#cycles)
 12. [Plugin architecture](#plugins)
-13. [Code generation & the `tool` directive](#codegen)
-14. [Library & tooling status](#libraries)
-15. [Version map 1.22→1.27](#versions)
-16. [What models get wrong](#stale)
+13. [Code generation and the `tool` directive](#codegen)
+14. [Library and tooling status](#libraries)
+15. [When each change landed (1.22 to 1.27)](#versions)
+16. [Mistakes to avoid](#stale)
 
 ---
 
@@ -76,7 +76,7 @@ Alex Edwards' rule: *"let the code you're writing guide the files and packages t
 
 ---
 
-## The `internal/` boundary & why `pkg/` is an anti-pattern {#internal-vs-pkg}
+## The `internal/` boundary and why `pkg/` is an anti-pattern {#internal-vs-pkg}
 
 **`internal/` is the only compiler-enforced structural rule** (since Go 1.4). A package under `.../internal/...` is importable **only** by code rooted at `internal/`'s parent. Cross-module imports fail to build:
 
@@ -116,7 +116,7 @@ Avoid **stutter**: the name is part of the identifier at the call site, so `chub
 
 ---
 
-## Interface placement & "accept interfaces, return structs" {#interfaces}
+## Interface placement (accept interfaces, return structs) {#interfaces}
 
 **Define interfaces in the package that USES them, not the one that implements them.** Go's structural typing means an implementer satisfies an interface *without importing it*, so the consumer owns the contract. Peter Bourgon: *"interfaces are consumer contracts, not producer contracts, so, as a rule, we should be defining them at callsites in consuming code."* Don't pre-declare an interface before a consumer needs it, and keep it to the methods that consumer calls.
 
@@ -150,7 +150,7 @@ type IOrderRepository interface { Save(o Order) error } // forces consumers to i
 
 ---
 
-## Dependency injection: manual vs Wire vs fx/dig vs do {#di}
+## Dependency injection: manual wiring or a framework {#di}
 
 **The idiomatic default is manual constructor wiring in `main`.** Constructors are plain functions; you call them in order. Both Wire and Fx are explicitly *built around ordinary Go constructor functions*: they consume the same shape you'd write by hand, which is the tell that manual is the baseline and frameworks are escalation tools.
 
@@ -175,7 +175,7 @@ func NewHandler() *Handler { return &Handler{Store: globalStore} } // service-lo
 
 **Escalate only on evidence.** Rough trigger: when `main`'s wiring is a large, churning, *static* graph (~50-100+ lines of tedious plumbing), then weigh a container. Pushing fx/dig onto a small/medium service "because DI is best practice" is over-engineering.
 
-### Compile-time DI: `google/wire` (and its fork)
+### Compile-time DI with `google/wire` (and its fork)
 Providers collected in `wire.NewSet`; an injector stub calls `wire.Build`; the `wire` tool generates `wire_gen.go` (plain Go, **no runtime reflection**, errors at generation time). **`google/wire` is archived read-only (Aug 25 2025), final tag v0.7.0**; pkg.go.dev shows "no longer maintained." Existing setups are safe; **don't start new projects on it**.
 
 ```go
@@ -188,9 +188,9 @@ func InitializeApp(cfg Config) (*App, error) {
 ```
 
 - API trap: passing a **struct value directly** to `wire.NewSet(Svc{})` is *deprecated*: use `wire.Struct(new(Svc), "*")` (or named fields). Core surface: `Build`, `NewSet`, `Bind`, `Value`, `InterfaceValue`, `Struct`, `FieldsOf`; providers may add an optional `func()` cleanup and trailing `error`, and the injector signature must match.
-- Maintained fork: `github.com/goforj/wire` (v1.2.0, Apr 2026) is a drop-in, API-compatible fork (faster, deterministic, `wire watch`); migrate existing imports with `go mod edit -replace=github.com/google/wire=github.com/goforj/wire@latest`. **Caveat:** adoption is tiny (single-digit importers). Vet before standardizing on it. [verify: long-term maintenance]
+- Maintained fork: `github.com/goforj/wire` (v1.3.1, Apr 2026) is a drop-in, API-compatible fork (faster, deterministic, `wire watch`); migrate existing imports with `go mod edit -replace=github.com/google/wire=github.com/goforj/wire@latest`. **Caveat:** adoption is tiny (single-digit importers). Vet before standardizing on it. [verify: long-term maintenance]
 
-### Runtime DI: `uber-go/dig`, `uber-go/fx`, `samber/do/v2`
+### Runtime DI with `uber-go/dig`, `uber-go/fx`, and `samber/do/v2`
 - **`dig`**: reflection inspects constructor signatures to build a DAG (`dig.New`, `Provide`, `Invoke`). Its README is explicit: good for *powering a framework / resolving the graph at startup*; **bad as a service locator or for resolving deps after startup**. Errors are runtime, stack traces deep.
 - **`fx`**: application framework on top of dig: `fx.Module`, `fx.Provide/Invoke`, `fx.Lifecycle` (`OnStart`/`OnStop`) for graceful start/stop. Justified at scale (many modules, cross-cutting lifecycle). Gotchas models miss: `fx.Decorate` is scoped to its deepest `fx.Module`; `fx.Private` restricts a provider to its subtree; **`fx.Supply` provides the most-specific reflected type**: to expose an interface you must `fx.Annotate(ctor, fx.As(new(Iface)))`, it won't infer it.
 - **`samber/do/v2`**: generics-based, **type-safe, no reflection, no codegen** (`do.New`, `do.Provide[T]`, `do.Invoke[T]`). Health checks, graceful + dependency-aware parallel shutdown, scopes, named services. v2 is a breaking GA, notably `do.Injector` became an *interface*. A modern container alternative to dig when you want type safety without code generation.
@@ -208,7 +208,7 @@ app := fx.New(
 
 ---
 
-## Functional-options constructors {#options}
+## Constructors with functional options {#options}
 
 Use options for *optional* configuration with sane defaults (especially when a constructor would otherwise sprout many params or boolean flags). Keep **required** deps as positional constructor args; options are for the long tail.
 
@@ -261,7 +261,7 @@ func Load() (Config, error) {
 
 ---
 
-## Domain-vs-transport layering & testability seams {#layering}
+## Separating domain, transport, and test seams {#layering}
 
 Separate **domain logic** (pure, testable, no I/O imports) from **transport** (HTTP/gRPC handlers) and **infrastructure** (DB/queue adapters). The seam is the consumer-defined interface (above): the domain depends on a small `Store`/`Notifier` interface; transport calls the domain; infra implements the interface. The domain imports neither transport nor infra.
 
@@ -275,7 +275,7 @@ This buys the **testability seam**: unit-test `order.Service` with an in-memory 
 
 ---
 
-## Domain-Driven Design in Go {#ddd}
+## Domain-driven design in Go {#ddd}
 
 DDD/Clean/Hexagonal originate in OOP languages with heavy DI containers and inheritance; ported literally to Go they fight the language. **Use them tactically, not ceremonially.** There is **no official Go-team doctrine** endorsing DDD/Clean as the default repo shape: the official docs prescribe package-oriented organization (root → `internal/` → real importable packages → separate modules), full stop.
 
@@ -303,13 +303,13 @@ When it pays off: long-lived products with complex domains, multiple teams needi
 
 ---
 
-## Clean Architecture mapping {#clean-architecture}
+## Clean architecture mapping {#clean-architecture}
 
 If you do adopt it: Entities → domain types in a capability package; Use cases → service types; Interface adapters → handlers + repo implementations; Frameworks/Drivers → `cmd/main.go`, DB drivers, HTTP server. The dependency rule (source deps point inward) is enforced in Go by **putting interfaces on the inner/consumer side** and concrete adapters on the outer side, the same seam as everywhere in this file. A *when-is-a-boundary-worth-it?* test: it must buy at least one of: independent package docs, reduced dependency fan-in, real alternate-implementation pressure, test isolation, or stable cross-binary reuse. If not, keep the code in fewer packages (Google style guide: tightly coupled types that callers must import together usually belong together).
 
 ---
 
-## Avoiding import cycles & god packages {#cycles}
+## Avoiding import cycles and god packages {#cycles}
 
 Go **forbids import cycles at compile time**: `package a imports b imports a` won't build. This is a design forcing-function, not just an error. Fixes, in order of preference:
 
@@ -348,7 +348,7 @@ Out-of-process (untrusted or language-agnostic): `hashicorp/go-plugin` runs each
 
 ---
 
-## Code generation & the `tool` directive {#codegen}
+## Code generation and the `tool` directive {#codegen}
 
 `go generate` is intentionally narrow: **never run by `go build`/`go test`**, does *no* dependency analysis, and scans raw source for `//go:generate` comments (no space after `//`), so it can match lookalike directives inside strings/comments. It sets the `generate` build tag and exposes `$GOFILE`, `$GOLINE`, `$GOPACKAGE`. Generated files carry `// Code generated … DO NOT EDIT.`
 
@@ -382,11 +382,11 @@ tool golang.org/x/tools/cmd/stringer
 require golang.org/x/tools v0.47.0 // indirect
 ```
 
-**Known limitations:** `go get -tool` adds tool deps to the **main** `go.mod`, mixing dev tools with app deps (same downside `tools.go` had). Workaround: a separate `-modfile=tools.go.mod` tool module. Only Go-built tools are supported (not eslint/jq). Older toolchains (≤1.23) **cannot parse `tool` directives**: the 1.27 command working group is adjusting behavior for modules that declare a `tool` directive while claiming `go 1.23` or earlier (treat as an in-flight gotcha). `stringer` itself is current (`golang.org/x/tools/cmd/stringer` v0.47.0). Adjacent: `go.mod`'s **`ignore` directive [1.25]** excludes dirs from `./...`/`all` expansion (but they're *still in the module zip*, not a privacy/packaging feature). Common generators: `sqlc`, `mockgen`, `stringer`, `buf generate`, `oapi-codegen`. **Commit generated code** (or run `go generate` in CI) so contributors build without every generator installed.
+**Known limitations:** `go get -tool` adds tool deps to the **main** `go.mod`, mixing dev tools with app deps (same downside `tools.go` had). Workaround: a separate `-modfile=tools.go.mod` tool module. Only Go-built tools are supported (not eslint/jq). Older toolchains (≤1.23) **cannot parse `tool` directives** (a real minimum-version constraint; unchanged in the final 1.27 release notes). `stringer` itself is current (`golang.org/x/tools/cmd/stringer` v0.47.0). Adjacent: `go.mod`'s **`ignore` directive [1.25]** excludes dirs from `./...`/`all` expansion (but they're *still in the module zip*, not a privacy/packaging feature). Common generators: `sqlc`, `mockgen`, `stringer`, `buf generate`, `oapi-codegen`. **Commit generated code** (or run `go generate` in CI) so contributors build without every generator installed.
 
 ---
 
-## Library & tooling status {#libraries}
+## Library and tooling status {#libraries}
 
 | Item | Status [2026] | Use when / note |
 |---|---|---|
@@ -396,7 +396,7 @@ require golang.org/x/tools v0.47.0 // indirect
 | `tool` directive in `go.mod` | **Default** [1.24] | Supersedes `tools.go` blank imports |
 | Manual constructor wiring | **Default** | Almost always; escalate only on evidence |
 | `google/wire` | **Archived/unmaintained** (v0.7.0, Aug 2025) | Existing code only; don't start new projects |
-| `goforj/wire` | Maintained fork (v1.2.0, Apr 2026) | Drop-in Wire successor; **tiny adoption; vet first** |
+| `goforj/wire` | Maintained fork (v1.3.1, Apr 2026) | Drop-in Wire successor; **tiny adoption; vet first** |
 | `uber-go/fx` | Active (v1.24.0, May 2025) | Large services: lifecycle + module scoping |
 | `uber-go/dig` | Active (v1.19.0, May 2025) | Framework plumbing; **not** a service locator |
 | `samber/do/v2` | Active GA (v2.0.0, Sep 2025) | Type-safe container, no reflection/codegen |
@@ -406,7 +406,7 @@ require golang.org/x/tools v0.47.0 // indirect
 
 ---
 
-## Version map 1.22→1.27 {#versions}
+## When each change landed (1.22 to 1.27) {#versions}
 
 | Ver | Project-structure / tooling delta |
 |---|---|
@@ -414,11 +414,11 @@ require golang.org/x/tools v0.47.0 // indirect
 | **1.24** | **`tool` directive** in `go.mod` + `go get -tool`/`go tool` (replaces `tools.go`); `go run`/`go tool` executables cached in build cache |
 | **1.25** | `go.mod` **`ignore` directive** (excludes dirs from `./...`; still zipped) |
 | **1.26** | `go tool doc`/`cmd/doc` **removed** (use `go doc`); `go mod init` defaults the `go` line two minors back; `go fix` becomes the modernizer home (`//go:fix inline`) |
-| **1.27 (RC, draft)** | `go mod tidy` merges duplicate `require` blocks (≤ direct+indirect) for `go 1.27`+ modules; new `go fix` modernizers (`atomictypes`, `embedlit`, `slicesbackward`, `unsafefuncs`); `waitgroup` analyzer → `waitgroupgo`; `stdversion` vet check runs under `go test` by default. Draft until GA (~Aug 2026), subject to change. |
+| **1.27** | `go mod tidy` merges duplicate `require` blocks (≤ direct+indirect) for `go 1.27`+ modules; new `go fix` modernizers (`atomictypes`, `embedlit`, `slicesbackward`, `unsafefuncs`) and `fmtappendf` analyzer removed; `go fix`'s `waitgroup` analyzer renamed `waitgroupgo`; `stdversion` vet check runs under `go test` by default. GA 2026-08-19, confirmed against the final release notes. |
 
 ---
 
-## What models get wrong {#stale}
+## Mistakes to avoid {#stale}
 
 1. Citing `golang-standards/project-layout` as "the standard Go layout." It is explicitly **not** official (issue #117); cite `go.dev/doc/modules/layout`.
 2. Defaulting to **`pkg/`** for importable code: anti-pattern; adds import-path noise; use `internal/` (or split a real library into its own module). Stdlib dropped `pkg/` in 1.4.
@@ -441,7 +441,7 @@ require golang.org/x/tools v0.47.0 // indirect
 
 ---
 
-## See Also {#see-also}
+## Where to look next {#see-also}
 - [design-patterns.md](design-patterns.md#go-specific): functional options in depth, middleware, GoF in Go
 - [style-synthesis.md](style-synthesis.md): naming conventions, package organization, code review rules
 - [modules-and-dependencies.md](modules-and-dependencies.md#5-workspaces-go-118): modules, `/v2` paths, `go.work` workspaces

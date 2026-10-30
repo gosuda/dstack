@@ -1,7 +1,7 @@
 # Session signal heuristics
 
 Use these rules to decide which transcript turns yield save-worthy memory proposals.
-`scan-session.sh` applies these patterns to JSONL session files.
+`scan-session.py` applies these patterns to JSONL session files.
 
 ## Turn structure (Claude Code JSONL)
 
@@ -24,12 +24,10 @@ Extract text from content: if content is a list, join `text` fields of `type=tex
 
 ### feedback: user correction
 
-User message text matches any of:
 - `"don't"`, `"stop"`, `"never"`, `"avoid"` followed by an action phrase
 - `"not that"`, `"not like that"`, `"wrong"` in a short correction
 - `"I said"`, `"I told you"` (implies prior rule was forgotten)
 - `"no,"` as the first word followed by a correction
-- Rejected tool use in the turn immediately before (type contains tool_result with error/denial)
 
 Proposed type: **feedback**
 

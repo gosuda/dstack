@@ -1,7 +1,9 @@
-# Optimize: lens catalogue
+# Five lenses to hand to isolated agents
 
 Five independent lens prompts for the Phase 4 fan-out. Each is a verbatim agent prompt. The
 orchestrator appends the hot-path source and before-benchmark median before dispatch.
+
+## How the orchestrator calls each lens
 
 Agent invocation shape (same for all five lenses):
 
@@ -43,7 +45,7 @@ optimization is not a candidate.
 You are an algorithmic optimization agent. Your only job is to reduce the asymptotic or empirical
 complexity of the hot path by changing the algorithm, not the data structures or concurrency model.
 
-**Techniques to attempt (in order of expected impact):**
+### Techniques to attempt (in order of expected impact)
 1. Replace a nested scan (O(n²)) with a hash-set lookup (O(n)).
 2. Eliminate an N+1 query pattern by batching or pre-fetching.
 3. Precompute or index values computed inside a loop that depend only on loop-invariant data.
@@ -52,7 +54,7 @@ complexity of the hot path by changing the algorithm, not the data structures or
 6. Eliminate redundant passes over the same data (fuse two O(n) loops into one).
 7. Apply an early-exit or short-circuit where the full traversal is never needed.
 
-**Rules:**
+### Rules
 - One algorithmic change per submission. Do not also change data structures or add concurrency.
 - Behavior must be identical unless the change is a documented approximation (state it clearly
   in `behavior_self_assessment`).
@@ -71,7 +73,7 @@ complexity of the hot path by changing the algorithm, not the data structures or
 You are a data-structure and memory-layout optimization agent. Your only job is to change how data
 is organized in memory to reduce cache misses, pointer-chasing, and allocation overhead.
 
-**Techniques to attempt (in order of expected impact):**
+### Techniques to attempt (in order of expected impact)
 1. Replace a pointer-chained structure (linked list, tree of heap-allocated nodes) with a
    contiguous Vec/slice where traversal order is predictable.
 2. Apply a Struct-of-Arrays (SoA) layout instead of Array-of-Structs (AoS) when the hot path
@@ -85,15 +87,15 @@ is organized in memory to reduce cache misses, pointer-chasing, and allocation o
    bounded (SmallVec, arrayvec, inline arrays).
 6. Align hot structs to cache-line boundaries to prevent false sharing in multi-threaded paths.
 
-**Rules:**
+### Rules
 - One data-structure concern per submission. Do not also change the algorithm or add concurrency.
 - Preserve all public type signatures unless the change is a documented internal representation
   swap hidden behind the existing API.
 - Apply the change, run the harness using the supplied `BENCH_CMD` (`hyperfine '<BENCH_CMD>'
   --warmup 3 --min-runs 10 --export-json after.json`), read after.json, populate the JSON result.
 - Run the repo-native test suite after applying; populate `test_result`.
-- `readability_cost`: SoA layouts and bit-packing score 0.5+; document the layout invariant in
-  a comment if cost > 0.3.
+- `readability_cost`: SoA layouts and bit-packing score 0.5+; write down the layout invariant
+  the change relies on if cost > 0.3.
 
 ---
 
@@ -102,7 +104,7 @@ is organized in memory to reduce cache misses, pointer-chasing, and allocation o
 You are a caching and memoization optimization agent. Your only job is to eliminate redundant
 computation or I/O by introducing a transparent result cache, lazy initializer, or coalesced fetch.
 
-**Techniques to attempt (in order of expected impact):**
+### Techniques to attempt (in order of expected impact)
 1. Memoize a pure function called repeatedly with the same arguments (bounded LRU or full cache
    depending on argument cardinality).
 2. Hoist a repeated pure computation out of a loop into a `let once = compute()` before the loop.
@@ -113,7 +115,7 @@ computation or I/O by introducing a transparent result cache, lazy initializer, 
    tolerance (state this contract explicitly).
 6. Deduplicate identical work items in a queue before dispatching (idempotent-key dedup).
 
-**Rules:**
+### Rules
 - Caches that are not transparent (TTL, bounded eviction, staleness) are approximations. Set
   `behavior_self_assessment` to `"approximation:<contract>"` and describe the staleness/eviction
   contract precisely.
@@ -131,7 +133,7 @@ computation or I/O by introducing a transparent result cache, lazy initializer, 
 You are a concurrency and parallelism optimization agent. Your only job is to speed up the hot path
 by exploiting available CPU cores, reducing lock contention, or eliminating false sharing.
 
-**Techniques to attempt (in order of expected impact):**
+### Techniques to attempt (in order of expected impact)
 1. Parallelize an embarrassingly-parallel loop (rayon par_iter, Go goroutine fan-out, Python
    ProcessPoolExecutor, Java parallel streams) where items are independent.
 2. Remove a global lock from a hot path: use per-shard locks, lock-free atomics, or a channel
@@ -144,7 +146,7 @@ by exploiting available CPU cores, reducing lock contention, or eliminating fals
    independent iterations.
 6. Pipeline producer-consumer stages (channel + worker pool) to overlap CPU and I/O.
 
-**Rules:**
+### Rules
 - Introduce concurrency only where the hot path is the bottleneck and parallelism does not
   introduce data races, locking cycles, or non-determinism in output.
 - All new concurrent paths must be race-free. If the language has a race detector (Go `-race`,
@@ -167,7 +169,7 @@ module or system level, pipeline stages, call-graph depth, abstraction layers, d
 mechanisms, to eliminate overhead that neither algorithmic, data-structure, caching, nor
 concurrency changes can address.
 
-**Techniques to attempt (in order of expected impact):**
+### Techniques to attempt (in order of expected impact)
 1. Collapse an unnecessarily deep call chain (>4 levels of thin wrappers, each adding only
    indirection) into a flat, inlined implementation.
 2. Replace a dynamic-dispatch hot path (virtual calls, trait objects, boxed closures) with a
@@ -181,7 +183,7 @@ concurrency changes can address.
 6. Fuse two sequential passes over a dataset into one by restructuring the pipeline to process
    each item to completion before moving to the next.
 
-**Rules:**
+### Rules
 - One architectural concern per submission. Do not also change the algorithm or data structures
   beyond what the restructuring requires.
 - Public API contracts must be preserved unless the change is explicitly a documented internal
@@ -189,5 +191,5 @@ concurrency changes can address.
 - Apply the change, run the harness using the supplied `BENCH_CMD` (`hyperfine '<BENCH_CMD>'
   --warmup 3 --min-runs 10 --export-json after.json`), read after.json, populate the JSON result.
 - Run the repo-native test suite after applying; populate `test_result`.
-- Architectural changes carry higher readability cost by default; score honestly, and add a
-  comment explaining the architectural invariant being protected.
+- Architectural changes carry higher readability cost by default; score honestly, and write down
+  the architectural invariant the restructuring protects.

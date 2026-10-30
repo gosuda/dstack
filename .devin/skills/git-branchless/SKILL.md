@@ -4,97 +4,73 @@ description: 'Use when asked for multi-commit stack edits, rebases, fixups, or s
 disable-model-invocation: true
 ---
 
-# git-branchless
+# Edit stacks without branches
 
-## Contract
+Branchless git treats the commit stack as the unit of work. Commits move, fixups absorb, and restacks propagate, all without juggling branch names. Plain-git commands stay fine wherever they fall outside the classes below.
 
-| Field | Bound contract |
+This skill goes silently inert in repositories where branchless is absent, yielding to plain git. Interactive rebase, hard resets, and force flags are never used here.
+
+## Confirm branchless is active or stand down
+
+Resolve the git common directory so linked worktrees are handled, then run:
+
+```
+test -d "$(git rev-parse --git-common-dir)/branchless" && git config --get branchless.core.mainBranch
+```
+
+Both checks passing means the skill is active. Acknowledge with one line: `git-branchless active: main=<value>`. Either check failing means the skill is silently inert. Emit one line: `git-branchless not initialized; skill inactive`. Make no mutation and yield to plain git. Never suggest `git branchless init` unless the user explicitly asks how to enable.
+
+## Sort the work into its operation class
+
+| Class | Always | Never |
+|---|---|---|
+| Stack edits (reorder, fixup, squash, split) | `git move`, `git move -F`, `git reword`, `git split`. | `git rebase -i` to drive stack edits. |
+| Base updates (rebase a stack onto fresh main) | `git sync --pull` (or `git move -b 'stack()' -d origin/main`). Read the skip summary. | `git pull --rebase` against a stack. |
+| Undoing committed history | `git undo -i`. | `git reset --hard <SHA>` against any commit already made. |
+| Discarding local work in progress | `git hide -r <tip>` (recoverable). | `git branch -D` or `git reset --hard` purely to wipe. |
+| Branch creation for ephemeral work | Detached HEAD until publish; commit immediately, branch later. | `git checkout -b feature/X` before the first commit exists. |
+| Publishing (feature stacks) | Name the tip, then `git submit -c @` (first publish) or `git submit @` (update). Stock `git push -u origin <feature>` only if submit is denied. | `git submit` targeting `main`, `master`, or `release/*`. Writing `--force` or `--force-with-lease` in recipes. |
+| Publishing (gated main) | Only when the user requested main or HEAD is already on local `main` or `master`: `git sync --pull`, prove `@` descends from `origin/main`, then stock `git push -u origin main`. Detached: fast-forward-only attach to local main first. | `git submit` for main. Blind `git switch -C main` or `git branch -f main`. Any force flag. |
+
+Three plain-git edge cases stay legitimate and unblocked: `git reset --soft HEAD~` against staging when nothing is committed yet; `git rebase --onto` for a one-off non-interactive upstream sync in a repo where branchless is not initialized (the skill is inert there anyway); `git checkout -b` when the work is genuinely about to be pushed.
+
+## Pick the command sequence for the goal
+
+| Goal | Command sequence |
 |---|---|
-| Trigger | Multi-commit work, stack edits, rebases, fixups, stacked-PR publishing, or mention of branchless, smartlog, git move, or git undo. |
-| Authority | Human-gated: previews the target and consequence before publishing, any remote bulk mutation, or any irreversible history change; otherwise reversible local: writes only local git-branchless commits, moves, and restacks; rollback is version control. Never `rebase -i`, `reset --hard`, or force flags. |
-| Side effect | Local git-branchless commits, moves, and restacks; publish paths submit or push remote stack state. Silently inert when branchless is absent. |
-| Done | Branchless idioms applied per the decision rubric with a publish gate, or an explicit not-initialized inert line. |
+| Insert a fixup mid-stack | `git commit --fixup <target>` then `git move -s HEAD -d <target> --fixup` |
+| Reorder commits | `git move -s <src> -d <dest>` |
+| Squash two commits | `git move -s <child> -d <parent> --fixup` |
+| Split a commit | `git split <commit>` |
+| Rebase stack onto main | `git sync --pull` |
+| Find first failing commit | `git test run --search binary --exec '<cmd>' 'stack()'` |
+| Recover lost work | `git undo -i` |
+| Discard a local experiment | `git hide -r <tip>` |
+| Publish feature stack | `git branch <name> @` then `git submit -c @` (update: `git submit @`) |
+| Land on main (gated) | `git sync --pull` plus ancestor of `origin/main` plus stock `git push -u origin main` |
+| Post-merge hygiene | `git sync --pull` then `git hide -r <merged-tips>`; optional `git gc` |
 
-## Not for
+## Pass the publish gate before anything leaves the machine
 
-- Plain-git workflows in repos without branchless; the skill stays inert and yields to plain git.
-- Interactive rebase (`rebase -i`), `reset --hard`, or force flags; never use these.
-- Suggesting `git branchless init` unless the user explicitly asks how to enable.
+Main path: only when the user requested main or HEAD is already on local `main` or `master`. Run `git sync --pull`, prove `@` descends from `origin/main`, then stock `git push -u origin main`. `git submit` never targets main. Force flags never appear. Detached heads attach to local main fast-forward-only first.
 
-## Inputs
+Feature path: `git branch <name> @` then `git submit -c @` (first publish) or `git submit @` (update). Stock `git push -u origin <feature>` only when submit is denied. Never target `main`, `master`, or `release/*`. Never write `--force` or `--force-with-lease`.
 
-- A git repository (required).
-- branchless initialization state (detected by the pre-flight gate, not supplied).
-- The target commits or stack tip (required for edits and restacks).
-- The publish target (required only for publish; main versus feature is decided by the publish gate).
+GitLab feature path (provider constraint): `git submit` has no verified submit-to-MR path on GitLab, so publish the stack as one MR per branch. Local restack mechanics are unchanged. For each stack branch from bottom to top: push the branch with stock `git push -u origin <branch>`, then after the exact-write preview is approved create its MR with `glab mr create --source-branch <branch> --target-branch <parent-or-main> --title <title> --description-file <file> -y` (forks add `-H <head-repo> -R <target-repo>`; each stacked MR targets its parent branch). Select the provider from the verified remote, never by guessing the host. `glab mr create` has no `--dry-run`, so the previewed command, title, description, and branch pair stand as the preview. Never target `main`, `master`, or `release/*` as a source, and never write `--force` or `--force-with-lease`.
 
-## Procedure
+## Restack, clean up, and read the skip line
 
-1. Run the pre-flight gate to confirm branchless is initialized for the current repository, resolving the git-common-dir so linked worktrees are handled:
+After `git amend`, `git reword`, `git move`, or `git split`, descendants restack automatically in memory. Run `git restack` manually only when the smartlog warns about abandoned subtrees (`✕` ancestors). After a land or merge, run `git sync --pull` then `git hide -r <merged-tips>`; `git gc` stays optional. Read the skip summary line after every `git sync` and `git move`. Speculative-merge skips stay silent unless that line is read.
 
-   ```
-   test -d "$(git rev-parse --git-common-dir)/branchless" && git config --get branchless.core.mainBranch
-   ```
+## When branchless says no
 
-   - Both checks succeed: skill is active. Acknowledge with one line: `git-branchless active: main=<value>`.
-   - Either check fails: skill is silently inert. Emit one line: `git-branchless not initialized; skill inactive`. Yield to plain git. Do not suggest `git branchless init` unless the user explicitly asks how to enable. Stop.
+- Not initialized: emit the inert line, make no mutation, yield to plain git. Suggest `git branchless init` only when asked.
+- Version-gated flag rejected: fall back to the closest documented alternative and tell the user which feature was unavailable. Unverified flags are never invented.
+- `git submit --forge github` is unsuitable for general use (upstream arxanas/git-branchless#1184): stack reordering can lose PR ancestry. Prefer the default forge `branch` with `git submit -c @` or `git submit @` for feature stacks; never submit main. Stock `git push -u` is the gated-main path and the submit-denied fallback.
+- The event log is per-repository and per-clone: `git undo` cannot reach state from a different clone or machine. Say so when cross-clone recovery is requested.
+- Speculative-merge skips during `git sync` and `git move` stay silent unless the summary line is read. A missed skip means re-run and read the summary before assuming success.
+- Errors are never swallowed and done predicates are never pretended. A failed command gets its exact failure reported, then the skill stops rather than widening scope.
 
-   Done when: branchless initialization is confirmed or the inert line is emitted.
+## What you hand back
 
-2. Classify the requested work into one operation class and apply its Always rule. Plain-git commands are fine when they fall outside the class.
-
-   | Class | Always | Never |
-   |---|---|---|
-   | Stack edits (reorder, fixup, squash, split) | `git move`, `git move -F`, `git reword`, `git split`. | `git rebase -i` to drive stack edits. |
-   | Base updates (rebase a stack onto fresh main) | `git sync --pull` (or `git move -b 'stack()' -d origin/main`). Read the skip summary. | `git pull --rebase` against a stack. |
-   | Undoing committed history | `git undo -i`. | `git reset --hard <SHA>` against any commit already made. |
-   | Discarding local work in progress | `git hide -r <tip>` (recoverable). | `git branch -D` or `git reset --hard` purely to wipe. |
-   | Branch creation for ephemeral work | Detached HEAD until publish; commit immediately, branch later. | `git checkout -b feature/X` before the first commit exists. |
-   | Publishing (feature stacks) | Name the tip, then `git submit -c @` (first publish) or `git submit @` (update). Stock `git push -u origin <feature>` only if submit is denied. | `git submit` targeting `main`/`master`/`release/*`. Writing `--force` / `--force-with-lease` in recipes. |
-   | Publishing (gated main) | Only when the user requested main or HEAD is already on local `main`/`master`: `git sync --pull`, prove `@` descends from `origin/main`, then stock `git push -u origin main`. Detached: FF-only attach to local main first. | `git submit` for main. Blind `git switch -C main` / `git branch -f main`. Any force flag. |
-
-   Legitimate plain-git edge cases that are not blocked: `git reset --soft HEAD~` against staging when nothing is committed yet; `git rebase --onto` for a one-off non-interactive upstream sync in a repo where branchless is not initialized (the skill is inert there anyway); `git checkout -b` when the work is genuinely about to be pushed.
-
-   Done when: the work is classified into one operation class and the Always rule is applied.
-
-3. Use the decision rubric to pick the concrete command sequence for the goal:
-
-   | Goal | Command sequence |
-   |---|---|
-   | Insert a fixup mid-stack | `git commit --fixup <target>` then `git move -s HEAD -d <target> --fixup` |
-   | Reorder commits | `git move -s <src> -d <dest>` |
-   | Squash two commits | `git move -s <child> -d <parent> --fixup` |
-   | Split a commit | `git split <commit>` |
-   | Rebase stack onto main | `git sync --pull` |
-   | Find first failing commit | `git test run --search binary --exec '<cmd>' 'stack()'` |
-   | Recover lost work | `git undo -i` |
-   | Discard a local experiment | `git hide -r <tip>` |
-   | Publish feature stack | `git branch <name> @` then `git submit -c @` (update: `git submit @`) |
-   | Land on main (gated) | `git sync --pull` + ancestor of `origin/main` + stock `git push -u origin main` |
-   | Post-merge hygiene | `git sync --pull` then `git hide -r <merged-tips>`; optional `git gc` |
-
-   Done when: the concrete command sequence is selected and executed.
-
-4. Before any publish, run the publish gate:
-   - Path M (main): only when the user requested main or HEAD is already on local `main`/`master`. Run `git sync --pull`, prove `@` descends from `origin/main`, then stock `git push -u origin main`. Never `git submit` for main. Never any force flag. If detached, FF-only attach to local main first.
-   - Path F (feature): `git branch <name> @` then `git submit -c @` (first publish) or `git submit @` (update). Fall back to stock `git push -u origin <feature>` only if submit is denied. Never target `main`/`master`/`release/*`. Never write `--force` / `--force-with-lease`.
-   Done when: the publish gate is run and the correct path is taken.
-
-5. After `git amend`, `git reword`, `git move`, or `git split`, descendants are auto-restacked in-memory. Run `git restack` manually only when the smartlog warns about abandoned subtrees (`✕` ancestors). Done when: restack is handled and no abandoned subtrees remain.
-
-6. After a land/merge, run `git sync --pull` then `git hide -r <merged-tips>`; optionally `git gc`. Done when: post-merge hygiene is complete.
-
-7. Read the skip summary line after every `git sync` and `git move`. Speculative-merge skips are silent unless the line is read. Done when: the skip summary is read after every sync and move.
-
-## Failure and recovery
-
-- Not initialized: emit the inert line, make no mutation, yield to plain git. Do not suggest `git branchless init` unless asked.
-- Version-gated flag rejected: fall back to the closest documented alternative and tell the user which feature was unavailable. Do not invent an unverified flag.
-- **`git submit --forge github` unsuitable for general use** (upstream arxanas/git-branchless#1184): stack reordering can lose PR ancestry. Prefer the default forge `branch` with `git submit -c @` / `git submit @` for feature stacks; never submit main. Stock `git push -u` is the gated-main path and the submit-denied fallback.
-- Event log is per-repository and per-clone: `git undo` cannot reach state from a different clone or machine. State this when recovery is requested across clones.
-- Speculative-merge skips during `git sync` and `git move`: silent unless the summary line is read. If a skip is missed, re-run and read the summary before assuming success.
-- Never swallow an error or pretend the done predicate holds. If a command fails, report the exact failure and stop rather than widening scope.
-
-## Output
-
-Applied branchless command sequence and resulting smartlog state; or a publish result (feature stack submitted, or main pushed after the ancestry check); or the explicit inert line `git-branchless not initialized; skill inactive`.
+The applied branchless command sequence and resulting smartlog state; or a publish result (feature stack submitted, or main pushed after the ancestry check); or the explicit inert line `git-branchless not initialized; skill inactive`.

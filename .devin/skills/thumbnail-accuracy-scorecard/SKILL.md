@@ -6,52 +6,41 @@ disable-model-invocation: true
 
 # Thumbnail accuracy scorecard
 
-## Contract
+You score thumbnail concepts at their real platform size with accuracy first, so no winner makes a claim the content cannot keep. You never generate thumbnails here, and you never declare a winner that fails the rubric.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Thumbnail concepts need real-size, accuracy-first scoring without misleading claims. |
-| Authority | Human-gated: asks for asset approval before rendering approved assets; otherwise reversible local: writes only named local artifacts; rollback is undo. No remote mutation. |
-| Side effect | Accuracy-gated thumbnail scorecard with per-dimension scores and an immutable receipt. |
-| Done | One accurate winner and two accurate runners-up clear the fixed rubric threshold. |
-| Stop | No accurate winner; approval blocked; budget exhausted. Bound: platform, audience, rubric, assets, round cap. |
+## Freeze the bound and the rubric
 
-## Inputs
+Record the bound before anything else: platform (YouTube, Twitter/X, LinkedIn, and similar), audience, rubric definition, assets to score, and round cap. No scoring starts until the bound is frozen.
 
-- Bound (required): platform (YouTube, Twitter/X, LinkedIn, etc.), audience, rubric definition, assets to score, and round cap.
-- Fixed rubric definition (required): the accuracy dimensions, their weights, the per-dimension scale, the aggregate threshold, and the tie-breaking rule. Frozen before any scoring.
-- Platform dimensions (required): the exact pixel dimensions at which thumbnails are rendered for the target platform (for example, 1280x720 for YouTube). Sourced from the platform's published thumbnail specification, not guessed.
+The rubric below is fixed and frozen with the bound. Each dimension scores 0 to 10 independently.
 
-## Fixed rubric
-
-| Dimension | Weight | Criterion (0 to 10 scale) |
+| Dimension | Weight | What a high score means |
 |---|---|---|
-| Claim accuracy | 0.30 | The thumbnail text and imagery accurately represent the content. No exaggerated claims, misleading titles, or false implications. |
-| Visual clarity | 0.25 | The subject is recognizable at the target platform's display size. Text is legible at thumbnail dimensions, not just at full resolution. |
-| Composition fidelity | 0.20 | The layout matches the platform's safe-zone constraints. No critical elements are cropped or obscured by platform UI overlays. |
-| Color and contrast | 0.15 | The color palette and contrast are appropriate for the platform and do not mislead about the content tone. |
-| Brand consistency | 0.10 | The thumbnail aligns with the creator or product brand identity. |
+| Claim accuracy | 0.30 | Text and imagery represent the content. No exaggerated claims, misleading titles, or false implications |
+| Visual clarity | 0.25 | Subject is recognizable at the platform display size. Text legible at thumbnail dimensions, not just full resolution |
+| Composition fidelity | 0.20 | Layout respects the platform safe zone constraints. No critical elements cropped or obscured by platform UI overlays |
+| Color and contrast | 0.15 | Palette and contrast fit the platform and do not mislead about the content tone |
+| Brand consistency | 0.10 | Thumbnail aligns with the creator or product brand identity |
 
-The aggregate score is the weighted sum. The threshold is 7.0. A thumbnail that scores below 5.0 on claim accuracy cannot pass regardless of aggregate, because misleading claims are disqualifying.
+The aggregate score is the weighted sum, and the threshold is 7.0. A thumbnail scoring below 5.0 on claim accuracy is disqualified regardless of aggregate, because misleading claims fail on their own. Ties break in this order: higher claim accuracy wins, then higher visual clarity wins, then both are declared runners up and no winner is selected.
 
-Tie-breaking: if two thumbnails tie on aggregate, the higher claim-accuracy score wins. If still tied, the higher visual-clarity score wins. If still tied, both are declared runners-up and no winner is selected.
+You also need the exact platform pixel dimensions sourced from the platform published thumbnail specification (for example 1280x720 for YouTube). When the published specification cannot be found, stop. Never guess dimensions. Ask for asset approval before rendering, under human gating: approval granted lets you render the approved assets, while denial or silence blocks the run.
 
-## Procedure
+## Render, score, and rank
 
-1. Bind the declared bound and freeze it. Record the platform, audience, rubric, assets, and round cap. Done when: the bound is recorded and no mutation has begun.
-2. Render each asset at the real platform dimensions. Source the dimensions from the platform's published specification. Do not score at non-standard sizes. Obtain asset approval before rendering. Done when: every asset is rendered at the target platform dimensions.
-3. Score each render against the fixed rubric. Score each dimension independently on the 0 to 10 scale. Record the per-dimension score, the aggregate, and whether the aggregate clears the threshold. Apply the disqualification rule: a claim-accuracy score below 5.0 disqualifies regardless of aggregate. Done when: every render has a complete scorecard.
-4. Rank the thumbnails by aggregate score. Apply tie-breaking if needed. Select the winner (highest aggregate, threshold cleared, not disqualified) and two runners-up. Done when: the winner and runners-up are selected, or no accurate winner exists.
-5. Stop at outcome.success (one winner and two runners-up clear the threshold), outcome.non_success (no accurate winner), or outcome.bound (round cap or budget reached). Done when: a terminal class is assigned.
-6. Persist per profiles.persistence.P1 (durable_location `.outline/loops/thumbnail-accuracy-scorecard/<run_id>/` when durable). Write an immutable K11 receipt with every K11 field. Done when: the receipt is written with the terminal class, bound, and scorecard evidence.
+1. Render each asset at the real platform dimensions. Do not score at non standard sizes.
+2. Score each render against the fixed rubric. Record every per dimension score, the aggregate, whether the aggregate clears the threshold, and whether claim accuracy disqualifies the entry.
+3. Rank by aggregate, apply the tie breaking order, and select the winner (highest aggregate, threshold cleared, not disqualified) plus two runners up. When no entry qualifies, report that instead of forcing a winner.
 
-## Failure and recovery
+Stopping states and what to report:
 
-- No accurate winner: no thumbnail clears the threshold or all remaining thumbnails are disqualified on claim accuracy. Terminal `no_accurate_winner`; report the best scores and the disqualification reasons.
-- Approval blocked: asset approval is denied or not collected. Terminal `approval_blocked`; report what approval is missing.
-- Budget exhausted: the round cap or budget is reached before a winner is selected. Terminal `budget_exhausted`; report the best scores obtained. Budget exhaustion is never success unless it is the predeclared success predicate.
-- Platform dimensions unavailable: the platform's published thumbnail specification cannot be found. Stop; do not guess dimensions. Report the missing specification.
+| Terminal | Meaning |
+|---|---|
+| success | One winner and two runners up clear the threshold |
+| no_accurate_winner | No thumbnail clears the threshold, or every remaining entry is disqualified on claim accuracy. Report the best scores and the disqualification reasons |
+| approval_blocked | Asset approval was denied or never collected. Report what approval is missing |
+| budget_exhausted | The round cap or budget arrived before a winner was selected. Report the best scores obtained. An exhausted budget is never success unless it was the predeclared success predicate |
 
-## Output
+## Leave a receipt
 
-A `receipt.json` with the terminal class, bound, per-thumbnail scorecard evidence (per-dimension scores, aggregate, threshold, disqualification status, rank), the winner and runners-up or the non-success terminal, persisted at `.outline/loops/thumbnail-accuracy-scorecard/<run_id>/`.
+When the outcome is durable, persist `receipt.json` under `.outline/loops/thumbnail-accuracy-scorecard/<run_id>/` with the terminal class, the bound, and the per thumbnail scorecard evidence: per dimension scores, aggregate, threshold, disqualification status, rank, and the winner and runners up or the non success terminal.

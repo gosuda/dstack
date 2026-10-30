@@ -1,6 +1,6 @@
 # Drift taxonomy
 
-Reference detail for the drift-detect procedure. Applied at step 6 (classify) and step 8 (emit).
+Reference detail for the drift-detect scan. Use it when classifying findings and when emitting the report.
 
 ## Drift types
 
@@ -20,7 +20,7 @@ Reference detail for the drift-detect procedure. Applied at step 6 (classify) an
 |---|---|---|---|
 | Implementation gap | documented feature has no matching code | `PLAN.md:42` says OAuth; no `auth/oauth`, no provider config, no route | high; critical if promised for release |
 | Partial implementation gap | some code exists but named behavior is missing | login exists; password reset/session timeout/tests absent | medium/high |
-| Test gap | implemented or promised behavior lacks tests or CI execution | no test script; no matching `*.test.*`; CI has build only | high for critical behavior, medium otherwise |
+| Test gap | implemented or promised behavior lacks independently checked tests or CI execution | no test script; no matching `*.test.*`; CI has build only | high for critical behavior, medium otherwise |
 | Documentation gap | shipped user-facing feature lacks docs | route/export exists; README/API docs silent | medium/high if public API |
 | Tracking gap | tracker lacks issue/PR for documented or implemented work | shipped feature no issue; issue not linked to milestone | low/medium |
 | Release-readiness gap | release target lacks required blockers closed | milestone due; open security/bug labels; failing/no CI | critical/high |

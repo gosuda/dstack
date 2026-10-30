@@ -1,57 +1,46 @@
 ---
 name: model-challenge
-description: 'Use when a user requests an independent Codex or Gemini review of uncommitted code, a branch diff, or a specific commit. Don''t use for unconfirmed or unattended review sends, or source mutation.'
+description: 'Use when a user requests an independent Codex or Gemini review of uncommitted code, a branch diff, or a specific commit. Do not use for unconfirmed or unattended review sends, or source mutation.'
 disable-model-invocation: true
 ---
 
 # Second opinion external review
 
-## Contract
+You send a selected code diff to an independent external reviewer, Codex or Gemini or both, and return structured findings with exact locations and confidence where supported. When both reviewers run, you also summarize where they agree and disagree. The run is complete when each selected reviewer has returned findings on the complete diff or is explicitly reported unavailable, with empty and oversized scopes handled before anything is sent.
 
-| Field | Bound contract |
+This skill changes nothing locally. The only mutation is sending data to an external reviewer, which cannot be undone once the user confirms it, so there is no rollback; unconfirmed or unattended sends are out of scope, and so is mutating source.
+
+Sending the diff costs money through a paid API and moves code outside the local environment, so it needs explicit human invocation. Before credentials, data-at-rest changes, paid actions, publishing, deployment, remote bulk mutation, or irreversible deletion enter the picture, you preview the target and consequence and proceed only with approval.
+
+## What you send
+
+Two inputs are required: the code diff or commit reference (uncommitted changes, a branch diff, or a specific commit SHA), and the reviewer selection (Codex, Gemini, or both). An optional focus area narrows the lens (security, performance, error handling, or general), and optional project guidance adds codebase context or review priorities to the reviewer prompt.
+
+Resolve the diff from the supplied reference first. For uncommitted changes, capture the working-tree diff. For a commit or branch diff, resolve the full diff against the merge base. Either you hold a single diff string whose range matches the reference, or you report that the reference could not be resolved and stop.
+
+Then validate scope. An empty diff means stop and report that there is nothing to review. A diff larger than the selected reviewer's context window means stop, report the size, and ask the user to narrow scope. Nothing is sent in either case. Record any focus area and project guidance, or confirm both absent, so the reviewer prompt can be assembled without another round trip.
+
+## Confirming the send
+
+Before anything leaves the local environment, present a preview: which reviewer or reviewers will run, what diff content will be sent, and the fact that this is a paid external action with data leaving locally. Proceed only on explicit confirmation. When the user declines, nothing is sent.
+
+## Running the reviewers
+
+Invoke each selected reviewer. Codex runs in a read-only sandboxed environment; collect its structured findings response. Gemini headless invocation may auto-approve extension tool calls, so the invocation itself needs explicit user authorization; collect its structured findings response. Never substitute one reviewer for another without user approval: when a reviewer is unavailable or returns an error, report that reviewer explicitly. When one reviewer succeeds and the other fails, include the findings you have and note the failure. When both are unavailable, report both and stop.
+
+When more than one reviewer ran, synthesize: list the agreements (both reviewers flag the same issue) alongside the per-reviewer findings behind them, and the disagreements (one flags what the other does not). A single-reviewer run skips this step.
+
+Compile the final report with one section per reviewer that ran (exact file paths, line numbers, confidence levels where supported), the synthesis section when more than one ran, and an explicit note for each reviewer that was unavailable. Scope limits and partial results are noted as they are: whatever was returned is reported, partial findings are never suppressed, and a completed review is never claimed where the run fell short.
+
+| Situation | What you do |
 |---|---|
-| Trigger | User requests an independent Codex or Gemini review of uncommitted code, a branch diff, or a specific commit, optionally focused on security, performance, or error handling. |
-| Authority | Remote: sends the selected code diff and project guidance to Codex and/or Gemini (paid API); requires explicit human invocation. Previews the target and consequence before credentials, data-at-rest changes, paid actions, publishing, deployment, remote bulk mutation, or irreversible deletion. |
-| Side effect | Sends the selected code diff and optional project guidance to Codex and/or Gemini. Codex is read-only sandboxed. Gemini headless invocation may auto-approve extension tool calls and therefore requires explicit user-authorized invocation. |
-| Done | The chosen external reviewer runs on the complete selected diff or is explicitly reported unavailable. Findings include exact locations and confidence where supported. Multiple-reviewer agreements and disagreements are summarized. Empty or oversized scopes are handled before invocation. |
+| Empty diff | Stop before invocation and report that there is nothing to review |
+| Oversized diff | Stop before invocation, report the diff size, and ask the user to narrow scope |
+| Reviewer unavailable | Report that reviewer explicitly, without silent substitution |
+| User declines the preview | Stop and send nothing externally |
+| Reviewer returns an error | Report the error for that reviewer, keep the other reviewer's findings when they exist |
+| Partial results | Report whatever was returned, never as a complete review |
 
-## Inputs
+## What you hand back
 
-1. Code diff or commit reference (required): uncommitted changes, a branch diff, or a specific commit SHA.
-2. Reviewer selection (required): Codex, Gemini, or both.
-3. Focus area (optional): security, performance, error handling, or general.
-4. Project guidance (optional): context about the codebase or review priorities to include in the reviewer prompt.
-
-## Procedure
-
-1. Resolve the code diff from the supplied reference. If uncommitted changes, capture the working-tree diff. If a commit or branch diff, resolve the full diff against the merge base. Done when: a single diff string is in hand whose range matches the supplied reference, or the reference could not be resolved and the stop is reported.
-2. Validate scope. If the diff is empty, stop and report nothing to review. If the diff exceeds the selected reviewer's context window, report the size and ask the user to narrow scope before proceeding. Done when: the diff is non-empty and within the selected reviewer's context window, or an empty or oversized scope is reported and no data was sent.
-3. Collect optional focus area and project guidance from the user. Done when: the focus area and project guidance are recorded or confirmed absent, so the reviewer prompt can be assembled without another round-trip.
-4. Before sending anything external, present the user with a preview: which reviewer(s) will be invoked, what diff content will be sent, and that this is a paid external action with data leaving the local environment. Obtain explicit confirmation to proceed. Done when: the user has explicitly confirmed the preview, or the user declined and no data was sent.
-5. Invoke the selected reviewer(s):
-   - Codex: Send the diff and focus guidance to the Codex API. Codex runs in a read-only sandboxed environment. Collect the structured findings response.
-   - Gemini: Send the diff and focus guidance to the Gemini API. Warn the user that Gemini headless invocation may auto-approve extension tool calls. Collect the structured findings response.
-   Done when: each selected reviewer returned a structured findings response, or returned an error that step 6 will handle.
-6. If a reviewer is unavailable or returns an error, report the failure for that reviewer explicitly. Do not substitute another reviewer without user approval. Done when: every selected reviewer has either a findings response or an explicit failure report, and no reviewer was silently substituted.
-7. If multiple reviewers ran, synthesize findings: identify agreements (both reviewers flag the same issue) and disagreements (one flags, the other does not). Present the synthesis alongside per-reviewer detail. Done when: agreements and disagreements are each listed with the per-reviewer findings that support them, or only one reviewer ran and this step is skipped.
-8. Compile the final report with per-reviewer findings (exact file paths, line numbers, confidence levels where supported), the multi-reviewer synthesis if applicable, and notes on any unavailable reviewers or scope limitations. Done when: the report contains a section per reviewer that ran, a synthesis section when more than one ran, and an explicit note for each reviewer that was unavailable.
-
-## Failure and recovery
-
-| Failure class | Behavior |
-|---|---|
-| Empty diff | Stop before invocation. Report that there is nothing to review. |
-| Oversized diff | Stop before invocation. Report the diff size and ask the user to narrow scope. |
-| Reviewer unavailable | Report the specific reviewer as unavailable. Do not silently substitute. If both are unavailable, report both and stop. |
-| User declines preview | Stop. Do not send any data externally. |
-| Reviewer returns error | Report the error for that reviewer. If another reviewer succeeded, include its findings and note the failure. |
-| Partial results | Report whatever was returned. Never suppress partial findings or pretend the review completed fully. |
-
-No rollback is needed because this skill is read-only on local state. The only mutation is sending data to an external reviewer, which cannot be undone once confirmed by the user.
-
-## Output
-
-A structured review report containing:
-- Per-reviewer findings with exact file paths, line numbers, and confidence levels where supported.
-- Multi-reviewer synthesis (agreements and disagreements) when more than one reviewer ran.
-- Notes on unavailable reviewers, scope limitations, or partial results.
+A structured review report: per-reviewer findings with exact file paths, line numbers, and confidence where supported; multi-reviewer synthesis of agreements and disagreements when more than one reviewer ran; and notes on unavailable reviewers, scope limits, and partial results.

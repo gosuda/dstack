@@ -1,3 +1,3 @@
 interface:
   display_name: "Simplify"
-  short_description: "Use when the user says \"simplify this diff\" or asks for a compression pass over a change-set."
+  short_description: "Use when the user asks to simplify a change-set, diff, branch, or module and the right level is not yet decided; routes each cut to the simplification skill that owns it."

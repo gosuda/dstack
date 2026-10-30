@@ -5,50 +5,43 @@ description: 'Use when a run could be over- or under-powered, before dispatching
 
 # Size the run
 
-## Contract
+You advise how much capability and deliberation a task deserves before anyone dispatches it. You answer with exactly one capability tier plus one effort level (the cheapest sufficient pair), the triggers for moving either dial, and the proof the work still needs. You change nothing: no files, no version control, no credentials, no paid or published or deployed or remote effects, no config or model switch, and you never execute the sized task.
 
-| Field | Bound contract |
+## What you need from the caller
+
+| Input | What it is |
 |---|---|
-| Trigger | User asks how hard a run should be ('how hard should I think about this', 'is this worth a deep run', 'size this task') or a subagent dispatch is about to launch. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | One advisory recommendation in chat; no config, execution, or model change. |
-| Done | The report names exactly one capability tier plus one effort level (the cheapest sufficient pair), the move-up/move-down triggers, and the proof surface. |
+| Task description | The concrete unit of work being sized, not a vague goal. Required. When the boundary is unclear, ask the caller to name the unit before sizing. |
+| Context | Domain constraints, risk factors, or prior sizing history that affect the judgment. Optional. |
 
-## Inputs
+## Sizing the task
 
-- Task description (required): the work being sized: a concrete unit of work, not a vague goal.
-- Context (optional): domain constraints, risk factors, or prior sizing history that affect the judgment.
+Work through these in order; the readouts build on each other.
 
-## Procedure
+1. Name the unit in one sentence. Until the work is statable that crisply, there is nothing to size.
+2. Assess risk on six dimensions: ownership boundaries crossed, reversibility and blast radius, safety or privacy risk, ambiguity and synthesis load, need for research or adversarial review, and cost of a wrong answer. Risk beats size here: one high risk file can call for the top tier while a broad mechanical rename stays at the bottom.
+3. Read off the cheapest sufficient tier, with the reason:
+   - fast: local, mechanical, reversible work with cheap and complete verification.
+   - standard: ordinary repo grounded reasoning, multi step drafting, normal coding and docs.
+   - frontier: architecture, high ambiguity, safety or security risk, release critical review, or work where one wrong assumption wastes a large run.
+4. Read off the effort level, with the reason. Effort buys deliberation, never capability. It tracks the tier by default (fast with glance, standard with measured, frontier with thorough, reserving exhaustive for the hardest stakes), then diverges where deliberation hunger and capability need part: raise it for ambiguity or long multi step reasoning, lower it for a bounded task under a strong model.
+   - glance: minimal deliberation, the direct path.
+   - measured: ordinary, everyday deliberation.
+   - thorough: deliberate extra, with alternatives and assumptions checked.
+   - exhaustive: maximal deliberation, the search exhausted and rechecked.
+5. Report both coordinates with one shared rationale, the move up and move down triggers for each dial, and the proof surface the work still needs regardless of tier or effort. Then stop.
 
-1. **Frame the unit.** Name the exact work being sized. Done when: the unit of work is named in one sentence.
-2. **Score once.** Assess risk and complexity across ownership boundaries, reversibility and blast radius, safety or privacy risk, ambiguity and synthesis load, need for research or adversarial review, and the cost of a wrong answer. Done when: all six risk dimensions are assessed.
-3. **Read off tier.** Choose the cheapest tier whose ceiling covers the judgment and risk. Risk beats size: one high-risk file can want `frontier`, while a broad mechanical rename can stay `fast`.
-   - `fast`: local, mechanical, reversible work with cheap, complete verification.
-   - `standard`: ordinary repo-grounded reasoning, multi-step drafting, normal coding and docs.
-   - `frontier`: architecture, high ambiguity, safety or security risk, release-critical review, or work where one wrong assumption wastes a large run.
-   Done when: one tier is chosen with its rationale.
-4. **Read off effort.** Default to the effort that tracks the tier. Raise it for ambiguity or long multi-step reasoning; lower it for a bounded task under a strong model. Effort buys deliberation, never capability.
-   - `glance`: minimal deliberation, the direct path.
-   - `measured`: ordinary, everyday deliberation.
-   - `thorough`: deliberate extra: alternatives and assumptions checked.
-   - `exhaustive`: maximal deliberation, the search exhausted and re-checked.
-   Tier and effort move together by default (`fast`→`glance`, `standard`→`measured`, `frontier`→`thorough`, reserving `exhaustive` for the hardest stakes), then part where deliberation-hunger and capability-need diverge.
-   Done when: one effort level is chosen with its rationale.
-5. **Report both coordinates.** Give one shared rationale, `move up if` and `move down if` triggers for each dial, and the proof surface the work still needs regardless of tier or effort. Done when: both dials, their triggers, and the proof surface are stated.
-6. **Stop.** Do not execute the sized task, change config, or switch models. Done when: no execution action is taken; the recommendation is the sole output.
+## When the judgment wobbles
 
-## Failure and recovery
-- Ambiguous task boundary: refuse to size; ask the user to name the unit of work before proceeding.
-- Insufficient risk signal: default to `standard`/`measured` and state the assumption explicitly; do not guess.
-- Partial result: if the task cannot be fully assessed, return the best-effort sizing with the uncertainty named; never silently default.
-- Non-convergent: if repeated re-assessment yields different tiers without new evidence, report the last stable pair and the oscillation.
-- No rollback applies: this skill is read-only and advisory.
+- Ambiguous task boundary: refuse to size and ask the caller to name the unit of work.
+- Thin risk signal: default to standard with measured and state the assumption outright instead of guessing.
+- Partial assessment: return the best effort sizing with the uncertainty named, never a silent default.
+- Repeated reassessment lands on different tiers with no new evidence: report the last stable pair and the oscillation.
+- Read only throughout, so rollback never applies.
 
-## Output
-A report naming exactly one capability tier (`fast`/`standard`/`frontier`), one effort level (`glance`/`measured`/`thorough`/`exhaustive`), a shared rationale, move-up and move-down triggers per dial, and the proof surface, no routing, vendor, or orchestration claim.
+## What you hand back
 
-Machine-readable block:
+A report naming exactly one capability tier (fast, standard, or frontier), one effort level (glance, measured, thorough, or exhaustive), a shared rationale, move up and move down triggers per dial, and the proof surface. No routing, vendor, or orchestration claim. Include the machine readable block exactly as below:
 
 ```text
 recommended_tier: fast|standard|frontier

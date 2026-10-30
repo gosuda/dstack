@@ -2,7 +2,9 @@
 
 Go's `testing` package + `go test` covers ~95% of real needs without a framework. The leverage is in the *deltas*: subtests that `t.Parallel` correctly, `t.Cleanup`/`t.Setenv`/`t.Chdir` semantics (and which can't run in parallel), `B.Loop` over `b.N`, `testing/synctest` for time-dependent code, and the coverage flags most people never reach for. Reach for testify when assertions get verbose; never reach for a *framework*.
 
-> Source horizon: verified against Go **1.26.x** (stable) + **1.27 RC** notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 row was checked against the final notes. Version tags `[1.N]` mark the release a claim applies to. Written from primary sources (pkg.go.dev, release notes, Go blog).
+The testing philosophy centers on state invariants (correctness is proven through state invariants, preconditions, and postconditions $\{P\} C \{Q\}$, never incidental execution traces) and ruthless empirical validation (test real systems end-to-end and use deterministic simulation over fragile mock echoes; tests must be resilient to internal refactoring while strictly asserting system behavior).
+
+> Source horizon: verified against Go **1.26.x** (stable) plus the **1.27** final release notes (GA 2026-08-19; stable patch 1.27.3 pinned in SKILL.md) for the `[1.27]` claims; an earlier pass (2026-06) used the RC notes. Version tags `[1.N]` mark the release a claim applies to. Written from primary sources (pkg.go.dev, release notes, Go blog).
 
 ## TL;DR: the modern deltas (read first)
 
@@ -41,32 +43,49 @@ Go's `testing` package + `go test` covers ~95% of real needs without a framework
 The canonical Go test shape. The value is *one assertion path, many cases*; a failure names the case, and `-run Name/case` reruns one.
 
 ```go
+var (
+    ErrEmptyInput = errors.New("empty duration")
+    ErrOverflow   = errors.New("duration overflow")
+)
+
 func TestParseDuration(t *testing.T) {
-    tests := map[string]struct { // map keys ARE the subtest names — no name field needed
+    tests := map[string]struct {
         in      string
         want    time.Duration
-        wantErr bool
+        wantErr error // explicit error invariant, not a loose boolean
     }{
-        "seconds":      {in: "5s", want: 5 * time.Second},
-        "empty":        {in: "", wantErr: true},
-        "negative":     {in: "-1h", want: -time.Hour},
-        "overflow":     {in: "9999999999h", wantErr: true},
+        "seconds":  {in: "5s", want: 5 * time.Second},
+        "empty":    {in: "", wantErr: ErrEmptyInput},
+        "negative": {in: "-1h", want: -time.Hour},
+        "overflow": {in: "9999999999h", wantErr: ErrOverflow},
     }
     for name, tt := range tests {
         t.Run(name, func(t *testing.T) {
             got, err := ParseDuration(tt.in)
-            if (err != nil) != tt.wantErr {
-                t.Fatalf("err = %v, wantErr %v", err, tt.wantErr) // Fatal: stop THIS subtest
+            if tt.wantErr != nil {
+                if !errors.Is(err, tt.wantErr) {
+                    t.Fatalf("got err %v, want %v", err, tt.wantErr)
+                }
+                return
+            }
+            if err != nil {
+                t.Fatalf("unexpected err: %v", err)
             }
             if got != tt.want {
-                t.Errorf("got %v, want %v", got, tt.want)         // Error: keep checking other fields
+                t.Errorf("got %v, want %v", got, tt.want)
             }
         })
     }
 }
 ```
 
-Expert points: a `map` table gives randomized iteration order (surfaces order-dependence for free) but non-deterministic *output* order; use a slice when you need stable ordering or duplicate names. `t.Fatal`/`Fatalf` calls `runtime.Goexit`; it must run on the **test goroutine**, so calling it from inside a spawned goroutine doesn't fail the test (it just kills that goroutine); send the error back over a channel or use `t.Error` from there. Always include zero values, empty, nil, boundaries, and the error branch; a table with no `wantErr` case usually has an untested error path.
+Map keys become the subtest names, so no name field is needed. Use `Fatal` to stop a subtest when a precondition fails, such as an unexpected error. Use `Error` to keep checking the remaining fields after a value mismatch.
+
+Expert points:
+- A `map` table gives randomized iteration order (surfaces order-dependence for free) but non-deterministic *output* order; use a slice when you need stable ordering or duplicate names.
+- **Assert error invariants, not boolean flags or strings**: A bare `wantErr: true` boolean is weak because any unintended error or recovered panic satisfies it. Conversely, matching `err.Error()` substrings is brittle: it pins incidental English phrasing, breaks across refactorings, and proves nothing about programmatic error handling. Always check error identity with `errors.Is` (for sentinels) or error structure with `errors.As` (for typed errors).
+- `t.Fatal`/`Fatalf` calls `runtime.Goexit`; it must run on the **test goroutine**, so calling it from inside a spawned goroutine doesn't fail the test (it just kills that goroutine); send the error back over a channel or use `t.Error` from there.
+- Always include zero values, empty, nil, boundaries, and the error branch; a table with no `wantErr` case usually has an untested error path.
 
 ---
 
@@ -74,12 +93,12 @@ Expert points: a `map` table gives randomized iteration order (surfaces order-de
 
 ```go
 func TestUserService(t *testing.T) {
-    svc := setupTestService(t) // serial setup, shared read-only across subtests
+    svc := setupTestService(t)
 
-    t.Run("group", func(t *testing.T) { // optional grouping parent
+    t.Run("group", func(t *testing.T) {
         for name, tt := range cases {
             t.Run(name, func(t *testing.T) {
-                t.Parallel() // PAUSES here; resumes after the enclosing Run returns
+                t.Parallel()
                 got := svc.Do(tt.in)
                 if got != tt.want { t.Errorf("got %v want %v", got, tt.want) }
             })
@@ -87,6 +106,8 @@ func TestUserService(t *testing.T) {
     })
 }
 ```
+
+Do shared setup in the parent before the parallel children start. Children must only read that shared state, never write it. `t.Parallel` pauses the subtest here; it resumes after the enclosing `Run` returns.
 
 `t.Parallel` mechanics (the part models get wrong): calling it *pauses* the subtest until its parent test function returns, then all paused siblings run concurrently. Consequences:
 - A parent's code after its `t.Run` block runs **before** the parallel children; so deferred/inline teardown in the parent tears down resources the children still need. Put teardown in `t.Cleanup`, which is **deferred until after parallel subtests finish**.
@@ -114,13 +135,13 @@ import (
 )
 
 func TestDebounce(t *testing.T) {
-    synctest.Test(t, func(t *testing.T) { // runs f in a new "bubble"
+    synctest.Test(t, func(t *testing.T) {
         var count atomic.Int32
         debounced := Debounce(func() { count.Add(1) }, 100*time.Millisecond)
         debounced()
 
-        time.Sleep(99 * time.Millisecond) // fake clock; completes in ~0 wall time
-        synctest.Wait()                    // block until every OTHER bubble goroutine is durably blocked
+        time.Sleep(99 * time.Millisecond)
+        synctest.Wait()
         if count.Load() != 0 { t.Fatal("fired too early") }
 
         time.Sleep(time.Millisecond)
@@ -129,6 +150,8 @@ func TestDebounce(t *testing.T) {
     })
 }
 ```
+
+The sleeps run on a fake clock, so they complete in almost no wall time. Each `Wait` blocks until every other goroutine in the bubble is durably blocked, then the test asserts the settled state.
 
 Model ("durably blocked"): the bubble has its own fake clock (starts midnight UTC 2000-01-01). When *every* goroutine in it is durably blocked, an outstanding `Wait()` returns; else the clock jumps to the next timer; else it's deadlocked and `Test` panics. **Durably blocking** (complete list): send/recv on a nil channel; send/recv on a channel *created inside the bubble*; a `select` where every case durably blocks; `time.Sleep`; `sync.Cond.Wait`; `sync.WaitGroup.Wait`.
 
@@ -146,12 +169,14 @@ See also [concurrency.md](concurrency.md) for synctest applied to channel/worker
 
 ```go
 func assertEqual[T comparable](t *testing.T, got, want T) {
-    t.Helper() // first line: failures point at the CALLER's line, not here
+    t.Helper()
     if got != want {
         t.Errorf("got %v, want %v", got, want)
     }
 }
 ```
+
+Call `t.Helper` as the first line, so failures report at the caller's line instead of inside the helper.
 
 Expert points: `t.Helper()` re-attributes only the immediate frame; a helper calling another helper needs it in *both*. Idiomatically a helper takes `*testing.T` and calls `t.Fatal`/`t.Error` itself rather than returning an error to check; a helper returning a value should `t.Helper()` then `t.Fatalf` on failure so the value is always usable. `t.TempDir()`/`t.Cleanup()` registered in a helper are owned by the *test*, not the helper.
 
@@ -166,7 +191,7 @@ func setupTestDB(t *testing.T) *sql.DB {
     t.Helper()
     db, err := sql.Open("pgx", dsn)
     if err != nil { t.Fatal(err) }
-    t.Cleanup(func() { db.Close() }) // [1.14] LIFO; runs after the test AND all its parallel subtests
+    t.Cleanup(func() { db.Close() })
     return db
 }
 ```
@@ -187,78 +212,168 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 ```go
 func TestMain(m *testing.M) {
-    flag.Parse() // TestMain runs BEFORE flag.Parse() — call it yourself if you read flags here
+    flag.Parse()
     pool := startSharedResource()
-    code := m.Run()       // returns the exit code; do NOT call os.Exit before cleanup
+    code := m.Run()
     pool.Close()
-    os.Exit(code)         // since TestMain returns, you must exit explicitly (or let it return — [1.15]+ exits with m.Run's code)
+    os.Exit(code)
 }
 ```
 
-Expert points: `TestMain` is a *package-level* hook (one per test binary) for setup too expensive per-test (shared container, connection pool) or that must run on the main goroutine. `m.Run()` returns the code; `os.Exit` skips your deferred cleanup, so close resources *before* exiting. Don't use it for ordinary setup; per-test `t.Cleanup` is parallel-safe and scoped. Flags aren't parsed when `TestMain` starts (call `flag.Parse()` if you read them); there's no `*testing.T`, so `t.Skip`/per-test helpers don't apply.
+Flags are not parsed yet when `TestMain` starts, so call `flag.Parse` yourself when you read flags here. `m.Run` returns the exit code; `os.Exit` skips deferred cleanup, so close resources before exiting. Since [1.15] `TestMain` may also return instead of calling `os.Exit`, and the exit code is then `m.Run`'s.
+
+Expert points: `TestMain` is a *package-level* hook (one per test binary) for setup too expensive per-test (shared container, connection pool) or that must run on the main goroutine. Don't use it for ordinary setup; per-test `t.Cleanup` is parallel-safe and scoped. There's no `*testing.T`, so `t.Skip`/per-test helpers don't apply.
 
 ---
 
 ## Mocking with Interfaces {#mocking}
 
-Define the interface **at the consumer**, keep it small, and prefer a hand-written func-field fake over a generated mock for anything under ~3 methods.
+Define the interface **at the consumer**, keep it small, and prefer an in-memory stateful fake over a passive mock for anything under ~3 methods.
+
+A test that tells a mock to return a canned value and asserts that the service returned that exact value is a **mock-return echo**. It proves only that Go function calls forward pointers; it proves zero invariants about domain rules, state transitions, or error handling. Model stateful behavior instead and verify postconditions and fault handling:
 
 ```go
-// Interface declared where it's USED (the service), not where it's implemented (the repo).
-type userRepo interface {
-    GetUser(ctx context.Context, id string) (*User, error)
+type UserRepo interface {
+    FindUser(ctx context.Context, id string) (*User, error)
+    SaveUser(ctx context.Context, u *User) error
 }
 
-// Func-field stub: each test sets only the methods it exercises.
-type stubRepo struct {
-    getUser func(ctx context.Context, id string) (*User, error)
+// In-memory fake: stores real state to verify state transitions and invariants.
+type memUserRepo struct {
+    users map[string]*User
+    saves int
 }
-func (s stubRepo) GetUser(ctx context.Context, id string) (*User, error) { return s.getUser(ctx, id) }
 
-func TestService_GetUser(t *testing.T) {
-    svc := NewService(stubRepo{
-        getUser: func(_ context.Context, id string) (*User, error) {
-            if id == "123" { return &User{ID: id, Name: "Alice"}, nil }
-            return nil, ErrNotFound
+func (m *memUserRepo) FindUser(_ context.Context, id string) (*User, error) {
+    u, ok := m.users[id]
+    if !ok {
+        return nil, ErrNotFound
+    }
+    cp := *u // return copy so caller cannot mutate internal store without SaveUser
+    return &cp, nil
+}
+
+func (m *memUserRepo) SaveUser(_ context.Context, u *User) error {
+    m.saves++
+    cp := *u
+    m.users[u.ID] = &cp
+    return nil
+}
+
+func TestUserService_PromoteUser(t *testing.T) {
+    repo := &memUserRepo{
+        users: map[string]*User{
+            "u1": {ID: "u1", Role: RoleStandard, Status: StatusActive},
         },
-    })
-    got, err := svc.GetUser(context.Background(), "123")
-    if err != nil { t.Fatal(err) }
-    if got.Name != "Alice" { t.Errorf("name = %q", got.Name) }
+    }
+    svc := NewUserService(repo)
+
+    // 1. Verify state transition postcondition:
+    err := svc.PromoteUser(t.Context(), "u1", RoleAdmin)
+    if err != nil {
+        t.Fatalf("promote user: %v", err)
+    }
+
+    updated, err := repo.FindUser(t.Context(), "u1")
+    if err != nil {
+        t.Fatalf("fetch updated user: %v", err)
+    }
+    if updated.Role != RoleAdmin {
+        t.Errorf("role = %v, want %v", updated.Role, RoleAdmin)
+    }
+    if repo.saves != 1 {
+        t.Errorf("saves count = %d, want 1", repo.saves)
+    }
+
+    // 2. Verify fault resilience: missing user returns domain error, leaves state unchanged
+    err = svc.PromoteUser(t.Context(), "unknown", RoleAdmin)
+    if !errors.Is(err, ErrUserNotFound) {
+        t.Errorf("got err %v, want %v", err, ErrUserNotFound)
+    }
 }
 ```
 
-When to generate: for large interfaces or strict call-order/expectation assertions, `go.uber.org/mock` (`mockgen`; the maintained successor to the archived `golang/mock`) or `matryer/moq` (generates a func-field mock like the above). Drive generation with a `//go:generate` directive or a `tool` directive [1.24] in `go.mod`. **Don't mock what you don't own** (DB drivers, `http.Client`); fake at the seam you control (a repo interface, an `httptest.Server`). Over-mocking yields tests that pass while the integration is broken. Mocking/fakes depth: [testing-advanced.md](testing-advanced.md#mocking-strategy).
+When to generate: for large interfaces or strict protocol sequences, `go.uber.org/mock` (`mockgen`; the maintained successor to the archived `golang/mock`) or `matryer/moq` (generates func-field fakes). Drive generation with a `//go:generate` directive or a `tool` directive [1.24] in `go.mod`. **Don't mock what you don't own** (DB drivers, `http.Client`); fake at the seam you control (a repo interface, an `httptest.Server`). Over-mocking yields tests that pass while the integration is broken. Mocking/fakes depth: [testing-advanced.md](testing-advanced.md#mocking-strategy).
 
 ---
 
 ## HTTP Handler Testing {#http-testing}
 
+Two levels. Handler level calls the handler directly: no socket, synchronous, fast. Always assert status code, header invariants (e.g. `Content-Type`), and decode response bodies into structured domain types.
+
 ```go
-// Handler-level: no socket, synchronous, fast — use httptest.NewRecorder.
 func TestUsersHandler(t *testing.T) {
-    req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/users/123", nil) // [1.23] ctx-aware ctor
+    req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/users/123", nil)
     rec := httptest.NewRecorder()
     handler.ServeHTTP(rec, req)
 
-    res := rec.Result() // *http.Response
+    res := rec.Result()
     defer res.Body.Close()
+
     if res.StatusCode != http.StatusOK {
-        t.Fatalf("status = %d", res.StatusCode)
+        t.Fatalf("status = %d, want %d", res.StatusCode, http.StatusOK)
+    }
+    if ct := res.Header.Get("Content-Type"); ct != "application/json" {
+        t.Errorf("Content-Type = %q, want application/json", ct)
+    }
+
+    var user UserResponse
+    if err := json.NewDecoder(res.Body).Decode(&user); err != nil {
+        t.Fatalf("decode response body: %v", err)
+    }
+    if user.ID != "123" || user.Name == "" {
+        t.Errorf("unexpected decoded user: %+v", user)
     }
 }
 
-// Stack-level: real loopback server (tests middleware, routing, TLS).
-func TestHealth(t *testing.T) {
-    srv := httptest.NewServer(router)
-    t.Cleanup(srv.Close)
-    res, err := srv.Client().Get(srv.URL + "/healthz") // srv.Client() trusts srv's TLS cert
-    if err != nil { t.Fatal(err) }
+func TestUsersHandler_NotFound(t *testing.T) {
+    req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/users/unknown", nil)
+    rec := httptest.NewRecorder()
+    handler.ServeHTTP(rec, req)
+
+    res := rec.Result()
     defer res.Body.Close()
+
+    if res.StatusCode != http.StatusNotFound {
+        t.Fatalf("status = %d, want 404", res.StatusCode)
+    }
+    var prob ProblemDetails
+    if err := json.NewDecoder(res.Body).Decode(&prob); err != nil {
+        t.Fatalf("decode problem payload: %v", err)
+    }
+    if prob.Code != "user_not_found" {
+        t.Errorf("error code = %q, want user_not_found", prob.Code)
+    }
 }
 ```
 
-Expert points: `NewRecorder` skips the server machinery (no write deadlines, `Flusher` timing, or `Server` middleware); use `NewServer`/`NewTLSServer` for those, and with TLS always dial via `srv.Client()` (it trusts the server cert). `ResponseRecorder.Code` defaults to 200 even if the handler never calls `WriteHeader`; assert on `Result().StatusCode`. Unit-test a client by pointing its `Transport` at an `httptest.Server`, not by mocking `http.Client`. Inside `synctest`, loopback needs `net.Pipe`. Config: [http-and-apis.md](http-and-apis.md).
+Stack level runs a real loopback server, which also exercises middleware, routing, and TLS.
+
+```go
+func TestHealth(t *testing.T) {
+    srv := httptest.NewServer(router)
+    t.Cleanup(srv.Close)
+
+    res, err := srv.Client().Get(srv.URL + "/healthz")
+    if err != nil {
+        t.Fatalf("health request failed: %v", err)
+    }
+    defer res.Body.Close()
+
+    if res.StatusCode != http.StatusOK {
+        t.Fatalf("status = %d, want %d", res.StatusCode, http.StatusOK)
+    }
+    var body struct{ Status string }
+    if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+        t.Fatalf("decode health body: %v", err)
+    }
+    if body.Status != "ok" {
+        t.Errorf("status payload = %q, want ok", body.Status)
+    }
+}
+```
+
+Expert points: `httptest.NewRequestWithContext` is [1.23]. `NewRecorder` skips the server machinery (no write deadlines, `Flusher` timing, or `Server` middleware); use `NewServer`/`NewTLSServer` for those, and with TLS always dial via `srv.Client()` (it trusts the server cert). `ResponseRecorder.Code` defaults to 200 even if the handler never calls `WriteHeader`; assert on `Result().StatusCode`. Always decode the response body: asserting only `StatusCode == 200` lets empty bodies, corrupt payloads, and serialization bugs slip through. Unit-test a client by pointing its `Transport` at an `httptest.Server`, not by mocking `http.Client`. Inside `synctest`, loopback needs `net.Pipe`. Config: [http-and-apis.md](http-and-apis.md).
 
 ---
 
@@ -272,13 +387,15 @@ Prefer a **real engine** (testcontainers-go, or a CI service container) over an 
 
 ```go
 func BenchmarkMarshal(b *testing.B) {
-    data := makeData()      // setup BEFORE the loop — excluded automatically by b.Loop
-    b.ReportAllocs()        // or run with -benchmem
-    for b.Loop() {          // [1.24] — condition must be EXACTLY b.Loop()
-        sink, _ = json.Marshal(data) // assign to a package var to be safe pre-1.24; redundant with b.Loop
+    data := makeData()
+    b.ReportAllocs()
+    for b.Loop() {
+        sink, _ = json.Marshal(data)
     }
 }
 ```
+
+Setup stays before the loop, so the timer excludes it. The condition must read exactly `b.Loop()` [1.24]. Assigning the result to a package-level sink was needed before [1.24]; with `b.Loop` the compiler keeps loop-body results alive, so it is redundant but harmless.
 
 `for b.Loop()` vs `for i := 0; i < b.N; i++` [1.24]:
 
@@ -304,52 +421,70 @@ Native fuzzing landed **[1.18]** (`*testing.F`, `f.Add`, `f.Fuzz`). Seed the cor
 
 ```go
 func FuzzRoundTrip(f *testing.F) {
-    f.Add("https://example.com/p?q=1") // seed corpus (also persisted under testdata/fuzz/)
+    f.Add("https://example.com/p?q=1")
     f.Add("")
     f.Fuzz(func(t *testing.T, in string) {
         u, err := Parse(in)
-        if err != nil { return } // reject invalid input; not a failure
-        if got := Parse(mustString(u)); got != u { // property: parse∘format == identity
+        if err != nil { return }
+        if got := Parse(mustString(u)); got != u {
             t.Errorf("round-trip: %v != %v", got, u)
         }
     })
 }
 ```
 
+Seeds also persist under `testdata/fuzz/`. Rejecting invalid input is not a failure. The asserted property is round-trip identity: parsing formatted output returns the same value.
+
 ```bash
-go test -run='^$' -fuzz=FuzzRoundTrip -fuzztime=30s ./pkg   # -run '^$' skips unit tests while fuzzing
+go test -run='^$' -fuzz=FuzzRoundTrip -fuzztime=30s ./pkg
 ```
+
+`-run '^$'` skips the unit tests while fuzzing, so only the fuzz target runs.
 
 Expert points: fuzz arguments are limited to the supported types (`[]byte`, `string`, the numeric types, `bool`, `rune`); no structs/slices; pack structured inputs into `[]byte` and decode inside `f.Fuzz`. Without `-fuzz`, a `Fuzz` target runs only its **seed corpus** as a normal unit test (so seeds are regression tests). A crasher is written to `testdata/fuzz/<FuzzName>/` and **must be committed**: it then reproduces deterministically in CI without re-fuzzing. `-fuzz` runs **one target at a time**, so fuzzing isn't a CI default; gate it on a nightly/dedicated job. Property-based testing depth: [testing-advanced.md](testing-advanced.md#property-based).
 
----
-
 ## Golden Files {#golden-files}
 
-```go
-var update = flag.Bool("update", false, "update .golden files")
+`testdata/` as *input* is fine. A committed expected-output file as the *pass oracle* is not: `-update` overwrites the proof, so the test detects byte drift, not a user-visible fault, and fails on formatting refactors. Assert meaning instead, and keep saved output as an inspection/debugging aid only.
 
+```go
 func TestRender(t *testing.T) {
-    got := render(input)
-    golden := filepath.Join("testdata", t.Name()+".golden") // t.Name() → unique per subtest
-    if *update {
-        if err := os.WriteFile(golden, []byte(got), 0o644); err != nil { t.Fatal(err) }
-    }
-    want, err := os.ReadFile(golden)
-    if err != nil { t.Fatalf("read golden (run -update?): %v", err) }
-    if diff := cmp.Diff(string(want), got); diff != "" { // go-cmp gives readable -want/+got diffs
-        t.Errorf("mismatch (-want +got):\n%s", diff)
+    pages := loadPages(t, "testdata/pages")
+    for name, in := range pages {
+        t.Run(name, func(t *testing.T) {
+            out := render(in)
+
+            // 1. Proof: Output parses under target format rules.
+            doc, err := parse(out)
+            if err != nil {
+                t.Fatalf("rendered output does not parse: %v", err)
+            }
+            // 2. Proof: Output satisfies structural schema invariants.
+            if err := checkSchema(doc); err != nil {
+                t.Fatalf("rendered output violates schema: %v", err)
+            }
+            // 3. Proof: Semantic meaning matches input invariants.
+            if !sameMeaning(doc, in) {
+                t.Errorf("meaning changed for input %s", name)
+                // Inspection artifact: diff against last-known sample is logged for diagnostics,
+                // or written to t.ArtifactDir() on failure, but never gates pass/fail.
+                t.Logf("diagnostic diff vs baseline sample:\n%s",
+                    cmp.Diff(knownGoodSamples[name], out))
+            }
+        })
     }
 }
 ```
 
-Expert points: `testdata/` is special; `go build`/`go test` ignore it, and the working directory during a test is the **package directory**, so `testdata/...` resolves without tricks. Golden files shine for large/structured output (rendered templates, serialized trees) where an inline `want` literal would be unreadable. Normalize nondeterminism (timestamps, random IDs, map order) *before* writing/comparing or `-update` thrashes the file. `t.Name()` includes subtest path with `/`; sanitize it for filesystem-unsafe characters if your subtest names contain them. Snapshot-testing libraries exist but `flag.Bool("update")` + `go-cmp` is the zero-dep idiom.
+Three checks, in order: the output parses, it satisfies the schema, and it means the same as the input (round-trip identity, canonical equivalence insensitive to formatting). A diff against a committed sample may appear in the failure log or be saved to `t.ArtifactDir()` to speed up human inspection; it must never decide pass or fail. Normalize nondeterminism (timestamps, random IDs, map order) before comparing, or every run creates a false diff.
+
+Expert points: `testdata/` is special; `go build`/`go test` ignore it, and the working directory during a test is the **package directory**, so `testdata/...` resolves without tricks. It works well for large input corpora (templates, serialized trees) where inline literals would be unreadable. `t.Name()` includes the subtest path with `/`; sanitize it for filesystem-unsafe characters if your subtest names contain them.
 
 ---
 
 ## Example Tests {#examples}
 
-Examples are compiled, run, **and** checked against their `// Output:` comment; they're tests *and* godoc that can't go stale.
+Examples are compiled, run, **and** checked against their `// Output:` comment. Treat that check as documentation quality, not behavior proof: it pins exact stdout, so a formatting-only change fails it while proving nothing about the values a caller actually receives. Keep the example for godoc, and pair it with a real test that asserts a semantic predicate on the parsed result.
 
 ```go
 func ExampleParse() {
@@ -358,39 +493,48 @@ func ExampleParse() {
     // Output: go.dev
 }
 
-func ExampleClient_Get() { // ExampleType_Method → attaches to that method's godoc
-    // ...
-    // Unordered output:   // matches the lines below in any order
-    // a
-    // b
+func TestParseFields(t *testing.T) {
+    u, err := Parse("https://go.dev/path?q=1")
+    if err != nil {
+        t.Fatalf("parse: %v", err)
+    }
+    if u.Scheme != "https" || u.Host != "go.dev" || u.Path != "/path" {
+        t.Errorf("decoded fields wrong: %+v", u)
+    }
 }
 ```
 
-Expert points: the name must be `Example`, `ExampleF`, `ExampleT`, or `ExampleT_M` (in a `_test.go` file) to attach to godoc. An example with **no `// Output:`** comment is *compiled but not run* (verifies only that it builds). `// Unordered output:` matches lines in any order. Examples assert purely via stdout (no `*testing.T`) and are the most honest API docs you have.
+The `// Output:` comment keeps the godoc honest about what the example prints. The `TestParseFields` assertions prove what the code returns. One may change without the other: reworded printing breaks only the example, a misparsed field breaks only the test.
+
+Expert points: the name must be `Example`, `ExampleF`, `ExampleT`, or `ExampleT_M` (in a `_test.go` file) to attach to godoc. An example with **no `// Output:`** comment is *compiled but not run* (verifies only that it builds). `// Unordered output:` matches lines in any order. Name a method example `ExampleType_Method` so it attaches to that method's godoc.
 
 ---
 
 ## Coverage {#coverage}
 
 ```bash
-go test -cover ./...                                  # summary % per package
-go test -coverprofile=cov.out -covermode=atomic ./... # atomic mode is REQUIRED with -race
-go tool cover -func=cov.out                           # per-function table
-go tool cover -html=cov.out                           # annotated source in browser
-go test -coverpkg=./... -coverprofile=cov.out ./...   # count coverage of OTHER packages exercised by these tests
+go test -cover ./...
+go test -coverprofile=cov.out -covermode=atomic ./...
+go tool cover -func=cov.out
+go tool cover -html=cov.out
+go test -coverpkg=./... -coverprofile=cov.out ./...
 ```
+
+`-cover` prints a summary percentage per package. `cover -func` prints a per-function table; `cover -html` opens annotated source in a browser.
 
 **`-covermode`:** `set` (default; did-it-run booleans), `count` (hit counts), `atomic` (count, race-safe). **Use `atomic` whenever `-race` is on**; `count` mode's non-atomic counters are themselves data races. `-coverpkg` widens *instrumentation* to packages beyond the one under test (e.g. measure how much of `./internal/...` your handler tests exercise); without it you only see the test's own package.
 
 Integration coverage of binaries [1.20]; coverage is no longer test-only:
 
 ```bash
-go build -cover -o app.exe ./cmd/app   # instrument the BINARY (default: main module's packages)
-GOCOVERDIR=$(mktemp -d) ./app.exe ...  # each run writes covcounters/covmeta files there
-go tool covdata percent  -i="$GOCOVERDIR"            # summary
-go tool covdata textfmt  -i="$GOCOVERDIR" -o=cov.txt # → feed to `go tool cover -func/-html`
-go tool covdata merge    -i=dir1,dir2 -o=merged      # combine many runs / harnesses
+go build -cover -o app.exe ./cmd/app
+GOCOVERDIR=$(mktemp -d) ./app.exe ...
+go tool covdata percent  -i="$GOCOVERDIR"
+go tool covdata textfmt  -i="$GOCOVERDIR" -o=cov.txt
+go tool covdata merge    -i=dir1,dir2 -o=merged
 ```
+
+The build instruments the binary (by default, the main module's packages). Each run writes counter files into `GOCOVERDIR`. `textfmt` feeds `go tool cover -func/-html`; `merge` combines many runs.
 
 `go build -cover -coverpkg=...` extends binary instrumentation to dependencies. This lets end-to-end / CLI / server-under-load tests contribute to a coverage number, merged with unit-test profiles via `covdata merge`.
 
@@ -406,22 +550,26 @@ if err := os.WriteFile(filepath.Join(t.ArtifactDir(), "response.json"), body, 0o
 }
 ```
 
-Pair with `t.Attr(key, value)` [1.25] to emit CI-readable test metadata, and `t.Output() io.Writer` [1.25] to stream large diagnostic output through the test log without `t.Log`'s per-call source annotation. For scratch space that should *not* survive, keep using `t.TempDir()`.
+Pair with `t.Attr(key, value)` [1.25] to emit CI-readable test metadata, and `t.Output() io.Writer` [1.25] to stream large diagnostic output through the test log without `t.Log`'s per-call source annotation. For scratch space that should *not* survive, keep using `t.TempDir()`. `t.ArtifactDir()` cleanly separates diagnostic dumps and captured payloads from programmatic test oracles.
 
 ---
 
 ## Integration Tests {#integration}
 
 ```go
-//go:build integration   // excluded from default `go test`; run with -tags=integration
+//go:build integration
 
 package myapp_test
 ```
 
+The tag excludes the file from the default `go test`; run it with `-tags=integration`.
+
 ```bash
-go test -short ./...                       # fast path: integration tests self-skip on testing.Short()
-go test -tags=integration -count=1 ./...   # opt in; -count=1 so cached results don't hide infra changes
+go test -short ./...
+go test -tags=integration -count=1 ./...
 ```
+
+`-short` is the fast path: integration tests self-skip on `testing.Short()`. `-count=1` disables result caching so cached results cannot hide infrastructure changes.
 
 Two gating mechanisms, used together: a **build tag** (`//go:build integration`) keeps slow tests out of the default compile entirely; **`testing.Short()`** lets a test skip itself under `-short` even when compiled in. Build tags are coarse (whole file); `Short()` is per-test.
 
@@ -464,7 +612,7 @@ Rule of thumb: stdlib for control flow and `t.Run`; `go-cmp` for equality; `test
 | **[1.24]** | `for b.Loop()`; `t.Chdir`/`t.Context`; `testing/synctest` (experimental, `GOEXPERIMENT=synctest`); `tool` directives in go.mod; `tests` vet analyzer; `copylock` flags 3-clause-loop lock copies |
 | **[1.25]** | `testing/synctest` **stable** (`synctest.Test`/`Wait`); `t.Output`, `t.Attr` |
 | **[1.26]** | `t.ArtifactDir` + `go test -artifacts`; synctest carried forward |
-| **[1.27]** | `testing/synctest.Sleep` (sleep plus `synctest.Wait` in one call); `httptest.NewTestServer` (in-memory network for synctest bubbles); `go test` runs the `stdversion` vet check by default; `go test -json` gains `OutputType`. GA 2026-08-19; additions read from the final release notes. |
+| **[1.27]** | `testing/synctest.Sleep` (combines `time.Sleep` and `synctest.Wait` in one call); `httptest.NewTestServer` (in-memory fake network suitable for use with `testing/synctest`); `go test` runs the `stdversion` vet check by default; `go test -json` `Action:output` lines gain `OutputType` (`error`, `error-continue`, `frame`). GA 2026-08-19; additions verified against the final release notes. |
 
 ---
 
@@ -487,6 +635,7 @@ Rule of thumb: stdlib for control flow and `t.Run`; `go-cmp` for equality; `test
 15. A fuzz target with no `// Output`-style invariant, or not committing the `testdata/fuzz/` crasher (so CI can't reproduce it).
 16. Reaching for `testify/suite` or Ginkgo when `t.Run` + table tests + `go-cmp` suffice.
 17. Mocking `http.Client`/DB drivers (don't own them) instead of faking at an owned seam (`httptest.Server`, repo interface).
+18. Treating mock-return echoes, golden file byte diffs, or `err.Error()` string matches as correctness proof. A test must verify independent invariants, system state transitions, and typed error classifications (`errors.Is`/`errors.As`), keeping diffs and dumped payloads strictly as inspection/debug artifacts.
 
 ---
 

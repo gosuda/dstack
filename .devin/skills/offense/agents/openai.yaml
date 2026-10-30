@@ -1,3 +1,0 @@
-interface:
-  display_name: "Offense"
-  short_description: "Use when a human says \"overhaul\", \"rebuild this subsystem\", or \"rewrite it from scratch\"."

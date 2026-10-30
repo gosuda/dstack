@@ -6,54 +6,39 @@ disable-model-invocation: true
 
 # Teach
 
-## Contract
+You run a persistent course, not a single answer: a teaching workspace at the working directory that carries a mission, trusted sources, cited lessons, and a record of what the learner has actually retained. You write only named artifacts inside that workspace, under version control as the rollback story, and you never touch remote systems. For a one-off explanation, step aside to explain-concept.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User wants a course, a learning workspace, or ongoing teaching across sessions rather than a one-off explanation. Includes source-required lessons with retention gates. |
-| Authority | Reversible local: writes only named local artifacts inside the teaching workspace at the working directory; rollback is version control. No remote mutation. |
-| Side effect | Creates MISSION.md, RESOURCES.md, learning records, ./lessons, ./assets, ./reference, GLOSSARY.md, and NOTES.md inside the persistent teaching workspace. |
-| Done | A grounded mission, a lesson authored to the learner's zone of proximal development with a cited trusted source, and curated resources exist in the workspace. |
+Start from the topic the user wants to learn and the concrete outcome they are chasing. If the goal is vague, keep interviewing before writing anything: "run a half marathon by October" is a goal, "get fitter" is not. Prior knowledge, when disclosed, becomes a learning record; time, budget, preferences, and prior commitments bound the approach as constraints.
 
-## Inputs
+## Refusals that protect the course
 
-- Topic (required): the subject the user wants to learn.
-- Learning goal (required): the concrete outcome the user is chasing. If vague, interview them before writing MISSION.md.
-- Prior knowledge (optional): what the user already knows. Record it as a learning record when disclosed.
-- Constraints (optional): time, budget, learning preferences, prior commitments.
+- A vague or missing mission means more questions, not a `MISSION.md`. Never write the mission until a concrete goal exists.
+- No quality resources means a `## Gaps` section in `RESOURCES.md` and broader searching, never parametric knowledge dressed as a source.
+- No trusted source for a lesson means stopping to ask the user for one or for approval of a lower-trust alternative. Parametric knowledge is never the primary source.
+- A lesson that drifts from the mission gets realigned, or the mission gets updated with the user's confirmation.
+- A miscalibrated difficulty means reading the learning records, adjusting, and writing a new record that captures the calibration.
+- An existing workspace means reading `MISSION.md`, the learning records, and the glossary, then resuming where the learner left off. Existing user work is never deleted or overwritten.
+- A corrupt workspace file (`MISSION.md`, `RESOURCES.md`, `GLOSSARY.md`, a learning record, or a lesson that is unreadable, malformed, or inconsistent with its own format) is preserved as-is and quarantined by renaming to `<filename>.corrupt-<timestamp>`, and the run returns a blocker. Corrupt data is never recreated from conversation context.
+- A learner who cannot demonstrate retention after two attempts on the same topic sends you back through all learning records to find the gap, and the run returns a blocker.
 
-## Refusal
+## Building the workspace
 
-- Missing or vague mission: keep interviewing. Do not write MISSION.md until a concrete goal exists.
-- No quality resources found: write a `## Gaps` section in RESOURCES.md. Search more broadly. Never fill gaps with parametric knowledge.
-- Missing trusted source for a lesson: stop and ask the user to provide a source or approve a lower-trust one. Do not proceed with parametric knowledge as the primary source.
-- Lesson drifts from mission: realign the lesson or update MISSION.md with user confirmation.
-- Zone miscalibration: read learning records, adjust difficulty, write a new record capturing the calibration.
-- Workspace already exists: read existing state (MISSION.md, learning records, glossary). Resume from where the learner left off. Never delete or overwrite existing user work.
-- Corrupt workspace file: if MISSION.md, RESOURCES.md, GLOSSARY.md, any learning record, or any lesson file is corrupt (unreadable, malformed, or inconsistent with its own format), preserve the corrupt file as-is, quarantine it by renaming to `<filename>.corrupt-<timestamp>`, and return a blocker. Never recreate corrupt data from conversation context.
-- Non-converged: if the user cannot demonstrate retention after two attempts at the same topic, review all learning records to identify the gap and return a blocker.
+Interview the learner first: why this topic, and what concrete outcome proves it was worth it. Then set up the workspace structure: `MISSION.md`, `RESOURCES.md`, `./lessons/`, `./reference/`, `./assets/`, `NOTES.md`, with `./learning-records/` created lazily when the first record is earned.
 
-## Procedure
+Write `MISSION.md` from `references/MISSION-FORMAT.md`: one mission per workspace, concrete, short enough to fit on a screen, revised when reality shifts. Fill `RESOURCES.md` from `references/RESOURCES-FORMAT.md` with high-trust sources only (primary texts, recognised experts, peer-reviewed work, strongly moderated communities), annotated with what each covers and when to reach for it, grouped under Knowledge / Wisdom, pruned ruthlessly. Write the shared `./assets/style.css` once so every lesson stays visually consistent and prints cleanly.
 
-1. Interview the learner. Ask why they want to learn this topic and what concrete outcome they are chasing. Push for specifics: "Run a half marathon by October" beats "get fitter." If the user cannot articulate why, keep interviewing before writing anything. Done when: a concrete outcome is stated.
-2. Create the workspace. Set up the directory structure at the working directory: `MISSION.md`, `RESOURCES.md`, `./lessons/`, `./learning-records/` (create lazily on first record), `./reference/`, `./assets/`, `NOTES.md`. Done when: the workspace structure exists.
-3. Write MISSION.md. Load `references/MISSION-FORMAT.md` and fill the template with the user's answers. One mission per workspace. Concrete over abstract. Push back on vagueness. Keep it short. Done when: `MISSION.md` is written with a concrete goal.
-4. Populate RESOURCES.md. Find high-quality, high-trust resources for the topic. Never trust parametric knowledge as a primary source. Load `references/RESOURCES-FORMAT.md` and fill the template. Prefer primary sources, recognised experts, peer-reviewed work, and communities with strong moderation. Annotate every entry. Group by Knowledge / Wisdom. If no good resource exists for an area the mission needs, write a `## Gaps` section. Prune ruthlessly. Done when: `RESOURCES.md` is written with annotated trusted sources.
-5. Create the shared stylesheet. Write a clean, readable CSS file to `./assets/style.css`. Use it in every lesson so the course stays visually consistent. Design it for readability and clean printing. Done when: `./assets/style.css` is written.
-6. Assess the zone of proximal development. Read existing learning records (if any) and the mission. Determine what the learner knows and what they need next. If no records exist, start from the mission's prerequisites. Done when: the next topic is identified.
-7. Find a trusted source for the lesson topic. Cite it in the lesson. If no high-quality source exists, stop and ask the user to provide one or approve a lower-trust one. Do not proceed with parametric knowledge as the primary source. Done when: a trusted source is cited.
-8. Author the lesson. Create one HTML file in `./lessons/` named `0001-<dash-case-name>.html`, incrementing the number for each new lesson. Each lesson delivers one sourced win: one tangible, source-cited outcome tied to the mission and in the user's zone of proximal development. Include clean typography, a link to the shared stylesheet, anchors to related lessons and reference documents, one primary source to read or watch, and a reminder to ask follow-up questions. Design for storage strength through desirable difficulty: retrieval practice, spacing, interleaving (for skills practice only). For quiz answers, keep every option the same length in words and characters when possible. Do not leak the answer through formatting. For knowledge acquisition, difficulty is the enemy because it consumes working memory. For skill acquisition, desirable difficulty builds storage strength. Done when: the lesson file is written with a cited source.
-9. Retention check before advancing. Before each new lesson after the first, verify that the user demonstrated understanding of the prior lesson through an answered question, a completed exercise, or cited prior experience. Without demonstrated retention, adjust the zone of proximal development and revisit the gap before advancing. If the user cannot demonstrate retention after two attempts, review all learning records to identify the gap and return a blocker. Done when: retention is demonstrated or the gap is identified for revisit.
-10. Maintain GLOSSARY.md. Create at the workspace root when terminology accumulates. Load `references/GLOSSARY-FORMAT.md` and follow the template. Add a term only when the user understands it. Be opinionated: when several words exist for the same concept, pick the best and list the rest as aliases to avoid. Revise as understanding deepens: update in place, do not leave stale entries. Done when: `GLOSSARY.md` exists and follows the format.
-11. Write learning records. Create records in `./learning-records/` named `0001-<slug>.md`, incrementing the number. Scan for the highest existing number and increment. Load `references/LEARNING-RECORD-FORMAT.md` and follow the template. Write a record when: the user demonstrated genuine understanding of something non-trivial, the user disclosed prior knowledge, a misconception was corrected, or the mission shifted. Do not write records for material merely covered, anything already in the glossary, or session activity logs. When a later record contradicts an earlier one, mark the old record `Status: superseded by LR-NNNN` rather than deleting it. Done when: one learning record is written.
-12. Create reference documents. Build compressed reference materials in `./reference/` as HTML files: cheat sheets, algorithms, syntax, poses, glossaries. Design them for quick review and clean printing. Lessons are rarely revisited; reference documents are. Done when: reference documents are created as needed.
-13. Record notes. Capture user preferences and anything that should steer future sessions in NOTES.md. Refer to it when designing lessons. Done when: `NOTES.md` is updated.
-14. Open the lesson. Show the lesson file to the user with a CLI command when possible. Done when: the lesson file is opened.
+## Teaching one sourced win at a time
 
-## Failure modes
+Read the learning records and the mission to find the learner's zone of proximal development: what they know and what comes next. With no records, start from the mission's prerequisites. Find a trusted source for that next topic and cite it; without one, stop as above.
 
-- Rollback: never delete a learning workspace. If the session fails or is interrupted, all written artifacts persist. Existing user work is preserved; learning records are only superseded, never removed. If MISSION.md changes, confirm with the user first and add a learning record documenting the shift.
+Author one HTML lesson in `./lessons/` as `0001-<dash-case-name>.html`, incrementing the number each time. Each lesson delivers one tangible, source-cited outcome tied to the mission and pitched at the learner's current level: clean typography, a link to the shared stylesheet, anchors to related lessons and reference documents, one primary source to read or watch, and a reminder to ask follow-up questions. Design the difficulty deliberately: for knowledge acquisition, difficulty is the enemy because it consumes working memory; for skills practice, use retrieval practice, spacing, and interleaving to build storage strength. Keep quiz options the same length in words and characters where possible, and never leak the answer through formatting.
 
-## Output
+Before each new lesson after the first, verify retention of the prior one through an answered question, a completed exercise, or cited prior experience. Without demonstrated retention, adjust the level and revisit the gap rather than advancing.
 
-The persistent teaching workspace at the working directory: `MISSION.md` (grounded reason for learning), `RESOURCES.md` (curated trusted sources with annotations), `./lessons/*.html` (self-contained lessons with cited sources), `./learning-records/*.md` (evidence of understanding and ZPD signal), `GLOSSARY.md` (compressed canonical terminology), `./reference/*.html` (compressed reference documents), `./assets/*` (reusable lesson components including the shared stylesheet), `NOTES.md` (user preferences and session steering notes).
+## Keeping the course memory
+
+Maintain `GLOSSARY.md` from `references/GLOSSARY-FORMAT.md` at the workspace root: add a term only once the user can use it correctly, pick one canonical word when several exist and list the rest as aliases to avoid, keep definitions to a sentence or two, and revise in place as understanding deepens.
+
+Write learning records in `./learning-records/` using concise semantic insight filenames (`<insight-slug>.md`), following `references/LEARNING-RECORD-FORMAT.md`. Learning state provides operational evidence for the next teaching decision, never a project ADR, timeless universal truth, or session diary. Earn one when the user demonstrates genuine understanding of something non-trivial, discloses prior knowledge, corrects a misconception, or the mission shifts with user approval. Mere coverage, tiny learn spam, glossary terms, and session activity logs do not qualify. Existing stored learning records and legacy IDs remain untouched (no user data migration); preserve their provenance and supersession links. When a later record contradicts an earlier one, mark the old one `Status: superseded by [New Insight Title](target.md)` using a meaningful human link title, never a bare ID or counter; records are superseded, never removed, and a mission change needs the user's confirmation plus a record of the shift.
+
+Build compressed `./reference/*.html` documents (cheat sheets, syntax, procedures) for quick review and clean printing. Lessons are rarely revisited, while references are. Capture preferences and steering notes in `NOTES.md` and consult it when designing lessons. Open each finished lesson for the user with a CLI command where possible. The workspace itself is the deliverable: a grounded mission, curated sources, self-contained cited lessons, evidence of understanding, canonical terminology, compressed references, reusable assets, and steering notes. A failed or interrupted session leaves everything in place; nothing is ever deleted to recover.

@@ -5,7 +5,7 @@ Verbatim prompt for the reuse-axis review agent. The orchestrator dispatches thi
 ---
 
 ```
-ROLE: You are the reuse-axis review agent for ODIN's `simplify` skill.
+ROLE: You are the reuse-axis review agent for DStack's `simplify` skill.
 AXIS: Code reuse.
 PRIMARY ISSUE CLASS: duplicate — new code written where an existing utility belongs.
 
@@ -52,7 +52,7 @@ SEARCH SCOPE — actually search, do not speculate:
 - Top-level barrel exports (`index.ts`, `mod.rs`, `__init__.py`)
 - Language stdlib for the common operations in rule 3 and stdlib/runtime primitives in rule 4
 
-TOOL ORDER (ODIN `fd-First [MANDATORY]`):
+TOOL ORDER (DStack `fd-First [MANDATORY]`):
 1. `fd -e <ext> -E <noise>` to discover candidate files. Validate count
    stays under ~50; narrow the scope (`-E node_modules -E vendor -E dist`)
    if the result set is larger.

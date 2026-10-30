@@ -1,8 +1,8 @@
 # Section templates reference
 
-Select and adapt the sections below for the project type. Use the quality checklist to produce a complete README.
+Pick the template that matches the project, then adapt its sections to what the project actually does. Every README carries at least the minimum at the bottom. Keep adding template sections until the minimum is covered and the skill's done predicate holds.
 
-## Library / package
+## Library or package
 
 1. Shop-window: name, tagline, one-sentence description, badges
 2. Installation
@@ -22,6 +22,8 @@ Select and adapt the sections below for the project type. Use the quality checkl
 6. Contributing
 7. License
 
+A CLI Usage section shows real commands with their flags, not library import snippets.
+
 ## Web application
 
 1. Shop-window: name, tagline, one-sentence description, screenshots (optional), badges
@@ -33,12 +35,13 @@ Select and adapt the sections below for the project type. Use the quality checkl
 7. Contributing
 8. License
 
-## General-purpose minimum
+The Development section is where local setup, test, and build commands live, so they stay out of the reader's first-run path.
 
-Every README must include at minimum:
+## Minimum every README needs
+
 - Project name and tagline (shop-window)
 - Installation
 - Quick Start
 - License
 
-Add sections from the appropriate template above until all four minimum items are covered and the done predicate is satisfied.
+A short README with only these four still needs real content in each one, drawn from project files rather than guessed.

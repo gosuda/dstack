@@ -1,3 +1,0 @@
-interface:
-  display_name: "Openmp"
-  short_description: "Use when parallelizing loops or tasks with OpenMP: parallel for, schedules, reductions, data sharing, simd, target offload, OMP_* tuning, or false sharing."

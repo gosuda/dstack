@@ -1,0 +1,3 @@
+interface:
+  display_name: "Riffrec Feedback Analysis"
+  short_description: "Use when a Riffrec capture or other screen, voice, or notes artifact needs interpretation into bug or requirements evidence."

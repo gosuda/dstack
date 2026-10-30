@@ -1,0 +1,3 @@
+interface:
+  display_name: "Retune"
+  short_description: "Use when a skill corpus degrades on a new model and needs measurement-first retuning against a registered bar."

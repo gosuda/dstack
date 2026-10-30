@@ -4,42 +4,62 @@ description: 'Use when a human explicitly asks to reshape or annotate one pull r
 disable-model-invocation: true
 ---
 
-# Make PR easy to review
+# Make a pull request easy to review
 
-## Contract
+A human hands you one pull request and asks for a review surface a stranger could walk through: what it is for, where the risk sits, and a commit story that reads in order. You work on the named local branch only. You never push, publish, touch credentials, or change any remote.
 
-| Field | Bound contract |
+Rewriting history is optional and always gated. If a clear annotation already tells the story, stop there and change nothing.
+
+## What you start from
+
+You need the pull request or local branch, its base ref, and the review outcome the human asked for. Both refs must resolve locally, and the working tree must hold no uncommitted changes that could mix into the pull request. History work additionally needs explicit consent to an exact preview. Annotation alone never needs that consent.
+
+## Map the change before touching it
+
+Resolve the named branch and base ref first, then record the branch tip, the merge base, the commit range, the changed paths, and the final tree identifier. If any of those stay ambiguous, or the base is missing, or stray working tree changes are present, stop with `blocked` and name the unresolved input. No mutation happens on an unclear target.
+
+Read the full diff and the full commit sequence. Assess each risk area and tie what you find to paths and evidence, without inventing either:
+
+| Risk area | What to look for |
 |---|---|
-| Trigger | A human explicitly invokes this skill to reshape or annotate one pull request for review. |
-| Authority | Human-gated: previews the exact commits and consequences and receives explicit human consent before rewriting the named local branch history; otherwise reversible local: inspects and annotates the named pull request locally and writes only its local branch; rollback is version control. Never pushes, publishes, alters credentials, or mutates any remote. |
-| Side effect | May rewrite only the named local branch history. Preserve a recovery ref and use version control to restore the original history if recovery is needed. |
-| Done | The review surface accurately emphasizes risk, the revised commit sequence is coherent, and the final tree identity exactly matches the pre-rewrite intended tree. |
+| Behavior | What the change does differently |
+| Data and migration | Stored data, schema, or migration effects |
+| Trust boundary | Security or permission crossings |
+| Concurrency and lifecycle | Ordering, races, startup and shutdown effects |
+| Compatibility | Breaks for callers, formats, or supported versions |
+| Tests and evidence | Which tests or measurements cover each risk above |
 
-## Inputs
+Claims with no supporting evidence stay marked unverified. A passing command alone never proves a review is complete.
 
-Required: the pull request or local branch, its base ref, and the human's requested review outcome. The branch and base must resolve locally, and the working tree must have no uncommitted changes that could be confused with the pull request. If history rewriting is proposed, explicit consent is required after the rewrite preview; annotation-only work does not require rewrite consent.
+## Write the review surface
 
-## Procedure
+Draft the purpose of the pull request, put the riskiest areas first, map each risk to its paths and the evidence you actually have, and call out unresolved or unverified claims by name. This draft is the product whether or not history gets rewritten. Keep commit messages and section names short and concrete so the ordering survives on its own.
 
-1. Resolve the named branch and base ref. Record the branch tip, merge-base, commit range, changed paths, and final tree identifier. Stop if the target is ambiguous, the base is unavailable, or unrelated working-tree changes are present. Done when: the branch tip, merge-base, commit range, changed paths, and tree identifier are all recorded.
-2. Read the complete diff and commit sequence. Identify behavioral changes, data or migration effects, security and trust boundaries, concurrency or lifecycle changes, compatibility breaks, and tests or evidence tied to those risks. Do not invent risk or verification evidence. Done when: every risk category is assessed and each identified risk is mapped to its paths and evidence.
-3. Draft a review surface that states the pull request's purpose, orders the risky areas first, maps each risk to the relevant paths and available evidence, and calls out unresolved or unverified claims explicitly. Done when: the review surface is drafted with risks ordered first and every claim mapped to evidence or marked unverified.
-4. Decide whether annotation alone provides an accurate review surface. If so, return the proposed title, description, review order, and risk notes without changing history. Done when: the annotation-only decision is made and, if yes, the result is returned.
-5. If reshaping history would materially improve reviewability, design a commit sequence in which each commit has one coherent purpose, preserves dependency order, and contains the tests or evidence that belong to its change. Preview the exact source commit range, proposed sequence, local branch to be rewritten, recovery ref, and the fact that commit identifiers will change. Done when: the proposed sequence and its preview are complete.
-6. Obtain explicit human consent to that exact rewrite. Without consent, make no history change and return the annotation-only result plus the declined rewrite preview. Done when: consent is obtained or the annotation-only result is returned with the declined preview.
-7. Create a recovery ref at the original branch tip, then perform only the approved local rewrite. Do not widen the changed-path set or alter the intended final content while splitting, reordering, or combining commits. Done when: the rewrite is performed and the recovery ref exists.
-8. Recompute the rewritten branch's final tree identifier and compare it byte-for-byte with the identifier recorded in step 1. Also inspect the rewritten commit range to confirm that its order and messages match the approved sequence. Done when: the tree identifiers match and the commit sequence matches the approved preview.
-9. If tree identity differs, stop, restore the original branch tip from the recovery ref, and report the mismatch. If it matches, retain the recovery ref, report the old and new tip identifiers and the identical tree identifier, and return the risk-oriented review surface. Do not push the rewritten branch. Done when: the result is returned with the tree-identity verdict and the review surface.
+## Reshape history only with consent
 
-## Failure and recovery
+When annotation alone already gives an accurate surface, return the proposed title, description, review order, and risk notes, and change nothing. That outcome reports as `annotated`.
 
-- Invalid target: if the branch, base, merge-base, or commit range cannot be resolved unambiguously, make no mutation and return `blocked` with the unresolved input.
-- Dirty worktree: if unrelated or uncommitted changes could contaminate the operation, make no mutation and return `blocked` with the affected paths.
-- Consent absent or changed: if explicit consent does not cover the exact previewed rewrite, do not rewrite history; return the annotation-only result and classify the rewrite as `not-authorized`.
-- Rewrite failure: if the rewrite stops partway, restore the original branch tip from the recovery ref. Return `blocked` with the failed operation and recovery state; do not present a partial sequence as complete.
-- Tree mismatch: if the post-rewrite tree identifier differs from the recorded tree identifier, restore the original branch tip and return `tree-mismatch` with both identifiers.
-- Evidence gap: mark unsupported risk or verification claims as unverified. Never infer that the done predicate holds from a successful command alone.
+When reshaping would materially help, design a sequence where each commit has one coherent purpose, dependency order is preserved, and each change carries the tests or evidence that belong to it. Then preview the exact source commit range, the proposed sequence, the local branch to rewrite, the recovery ref you will create, and the fact that commit identifiers will change.
 
-## Output
+Without explicit human consent to that exact preview, make no history change. Return the annotation result plus the declined rewrite preview and classify the rewrite as `not-authorized`.
 
-Return the proposed pull request title and description, an ordered reviewer path, a risk-to-path-and-evidence table, and a terminal classification. For an approved successful rewrite, also return the original and rewritten tip identifiers, recovery ref, identical pre- and post-rewrite tree identifier, and `ready-local`. For annotation-only work, return `annotated`. For failure, return exactly the applicable `blocked`, `not-authorized`, or `tree-mismatch` result with recovery status.
+With consent, create a recovery ref at the original tip and perform only the approved rewrite. Never widen the changed path set or alter the intended final content while splitting, reordering, or combining commits. If the rewrite stops partway, restore the original tip from the recovery ref and report `blocked` with the failed operation and the recovery state. A partial sequence is never presented as complete.
+
+## Prove the tree survived
+
+Recompute the rewritten final tree identifier and compare it byte for byte with the one recorded before the rewrite. Inspect the rewritten range to confirm its order and messages match the approved sequence.
+
+| Outcome | Response |
+|---|---|
+| Identifiers match | Keep the recovery ref, report the old and new tip identifiers with the identical tree identifier, return the risk oriented review surface, and report `ready-local`. Do not push the branch. |
+| Identifiers differ | Restore the original tip from the recovery ref and report `tree-mismatch` with both identifiers. |
+
+Dirty worktree input also stops with `blocked` and the affected paths, before any mutation.
+
+## What to hand back
+
+Return the proposed pull request title and description, an ordered reviewer path, and a table mapping each risk to its paths and evidence. For an approved successful rewrite add the original and rewritten tip identifiers, the recovery ref, the identical pre and post rewrite tree identifier, and `ready-local`. For annotation work return `annotated`. For failure return exactly the applicable `blocked`, `not-authorized`, or `tree-mismatch` result with recovery status.
+
+## Provider note
+
+This skill makes no forge call. It reads only the local branch and base refs, so it stays provider neutral by construction and needs no merge request counterpart operation. Its title and description feed creation or update steps owned elsewhere. On GitHub that is `gh pr create` or `gh pr edit`. On GitLab that is `glab mr create --source-branch <branch> --target-branch <base> --title <title> --description-file <file>` or `glab mr update --description-file <file>` with a body file plus `-y`, only after the exact write preview is approved (`glab mr create` has no general dry run flag). Bind the GitLab host, project, and IID from the verified remote or request URL. On a fork the head and target projects differ. Any ambiguity stops before any forge command.

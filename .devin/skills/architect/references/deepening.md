@@ -1,43 +1,33 @@
-# Deepening
+# Deepening a cluster of shallow modules
 
-How to deepen a cluster of shallow modules safely, given its dependencies. Assumes the vocabulary in `../SKILL.md`: module, interface, seam, adapter.
+How to fold a group of shallow modules into one deep module without breaking what depends on it. Reads with the shared words from `../SKILL.md`: module, interface, seam, adapter.
 
-## Dependency categories
+## Sort dependencies first
 
-When assessing a candidate for deepening, classify its dependencies. The category determines how the deepened module is tested across its seam.
+How the deepened module gets tested depends on what it depends on. Classify each dependency before choosing:
 
-### 1. In-process
+### Plain computation
 
-Pure computation, in-memory state, no I/O. Always deepenable: merge the modules and test through the new interface directly. No adapter needed.
+Pure computation and in-memory state, no I/O. Usually deepenable when the modules share one owner and one change reason: merge the modules and test through the new interface directly. No adapter needed. Keep separate when owners or change reasons differ.
 
-_Examples_: a Rust parser combinator chain consolidated into one `parse(input) -> Result<Ast, ParseError>`; a Python pipeline `parse_invoice` + `apply_tax` + `round_total` collapsed into `Invoice.finalize(raw) -> Invoice`.
+### Local stand-in available
 
-### 2. Local-substitutable
+Dependencies with local test stand-ins (in-memory filesystems, PGLite for Postgres, Testcontainers, OCaml `Eio_mock`). Deepenable when the stand-in exists. The deepened module is tested with the stand-in running in the suite. The seam stays internal; no port at the module's external interface.
 
-Dependencies that have local test stand-ins (PGLite for Postgres, in-memory filesystems, Testcontainers, OCaml `Eio_mock`). Deepenable when the stand-in exists. The deepened module is tested with the stand-in running in the test suite. The seam is internal; no port at the module's external interface.
+### Owned service across a network
 
-_Examples_: a Go data-access module fronting Postgres tested with `pgx` against a Testcontainers Postgres; a Java repository tested with H2 in-memory; an OCaml store tested through `Eio_mock` filesystem.
+Services the team controls across a network bound (microservices, internal APIs). Define a port (interface) at the seam. The deep module holds the logic; the transport arrives as an injected adapter. Tests use an in-memory adapter. Production uses the HTTP, gRPC, or queue adapter.
 
-### 3. Remote but owned (Ports & Adapters)
+### Third-party service
 
-Owned services across a network boundary (microservices, internal APIs). Define a **port** (interface) at the seam. The deep module owns the logic; the transport is injected as an **adapter**. Tests use an in-memory adapter. Production uses an HTTP/gRPC/queue adapter.
-
-_Examples_: a Kotlin service calling an internal pricing microservice via a `PricingPort` interface, gRPC adapter in production, in-memory adapter in tests; a Rust client wrapping an internal queue with a `JobQueue` trait, RabbitMQ adapter in production, channel-backed adapter in tests.
-
-### 4. True external (Mock)
-
-Third-party services (Stripe, Twilio, GitHub, Auth0) the team does not control. The deepened module takes the external dependency as an injected port; tests provide a mock adapter.
-
-_Examples_: a Python billing module that takes a `PaymentGateway` protocol, `StripePaymentGateway` in production, a `pytest` mock in tests; a Go SMS dispatcher with a `Notifier` interface, Twilio adapter in production, recording fake in tests.
+Services the team does not control (Stripe, Twilio, GitHub, Auth0). The deepened module takes the external dependency as an injected port; tests use a test adapter, an in-memory or recording fake asserting observable outcomes through the interface, not an echo of calls.
 
 ## Seam discipline
 
-- **One adapter means a hypothetical seam. Two adapters means a real one.** Do not introduce a port unless at least two adapters are justified (typically production + test). A single-adapter seam is just indirection.
-- **Internal seams vs external seams.** A deep module can have internal seams (private to its implementation, used by its own tests) as well as the external seam at its interface. Do not expose internal seams through the interface just because tests use them.
+One adapter means a hypothetical seam. Do not introduce a port unless at least two adapters are justified, typically production plus test. A single-adapter seam is just indirection.
 
-## Testing strategy: replace, do not layer
+Private implementation seams are not test entry points. Tests observe public behavior through the module's interface. Use existing public dependency injection ports or the actual environment boundary to supply test adapters. Keep internal seams private. Do not widen the API or add passthrough wrappers solely for tests. Preserve genuine production and test adapters with independent outcome oracles.
 
-- Old unit tests on shallow modules become waste once tests at the deepened module's interface exist: delete them.
-- Write new tests at the deepened module's interface. The **interface is the test surface**.
-- Tests assert on observable outcomes through the interface, not internal state.
-- Tests should survive internal refactors: they describe behaviour, not implementation. If a test has to change when the implementation changes, it is testing past the interface.
+## Testing: replace, do not layer
+
+Old tests on the shallow modules become waste once tests at the deepened module's interface exist: delete them. Write new tests at the deepened module's interface; the interface is the test surface. Assert on observable outcomes through the interface, never internal state. Tests must survive internal refactors since they describe behavior, not implementation. When a test has to change because the implementation changed, it is testing past the interface.

@@ -1,6 +1,9 @@
 # `graph.yaml` schema
 
-Owner. graph-backbone and minimap each keep a copy. Do not recopy.
+graph-backbone and minimap each keep their own copy of this schema. Change only the copy owned
+by the skill under revision; never copy one skill's schema over the other's.
+
+## Schema identity
 
 `graph.yaml` uses schema version `odin.graph/v1`.
 
@@ -17,6 +20,10 @@ edges:
     type: constrains | reads | writes | fails-when
 ```
 
+## Field and topology rules
+
 The `schema`, `revision`, `nodes`, and `edges` fields are required. Node IDs are unique. Every edge endpoint names an existing node. Reject an unknown schema version, node type, edge type, duplicate node ID, or dangling edge. Ignore unknown top-level and per-record fields so additive metadata remains forward compatible.
+
+## Revision discipline
 
 Nodes and edges are immutable within one revision. A declared gate may replan focus nodes without changing topology. Any node or edge change creates a new revision.

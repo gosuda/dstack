@@ -4,23 +4,19 @@ Source: the GDB manual's Python section at sourceware.org/gdb/current/onlinedocs
 
 ## GDB Python API basics
 
-GDB embeds a Python interpreter. Load a script with `source script.py` or add the source command to your `~/.gdbinit`.
+GDB embeds a Python interpreter. Load a script with `source script.py` or add the source command to your `~/.gdbinit`. The calls below run a command, read a variable, read raw memory, and list threads.
 
 ```python
 import gdb
 
-# Run a GDB command
 gdb.execute('bt full')
 
-# Evaluate an expression in the inferior
 val = gdb.parse_and_eval('x')
 print(val)
 
-# Read inferior memory
 inf = gdb.selected_inferior()
 mem = inf.read_memory(0x601060, 16)
 
-# List threads
 for thr in gdb.selected_inferior().threads():
     print(thr.num, thr.name)
 ```
@@ -58,6 +54,8 @@ def build_printer(val):
 gdb.pretty_printers.append(build_printer)
 ```
 
+GDB calls each entry in `gdb.pretty_printers` with the value. Return a printer object, or `None` when the type does not match.
+
 Load it in GDB:
 
 ```gdb
@@ -66,7 +64,7 @@ source /path/to/printer.py
 
 ## STL pretty-printers
 
-libstdc++ ships its own GDB pretty-printers. They load automatically when the libstdc++ debug package is installed and GDB finds them through its auto-load path; no manual setup is needed on a normal toolchain install.
+libstdc++ ships its own GDB pretty-printers. They load automatically through the auto-load path when the libstdc++ debug package is installed. No manual setup is needed.
 
 ## Breakpoint commands
 

@@ -58,4 +58,4 @@ rule:
     strictness: ast
 ```
 
-`strictness` is a field of the **pattern object**, not the rule level. Placing it as a sibling of `rule` is silently ignored on ast-grep 0.45.x.
+`strictness` is a field of the **pattern object**, not the rule level. Placing it as a sibling of `rule` is silently ignored on ast-grep 0.51.x.

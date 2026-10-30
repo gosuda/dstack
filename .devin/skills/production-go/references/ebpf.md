@@ -1,12 +1,12 @@
 # eBPF and Go
 
-eBPF runs sandboxed programs inside the Linux kernel (tracing, networking, security) with no kernel module. From Go the path is **`github.com/cilium/ebpf`**: a *pure-Go* loader (no libbpf, no cgo) that compiles C→BPF at build time via **`bpf2go`**, embeds the bytecode with `//go:embed`, and links/attaches at runtime. The kernel **verifier** gates what the C side may do; the Go-side lifecycle (keep every `link.Link` alive, `Close()` it, feature-probe instead of guessing kernel version) is where models go wrong.
+eBPF runs sandboxed programs inside the Linux kernel (tracing, networking, security) with no kernel module. From Go the path is **`github.com/cilium/ebpf`**: a *pure-Go* loader with no libbpf and no cgo. It compiles C→BPF at build time via **`bpf2go`**, embeds the bytecode with `//go:embed`, and links/attaches at runtime. The kernel **verifier** gates what the C side may do. The Go-side lifecycle is where models go wrong: keep every `link.Link` alive, `Close()` it, and feature-probe instead of guessing the kernel version.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC**, and **cilium/ebpf v0.22.0** (pkg.go.dev, 2026-06-27). The library is pre-1.0: every minor can break: pin it. Version tags `[vX.Y]` mark the ebpf-go release a claim applies to; `[k5.N]` marks a kernel minimum. Deepened from research + primary-source corroboration.
+> Verified against Go **1.27.3** (stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes), and **cilium/ebpf v0.22.0** (pkg.go.dev, 2026-06-27). The library is pre-1.0: every minor can break: pin it. Version tags `[vX.Y]` mark the ebpf-go release a claim applies to; `[k5.N]` marks a kernel minimum. Deepened from research + primary-source corroboration.
 
 ## TL;DR: the modern deltas (read first)
 
-- Latest is `v0.22.0` (published 2026-06-26), succeeding the v0.21.0 feature release. Requires **Go 1.24+**, **LLVM 14+** (LLVM 11 dropped in v0.19). pkg.go.dev breadcrumbs were briefly inconsistent across subpackages during the v0.21→v0.22 transition; confirm the exact tag at upgrade time and re-read release notes (pre-1.0 = breaking minors).
+- Latest is `v0.22.0` (published 2026-06-26), succeeding the v0.21.0 feature release. Requires **Go 1.24+**, **LLVM/clang 23.1.4** (LLVM 11 dropped in v0.19). pkg.go.dev breadcrumbs were briefly inconsistent across subpackages during the v0.21→v0.22 transition; confirm the exact tag at upgrade time and re-read release notes (pre-1.0 = breaking minors).
 - Global variables use the Variable API, not `RewriteConstants`. `spec.Variables["x"].Set(v)` before load / `obj.X.Get(&out)` / `obj.X.Set(v)` after [v0.17]. **`CollectionSpec.RewriteConstants` and `RewriteMaps` were REMOVED in v0.21** ; code that calls them no longer compiles. This is the single biggest staleness vector in model output.
 - Losing the reference to a `link.Link` detaches the program. The GC closing the link unloads it from the kernel, silently. Retain the `Link` *and* `defer l.Close()`. The "fire and forget `link.Kprobe(...)`" snippet is a correctness bug.
 - `ringbuf` over `perf` [k5.8], **fentry/fexit over kprobe** where BTF exists [k5.5], **`link.AttachTCX` over legacy netlink tc** [k6.6]. Models reflexively reach for the older mechanism in each pair.
@@ -405,11 +405,11 @@ if err := features.HaveMapType(ebpf.RingBuf); errors.Is(err, ebpf.ErrNotSupporte
 
 | Component | Status [2026] | Notes |
 |---|---|---|
-| **`cilium/ebpf`** (ebpf-go) | **Default**, `v0.22.0` | Pure Go, no cgo. Pre-1.0 → pin it; minors break. Go 1.24+, LLVM 14+. |
+| **`cilium/ebpf`** (ebpf-go) | **Default**, `v0.22.0` | Pure Go, no cgo. Pre-1.0 → pin it; minors break. Go 1.24+, LLVM/clang 23.1.4. |
 | `cmd/bpf2go` | Ships with library | Use `go tool bpf2go` + a `tool` directive [Go 1.24]. `-cc`/`-cflags` → `BPF2GO_*` env. |
 | `aquasecurity/libbpfgo` | Maintained alternative | cgo wrapper of libbpf: use only if you need libbpf semantics/features; loses the static-binary benefit. |
 | `iovisor/gobpf` | **Unmaintained** | Avoid in new code. |
-| Go | 1.26.4 stable; 1.27 RC (GA ~Aug 2026) | Library min is 1.24; nothing in 1.27 changes eBPF usage materially. |
+| Go | **1.27.3** stable (GA 2026-08-19; 1.26 still supported) | Library min is 1.24; nothing in 1.27 changes eBPF usage materially. |
 | LLVM/clang | 14 / 17 / 20 | Codegen only. LLVM 11 dropped [v0.19]. |
 | `bpftool` | For `vmlinux.h` + inspection | `bpftool btf dump file /sys/kernel/btf/vmlinux format c`. |
 

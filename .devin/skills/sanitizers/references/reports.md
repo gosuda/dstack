@@ -1,6 +1,6 @@
 # Sanitizer report interpretation
 
-Report shapes per sanitizer, with the reading that maps each to a fix. Every report has the same spine: the error class, the access stack, and the allocation or free stacks that produced the address.
+Use this to read a sanitizer report and map it to a fix. ASan reports carry three parts: the error class, the access stack, and the allocation or free stacks that produced the address. LSan reports carry the error class, the allocation stack, and a leak summary. TSan reports carry the error class and the conflicting access stacks. UBSan instead prints one line per finding with a file, line, column, and check name.
 
 ## ASan
 
@@ -18,7 +18,7 @@ allocated by thread T0 here:
     #1 0x401400 in main main.c:8
 ```
 
-Reading: frame `#0` of the first stack is the access site (line 12); the allocation is line 8, 40 bytes. `0 bytes after` the region end is the classic off-by-one. Fix the loop bound (`i < n`, not `i <= n`) and check the size expression (`n * sizeof(T)`).
+Frame `#0` of the first stack is the access site at line 12. The allocation is at line 8 for 40 bytes. `0 bytes after` the region end means a classic off-by-one. Fix the loop bound (`i < n`, not `i <= n`). Check the size expression (`n * sizeof(T)`).
 
 ### heap-use-after-free
 
@@ -35,7 +35,7 @@ allocated by thread T0 here:
     #1 0x401200 in init main.c:5
 ```
 
-Reading: allocation at line 5, free at line 15, use at line 20. The fix is an ownership decision between `cleanup` and `use_ptr`.
+The allocation is at line 5. The free is at line 15. The use is at line 20. The fix is an ownership decision between `cleanup` and `use_ptr`.
 
 ### stack-buffer-overflow
 
@@ -49,7 +49,7 @@ This frame has 1 object(s):
     [0, 28) 'buf' (line 6)
 ```
 
-Reading: `buf` holds 28 bytes and the write lands at offset 28. Check the unbounded copies: `strcpy`, `sprintf`, `gets`.
+`buf` holds 28 bytes. The write lands at offset 28, one past the end. Check unbounded copies such as `strcpy`, `sprintf`, and `gets`.
 
 ### double-free
 
@@ -63,11 +63,11 @@ freed here (2nd time / current):
     #0 0x401234 in bad_free main.c:25
 ```
 
-Reading: two free paths reach the same pointer. Name one owner.
+Two free paths reach the same pointer. Name one owner for the pointer.
 
 ## UBSan
 
-One line per finding, `file:line:col: runtime error:`:
+UBSan prints one line per finding in the form `file:line:col: runtime error:`.
 
 ```text
 src/main.c:15:12: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
@@ -82,7 +82,7 @@ Common shapes and fixes:
 | shift exponent 32 too large for 32-bit type | Cast the operand to `uint64_t` or mask the shift |
 | load of misaligned address | Use `memcpy` for unaligned data or fix the alignment |
 
-Add `UBSAN_OPTIONS=print_stacktrace=1` to locate the caller when the line is inside a macro.
+Add `UBSAN_OPTIONS=print_stacktrace=1` to locate the caller when the reported line sits inside a macro.
 
 ## TSan
 
@@ -97,7 +97,7 @@ Previous read of size 4 at 0x7f... by thread T1:
 Location is global 'g_counter' of size 4
 ```
 
-Reading: two unsynchronized accesses, one a write. Fix with a mutex, an atomic, or message passing between the threads.
+Two threads touch the same location without synchronization. At least one access is a write. Fix with a mutex, an atomic, or message passing between the threads.
 
 ### lock-order-inversion
 
@@ -107,7 +107,7 @@ Mutex M1 acquired here while holding M2:
 Mutex M2 acquired here while holding M1:
 ```
 
-Fix with one global lock order: every path acquires M1 before M2.
+Two paths acquire the same mutexes in opposite order. Fix with one global lock order. Every path acquires M1 before M2.
 
 ## LSan
 
@@ -122,4 +122,4 @@ Direct leak of 40 byte(s) in 1 object(s) allocated from:
 SUMMARY: AddressSanitizer: 40 byte(s) leaked in 1 allocation(s).
 ```
 
-Reading: `create_thing` allocates and nobody frees. Trace the object's owner. A leak reachable at exit can be intentional; suppress it in a file with a named owner, never by disabling `detect_leaks`.
+`create_thing` allocates and nobody frees the object. Trace the owner of the object. A leak reachable at exit can be intentional. Suppress it in a file with a named owner. Never hide it by disabling `detect_leaks`.

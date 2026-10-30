@@ -1,8 +1,10 @@
 # GDB command cheatsheet
 
-Source: the GDB manual at sourceware.org/gdb/documentation/.
+Use these commands to run, stop, and inspect a program under the debugger. Source: the GDB manual at sourceware.org/gdb/documentation/.
 
 ## Startup
+
+Load the binary first. Attach to a running process with `-p`, pass arguments with `--args`, or script a non-interactive run with `-batch` and `-ex`.
 
 ```gdb
 gdb prog                         # load binary
@@ -14,6 +16,8 @@ set args a b c                   # set args after load
 ```
 
 ## Execution control
+
+Step with `next` to stay at the current level and `step` to descend into calls. Append `i` to move one machine instruction instead of one source line.
 
 ```gdb
 run / r [args]                   # start
@@ -32,6 +36,8 @@ kill                             # kill the program
 ```
 
 ## Breakpoints and watchpoints
+
+Break on code with `break`. Stop on data with `watch`: `watch` fires on writes, `rwatch` on reads, `awatch` on either. List and manage every stop point with `info`, `delete`, `disable`, and `enable`.
 
 ```gdb
 break main                       # function
@@ -56,6 +62,8 @@ commands N                       # run commands on each hit
 ```
 
 ## Inspection
+
+Print values with `print` and a format suffix. Show whole arrays with `arr[0]@N`. Track an expression across stops with `display`. Read types with `ptype` and `whatis`, and dump scopes with `info locals`, `info args`, and `info variables`.
 
 ```gdb
 print expr / p expr              # print an expression
@@ -84,6 +92,8 @@ info variables                   # all globals
 
 ## Stack
 
+`bt full` adds locals to every frame. Move with `up` and `down`, or jump straight to a frame with `frame N`.
+
 ```gdb
 backtrace / bt                   # call stack
 bt N                             # top N frames
@@ -95,6 +105,8 @@ info frame                       # frame details
 ```
 
 ## Memory
+
+The `x/Nuf` form takes a count, a unit size, and a display format. Units: `b` byte, `h` halfword (2), `w` word (4), `g` giant (8). Formats: `x` hex, `d` dec, `u` uint, `o` octal, `t` binary, `f` float, `s` string, `i` insn.
 
 ```gdb
 x/Nuf addr                       # examine memory
@@ -114,6 +126,8 @@ set variable x = 42              # set a variable
 
 ## Threads
 
+List threads with `info threads` and switch with `thread N`. Run a command on several threads at once with `thread apply`. Lock the scheduler while you step a single thread.
+
 ```gdb
 info threads                     # list
 thread N                         # switch
@@ -124,6 +138,8 @@ set scheduler-locking on/off     # lock other threads during a step
 ```
 
 ## Reverse debugging
+
+Record execution first, then step backward. `record btrace` uses hardware branch tracing where the CPU supports it. Flip `exec-direction` to make plain `n` and `s` run backward.
 
 ```gdb
 record                           # start software record
@@ -140,6 +156,8 @@ record function-call-history     # recorded calls, btrace
 ```
 
 ## Display formats
+
+Pair these with `print` for values and `x` for memory. `p/x var` shows a value in hex. `x/s ptr` reads a C string.
 
 | Format | Code | Example |
 |---|---|---|

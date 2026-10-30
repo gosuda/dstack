@@ -1,3 +1,0 @@
-interface:
-  display_name: "Constraint Driven Development"
-  short_description: "Use when asked to implement under non-negotiable constraints: performance budgets, platform limits, legal or API rules."

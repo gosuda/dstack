@@ -1,3 +1,0 @@
-interface:
-  display_name: "Why"
-  short_description: "Use when asked why something works this way, for design rationale, a postmortem, a data-backed threshold, or a source-tiered evidence report."

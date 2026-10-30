@@ -1,7 +1,7 @@
 # GNU Make cheatsheet
 
 Source: <https://www.gnu.org/software/make/manual/make.html>. Grounded against
-GNU Make 4.4.
+GNU Make 4.4.1.
 
 ## Automatic variables
 
@@ -97,8 +97,9 @@ help:
 
 ## Order-only prerequisites
 
+The directory on the right of `|` must exist, but its timestamp never triggers a rebuild.
+
 ```makefile
-# build/ must exist, but its timestamp never triggers a rebuild
 build/%.o: src/%.c | build
 	$(CC) -c -o $@ $<
 ```
@@ -120,14 +121,14 @@ dependency graph and breaks parallel correctness.
 
 ## Command line
 
-```bash
-make CFLAGS="-O3 -march=native"   # override a variable
-make CC=clang                     # change the compiler
-make -n                           # dry run, print commands
-make -B                           # force rebuild of everything
-make -k                           # keep going after errors
-make -j"$(nproc)"                 # parallel jobs
-make -O                           # synchronize parallel output
-make -p                           # print the rule database
-make --warn-undefined-variables   # catch variable typos
-```
+| Command | Use |
+|---|---|
+| `make CFLAGS="-O3 -march=native"` | Override a variable for one run |
+| `make CC=clang` | Change the compiler |
+| `make -n` | Dry run, print commands |
+| `make -B` | Force rebuild of everything |
+| `make -k` | Keep going after errors |
+| `make -j"$(nproc)"` | Parallel jobs |
+| `make -O` | Synchronize parallel output |
+| `make -p` | Print the rule database |
+| `make --warn-undefined-variables` | Catch variable typos |

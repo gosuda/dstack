@@ -1,0 +1,3 @@
+interface:
+  display_name: "Decoded Memo Retention"
+  short_description: "Use when a query-scoped decoded-block cache is bounded only by serialized work bytes, or when fallback paths retain many decoded blocks."

@@ -1,3 +1,0 @@
-interface:
-  display_name: "GH Review Requests"
-  short_description: "Use when the user asks to find PRs to review or check the team review queue."

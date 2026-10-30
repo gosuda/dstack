@@ -7,31 +7,20 @@ description: 'Use when reading or writing AArch64 or AArch32 Thumb assembly, inl
 
 AArch64 has 31 general 64-bit registers, a clean load-store instruction set, and per-core SIMD through NEON. This skill reads compiler output and writes correct inline asm for it.
 
-## Contract
+Bring three things: the C or C++ source, compiler output, or assembly fragment under discussion; the target (`aarch64-linux-gnu` for application cores, `arm-none-eabi` with `-mthumb` for 32-bit Cortex-M); and the purpose (reading output, writing inline asm, or vectorizing). This skill explains, drafts, and annotates assembly. Edits land in the user source through the normal coding path, with no remote mutation. You are finished when the drafted assembly assembles for the named target, or the compiler output under discussion is explained register by register.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The task reads GCC or Clang AArch64 output, writes inline asm or standalone assembly, decodes AAPCS64 register roles, or writes NEON intrinsics or SVE kernels. |
-| Authority | Read-only. The skill explains, drafts, and annotates assembly; edits land in the user's source through the normal coding path. No remote mutation. |
-| Side effect | None. Output is analysis and drafted code in chat. |
-| Done | The drafted assembly assembles for the named target, or the compiler output under discussion is explained register by register. |
+## Start from the compiler
 
-## Inputs
-
-- The C or C++ source, compiler output, or assembly fragment: required.
-- The target: required. `aarch64-linux-gnu` for application cores, `arm-none-eabi` with `-mthumb` for 32-bit Cortex-M.
-- The purpose: required. Reading output, writing inline asm, or vectorizing.
-
-## Procedure
-
-1. Generate a baseline. Write the C version first and read its output before hand-writing anything. Done when: the compiler's own code for the same function is on screen.
+Write the C version first and read its output before hand-writing anything. Move on once the compiler's own code for the same function is on screen.
 
 ```bash
 aarch64-linux-gnu-gcc -O2 -S foo.c -o foo.s
 aarch64-linux-gnu-objdump -d a.out
 ```
 
-2. Map registers by role. The table names are the ABI's, and assembly must respect them. Done when: every register in the fragment is classified.
+## Know every register role
+
+The table names are the ABI's, and assembly must respect them. Move on once every register in the fragment is classified.
 
 | Register | Alias | Role |
 |----------|-------|------|
@@ -47,7 +36,9 @@ aarch64-linux-gnu-objdump -d a.out
 | `v0` to `v7` | `q`/`d`/`s` views | FP and SIMD arguments and returns, caller saved |
 | `v8` to `v15` | | Callee saved, low 64 bits only |
 
-3. Read the common instructions. Load and store are separate from arithmetic, which only runs on registers. Done when: each instruction in the fragment parses.
+## Read the loads, stores, and branches
+
+Load and store are separate from arithmetic, which only runs on registers. Move on once each instruction in the fragment parses.
 
 ```asm
 ldr  x0, [x1]          // load 64-bit
@@ -68,7 +59,9 @@ adrp x0, symbol        // page address of a symbol
 add  x0, x0, :lo12:symbol
 ```
 
-4. Write the standard prologue and epilogue. Leaf functions that fit in a frame need none. Done when: any callee-saved register pushed is popped, and `sp` returns aligned.
+## Write prologues that restore what they take
+
+Leaf functions that fit in a frame need no prologue. Otherwise push each callee-saved register you touch and pop it before returning, keeping `sp` aligned. Move on once every pushed register is popped and `sp` returns aligned.
 
 ```asm
 my_func:               // non-leaf example
@@ -81,7 +74,9 @@ my_func:               // non-leaf example
     ret
 ```
 
-5. Write inline asm with the constraints the target needs. `volatile` stops reordering, `memory` declares side effects on memory, and hardware registers need explicit clobbers. Use the counter to read the timer. Done when: the fragment compiles and its inputs, outputs, and clobbers are each listed.
+## Write inline asm the optimizer cannot break
+
+`volatile` stops reordering, `memory` declares side effects on memory, and hardware registers need explicit clobbers. Use the counter to read the timer. Move on once the fragment compiles and its inputs, outputs, and clobbers are each listed.
 
 ```c
 static inline uint64_t read_cntvct(void) {
@@ -91,7 +86,9 @@ static inline uint64_t read_cntvct(void) {
 }
 ```
 
-6. Use NEON for 128-bit SIMD. Work through `<arm_neon.h>` intrinsics; they map one to one onto instructions. Done when: the loop processes one vector per iteration and the scalar tail stays correct.
+## Vectorize with NEON, guard SVE
+
+Work through `<arm_neon.h>` intrinsics for 128-bit SIMD. They map one to one onto instructions. Move on once the loop processes one vector per iteration and the scalar tail stays correct.
 
 ```c
 #include <arm_neon.h>
@@ -106,18 +103,20 @@ void sum_f32(const float *a, const float *b, float *dst, int n) {
 }
 ```
 
-7. Apply the platform corrections. Apple silicon uses 16 KiB pages and a 128-byte cache line, so `sysconf(_SC_PAGESIZE)` replaces the 4096 assumption. AMX is internal to Apple libraries; write portable code with Accelerate or Metal instead. SVE exists only where the hardware has it; guard SVE code and keep a NEON fallback. Done when: the code states no portability assumption the target contradicts.
+SVE exists only where the hardware has it. Guard SVE code and keep a NEON fallback.
 
-## Failure and recovery
+## Respect the platform
 
-| Failure class | Behavior |
+Apple silicon uses 16 KiB pages and a 128-byte cache line, so `sysconf(_SC_PAGESIZE)` replaces the 4096 assumption. AMX is internal to Apple libraries, so write portable code with Accelerate or Metal instead. Move on once the code states no portability assumption the target contradicts.
+
+## When it breaks
+
+| Symptom | Fix |
 |---|---|
 | `sp` misaligned crash in a callee | A path adjusted `sp` by a non-16-byte amount. Audit every `sub sp` and pre-index offset. |
 | Value lost across a call in hand-written asm | The value sat in `x0` to `x17`. Move it to a callee-saved register or spill it. |
 | Inline asm result wrong at `-O2` | Missing `volatile` or a missing `"memory"` clobber let the compiler delete or reorder the asm. |
 | NEON code fails on Cortex-M | Cortex-M has no NEON and runs Thumb. Rewrite with scalar code or a DSP extension. |
-| SVE build fails on a NEON-only core | SVE needs supporting hardware. Use the guarded fallback from step 7. |
+| SVE build fails on a NEON-only core | SVE needs supporting hardware. Use the guarded fallback from the vectorizing section. |
 
-## Output
-
-Annotated assembly or inline asm, with the register roles named, the clobbers justified, and the target stated. The condition-code table, the wider instruction list, and the NEON category reference are in `references/reference.md`.
+The finished deliverable is annotated assembly or inline asm with the register roles named, the clobbers justified, and the target stated. The condition-code table, the wider instruction list, and the NEON category reference are in `references/reference.md`.

@@ -1,64 +1,73 @@
 ---
 name: doubt-driven
-description: 'Use when a non-trivial decision sits under uncertainty and correctness matters more than speed. Not for patch review: use review. Not for plan attacks: use load-bearing-assumption-test.'
+description: 'Use when a non-trivial decision sits under uncertainty and correctness matters more than speed. Not for patch review: use review.'
 ---
 
 # Doubt-driven development
 
-## Contract
+Some decisions are too important to trust to the person who just made them, including you. This skill sets up a hostile reading of your own work: you state the decision plainly, hand the bare evidence to a critic who has not seen your reasoning, and answer every objection before the decision ships. Everything here is read-only and runs in chat. Suggested fixes come back as recommendations you may apply yourself, never as edits this skill makes.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Non-trivial decision under uncertainty; correctness matters more than speed; a claim not checkable by the type system or compiler; before committing non-trivial code |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat output: fresh-context adversarial review findings and reconciliation |
-| Done | Every non-trivial decision named as a CLAIM and fresh-context reviewed; findings classified; a stop condition met |
+Use it for a non-trivial decision under uncertainty, for any claim the type system or compiler cannot check, and before committing non-trivial code. Do not use it for patch review; that belongs with review.
 
-## Inputs
+## State the decision as a claim
 
-- Artifact (required): the unit under scrutiny: a code diff, function, decision proposal, or assertion plus its supporting evidence.
-- Contract (required): the constraint the artifact must satisfy.
+Name the decision compactly so it can actually be attacked:
 
-## Procedure
+```
+CLAIM: "<statement>"
+WHY THIS MATTERS: <consequence>
+```
 
-1. **CLAIM.** Name the non-trivial decision compactly as `CLAIM: "<statement>"` plus `WHY THIS MATTERS: <consequence>`. A decision that cannot be stated that compactly is a vibe, not a decision; surface it before scrutinizing. Done when: the decision is stated as a compact CLAIM with its consequence.
-2. **EXTRACT.** Isolate the smallest reviewable unit: the artifact and the contract, without the reviewer's reasoning. Passing conclusions to the reviewer invites validation of those conclusions. Decompose a 500-line PR first; the unit must fit one read. Done when: the smallest reviewable unit is isolated and fits one read.
-3. **DOUBT.** Spawn a fresh-context subagent with isolated context using this adversarial prompt verbatim so it overrides any default balanced response shape:
+If you cannot state it that compactly, you do not have a decision yet; you have a vibe. Surface that and stop; nothing below can review a feeling.
 
-   ```
-   Adversarial review. Find what is wrong with this artifact.
-   Assume the author is overconfident. Look for:
-   - Unstated assumptions
-   - Edge cases not handled
-   - Hidden coupling or shared state
-   - Ways the contract could be violated
-   - Existing conventions this might break
-   - Failure modes under unexpected input
+## Isolate what the critic gets to see
 
-   Do NOT validate. Do NOT summarize. Find issues, or state
-   explicitly that none could be found after thorough examination.
+Pull out the smallest unit that fits in one read: the artifact (a diff, function, proposal, or assertion plus its supporting evidence) and the contract (the constraint the artifact must satisfy). Strip out your reasoning before handing it over. A reviewer who sees your conclusions will validate them instead of breaking them. A 500-line PR is not one unit; decompose it first.
 
-   ARTIFACT: <paste artifact>
-   CONTRACT: <paste contract>
-   ```
+## Get a hostile reading from a fresh mind
 
-   Pass ARTIFACT + CONTRACT only. Do not pass the CLAIM: handing the reviewer a conclusion biases it toward agreement. If a reviewer's default shape cannot be overridden to issues-only, fall back to a generic subagent with the adversarial prompt. Done when: a fresh-context review is spawned passing ARTIFACT + CONTRACT only.
+Spawn a fresh-context subagent with isolated context and give it this adversarial prompt verbatim, so it overrides any default balanced-response shape:
 
-4. **RECONCILE.** Re-read the artifact against each finding before classifying it. Rubber-stamping the reviewer fails just as surely as ignoring it. Classify each finding in this precedence order, first match wins: (a) **contract misread**: the CONTRACT was unclear or incomplete, fix it and re-classify next cycle; (b) **valid + actionable**: real issue, change the artifact and re-loop; (c) **valid trade-off**: real but fixing costs more than accepting, document the trade-off; (d) **noise**: correct under context the reviewer lacked, note it and consider adding that context to the contract. Done when: every finding is classified with first-match-wins precedence.
-5. **STOP.** Stop when the next iteration returns only trivial or already-considered findings, or 3 cycles are completed (escalate to the user, do not grind a fourth alone), or the user explicitly says to ship. If 3 cycles still surface substantive issues, the artifact may not be ready; surface this to the user. Three unresolved cycles is information about the artifact, not a reason to keep looping. If 3 cycles is obviously insufficient because the artifact is large, the artifact is too big: return to Step 2 and decompose; do not lift the bound. Done when: a stop condition is met (trivial findings, 3 cycles, user says ship, or escalation).
+```
+Adversarial review. Find what is wrong with this artifact.
+Assume the author is overconfident. Look for:
+- Unstated assumptions
+- Edge cases not handled
+- Hidden coupling or shared state
+- Ways the contract could be violated
+- Existing conventions this might break
+- Failure modes under unexpected input
 
-**Nested-subagent fallback.** This skill runs in the main session, where Step 3 can spawn a fresh-context reviewer. Do not run it from inside a subagent, where spawning another subagent is blocked. If that happens, surface to the user that doubt-driven cannot run nested and let the main session handle it. As a last resort only, a degraded self-questioning fallback exists: rewrite ARTIFACT + CONTRACT as a fresh self-prompt with a hard mental separator from the prior reasoning and walk Steps 1–5. This is not fresh-context review, so flag the result as degraded.
+Do NOT validate. Do NOT summarize. Find issues, or state
+explicitly that none could be found after thorough examination.
 
-**Doubt theater.** Across 2 or more cycles where the reviewer surfaced substantive findings, zero findings classified as actionable means the reviewer is validating, not doubting. Stop and escalate.
+ARTIFACT: <paste artifact>
+CONTRACT: <paste contract>
+```
 
-## Failure and recovery
-- CLAIM not writable: the decision is still a vibe; return to Step 1, do not proceed to review.
-- Reviewer received the CLAIM or reasoning: biased review; re-spawn passing ARTIFACT + CONTRACT only.
-- Nested subagent blocks fresh-context spawn: surface to the user; use the degraded self-questioning fallback only as a last resort and flag the result degraded.
-- Doubt theater (2+ substantive cycles, zero actionable classifications): stop and escalate to the user.
-- 3 unresolved cycles: surface that the artifact may not be ready; do not grind a fourth alone.
-- Partial-result rule: a stopped cycle with every finding classified is a valid partial result; unclassified or rubber-stamped findings are not.
-- Non-mutation rule: read-only; no file, VCS, credential, paid, published, deployed, or remote mutation. Re-loop changes are recommendations in chat output, not applied edits.
+Pass ARTIFACT plus CONTRACT only. Never pass the CLAIM: handing the critic your conclusion biases it toward agreement. If a reviewer's default shape cannot be overridden to issues-only, fall back to a generic subagent carrying the same prompt.
 
-## Output
-A report listing each CLAIM, the fresh-context review findings, the classification of each finding (contract misread / valid + actionable / valid trade-off / noise), and the stop condition met, with actionable findings carrying a recommended artifact change stated as a recommendation, not an applied edit.
+This step needs the main session, where spawning a fresh-context reviewer works. From inside a subagent, spawning another subagent is blocked, so do not run this skill nested. Surface that to the user and let the main session handle it. Only as a last resort, fall back to questioning yourself: rewrite ARTIFACT plus CONTRACT as a fresh self-prompt behind a hard mental separator from your prior reasoning and walk the same steps. That is not fresh-context review, so flag the result as degraded.
+
+## Answer every finding honestly
+
+Re-read the artifact against each finding before classifying it. Rubber-stamping the critic fails just as surely as ignoring it. Take each finding in this order: first match wins.
+
+1. **Contract misread.** The CONTRACT was unclear or incomplete. Fix the contract and re-classify next cycle.
+2. **Valid and actionable.** A real issue. Change the artifact and loop again.
+3. **Valid trade-off.** Real, but fixing costs more than accepting. Document the trade-off.
+4. **Noise.** Correct under context the reviewer lacked. Note it, and consider adding that context to the contract.
+
+For the highest-severity valid finding, name the cheapest check that would overturn it (a file read, a single command, a minimal reproduction) and run that check before looping again. When no check is cheaper than the fix, record null with the reason instead of inventing one.
+
+Watch for doubt theater: across 2 or more cycles where the critic surfaced substantive findings, zero findings classified as actionable means the critic is validating, not doubting. Stop and escalate to the user.
+
+## Knowing when to stop
+
+Stop when the next iteration returns only trivial or already-considered findings, when 3 cycles are done, or when the user explicitly says to ship. Three cycles is the bound, not a suggestion: do not grind a fourth alone; escalate to the user instead. If 3 cycles still surface substantive issues, that is information about the artifact: it may not be ready, so say so. If 3 cycles is obviously insufficient because the artifact is large, the artifact is too big. Go back, decompose it, and review the pieces. Never lift the bound to fit the artifact.
+
+A stopped cycle with every finding classified is a valid partial result. Unclassified or rubber-stamped findings are not.
+
+## What you hand back
+
+A report listing each CLAIM, the fresh-context findings, each finding's classification (contract misread / valid + actionable / valid trade-off / noise), and the stop condition met. Actionable findings carry a recommended artifact change, stated as a recommendation, not an applied edit.

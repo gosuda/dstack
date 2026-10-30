@@ -3,49 +3,50 @@ name: ci-cd
 description: 'Use when setting up or modifying CI/CD pipelines, quality gates, test runners, or deployment pipeline configuration through workflow files. Not for triggering a deployment.'
 ---
 
-# CI/CD and deployment configuration
+# Author pipelines and deployment configuration that stay local
 
-## Contract
+Someone needs a pipeline created or changed: quality gates, test runners, a deployment strategy, all expressed as workflow and deployment configuration files in the repository. Your job is to write exactly those files with gates in a fixed blocking order, secrets referenced but never stored, a deployment stage that can roll back, and local validation proving the files parse and the gates run. Nothing here deploys, publishes, configures credentials remotely, or mutates any remote system. Edited files are version controlled, so rollback is restoring them from VCS to the pre edit state.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Setting up or modifying CI/CD pipelines, quality gates, test runners, deployment strategy, or configuring a deployment pipeline through workflow files. |
-| Authority | Reversible local: writes only CI workflow and deployment configuration files in the local repository; rollback is version control. No remote mutation. |
-| Side effect | Writes CI workflow and deployment configuration files locally; no deployment, publishing, credential, or remote mutation. |
-| Done | Blocking gates in a fixed order, secret references via provider environment variables, a deployment stage with a rollback mechanism, and local schema validation are present. |
+## Confirm the provider and the file set before writing
 
-## Inputs
+First bound the scope: the work is authoring or modifying CI workflow and deployment configuration files in the repository. No deployments, no published artifacts, no branch protection changes, no secrets placed in a remote manager, no remote mutation. Enumerate the exact files this skill creates or edits, show the set to the user before mutation, and write only those files.
 
-- The target repository and its CI provider (e.g., GitHub Actions). Required; detected from existing configuration or supplied by the user.
-- The quality gates the project requires. Required; defaults to the fixed gate order below.
-- The project ecosystem commands that realize each gate (lint, type-check, test, build, integration, security audit, bundle size). Required.
-- The deployment target and its rollback strategy. Required when a deployment stage is in scope.
-- Any required deployment secrets, environment names, or build commands. Supplied by the user; this skill does not invent credentials.
-- An existing pipeline to modify. Optional; supply when modifying rather than creating.
+Then identify the CI provider and the target ecosystem from existing configuration (`.github/workflows/` versus `.gitlab-ci.yml`) or from the verified repository remote URL. Never assume; when the provider is ambiguous, stop and ask rather than defaulting to GitHub. For GitLab bind host and project separately: the host comes from the remote URL or `GITLAB_HOST` (GitLab.com, Dedicated, or self managed) and the project is the full `GROUP[/SUBGROUP]/PROJECT` path; for forks bind source and target projects separately.
 
-## Procedure
+Gather the rest of the inputs before authoring: the quality gates the project requires (defaulting to the fixed gate order below), the ecosystem commands realizing each gate, the deployment target with its rollback strategy whenever a deployment stage is in scope, any required deployment secrets, environment names, or build commands (supplied by the user; this skill never invents credentials), and the existing pipeline to modify when this is a change rather than a creation. Missing ecosystem commands stop the run; ask the user and never invent commands. An unsupported CI provider stops the run; report it and never guess a provider specific schema.
 
-1. Bound scope: confirm the work is authoring or modifying CI workflow and deployment configuration files in the repository. Do not run deployments, publish artifacts, configure branch protection, place secrets in a remote manager, or mutate remote systems. Enumerate the exact files this skill will create or edit and show the set to the user before mutation. Write only those files. Done when: scope is bounded to local config file authoring and the file set is enumerated.
-2. Identify the CI provider and target ecosystem. Detect from existing configuration; if none exists, ask the user for the target platform and pipeline shape before creating any file. Done when: the provider and ecosystem are identified from existing config or supplied by the user.
-3. Establish the fixed gate order that every PR and push to main must pass, in this sequence: lint, type check, unit tests, build, integration tests, E2E (optional), security audit, bundle size. The order is fixed across ecosystems; only the commands change (Node: `pnpm exec biome check .`, `pnpm exec tsc --noEmit`, `pnpm exec vitest run`, `pnpm run build`; Python: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run pytest`, `uvx pip-audit`; Rust: `cargo clippy`, `cargo test`, `cargo build`, `cargo audit`). Do not add stages the user did not request. Done when: the fixed gate order is established with ecosystem-specific commands.
-4. Make every gate blocking. No gate may be skipped. If lint fails, fix lint; if a test fails, fix the code. Do not disable the rule or skip the test. Done when: every gate is configured as blocking with no skip path.
-5. Reference secrets via environment variables expected from the provider. Never store secrets in code or in workflow configuration files. The user places secrets in the provider's secret store out of band; this skill only writes the variable references. Done when: secrets are referenced as masked env vars in the workflow file, not stored in any committed file.
-6. Author the deployment stage with a rollback mechanism. Configure the deployment pipeline stages (build, test, deploy) using the user-supplied platform, environment, and commands. Include a defined rollback step. Do not add stages the user did not request. Done when: the deployment stage has a rollback mechanism and only user-requested stages.
-7. Validate the authored files locally. Run the project's local check set (lint, build, test) against the pipeline definition. If the platform provides a local validation command for the workflow file (e.g., `actionlint` for GitHub Actions), run it. Do not trigger a deployment. Done when: every local check and platform validation command is run with pass or fail recorded.
-8. When a CI run has already failed, route the failure back to the agent that owns the change: copy the failing job name, the error text, and the repo state at failure, so the root cause is fixed rather than re-run. Skip this step when setting up a new pipeline that has no failure yet. Done when: the failure is routed to the owning agent with job name, error text, and repo state, or the step is skipped for a new pipeline.
-9. Verify all gates are present, the pipeline runs on every PR and push to main, secrets are referenced via env vars, deployment has a rollback mechanism, and local schema validation passes. Done when: every done-predicate element is verified present.
+## Lay the gates in their fixed blocking order
 
-## Failure and recovery
+Every PR or MR and every push to main passes the same sequence: lint, type check, unit tests, build, integration tests, E2E (optional at construction; when included, blocking), security audit, bundle size. The order is fixed across ecosystems; only the commands change. Representative commands: Node with `pnpm exec biome check .`, `pnpm exec tsc --noEmit`, `pnpm exec vitest run`, `pnpm run build`; Python with `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run pytest`, `uvx pip-audit`; Rust with `cargo clippy`, `cargo test`, `cargo build`, `cargo audit`. On GitLab the same order becomes `stages:` in `.gitlab-ci.yml` (one stage per gate, same sequence) with merge request pipelines scoped by `rules: - if: $CI_PIPELINE_SOURCE == 'merge_request_event'` (https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/). Add no stages the user did not request.
 
-- Unsupported CI provider: stop and report; do not guess a provider-specific schema.
-- Missing required ecosystem commands: stop and ask the user; do not invent commands.
-- Gate failure: fix the code or configuration that caused the failure. Never disable the gate, skip the test, or re-run a flaky test; fix the flakiness.
-- Secret leak in a config or code file: remove the secret from the file, rotate it, and re-reference it as an env var before proceeding.
-- Missing rollback: do not mark deployment configuration done; add the rollback mechanism first.
-- Validation fails: report the failing check with its file and line; do not mark the pipeline verified. Leave the edited files in place for the user to correct, or revert them to their prior state on user request.
-- Partial result: keep all completed gate configuration, but do not commit a pipeline that is missing a blocking gate, a secret boundary, or a rollback. The blocked result is a report listing exactly which done-predicate element is missing and what was tried.
-- Rollback: the edited CI or workflow files are version-controlled; restore them from VCS to the pre-edit state.
+Every gate blocks. No gate may be skipped. When lint fails, fix lint; when a test fails, fix the code. Never disable the rule or skip the test, and never re run a flaky test instead of fixing the flakiness.
 
-## Output
+## Reference secrets, never store them
 
-CI workflow and deployment configuration files in the repository implementing the fixed gate order, blocking gates, secret references via environment variables, a deployment rollback mechanism, and local schema validation, plus a report listing files written and per-check pass or fail status. No deployment triggered.
+Secrets enter the workflow file only as references to environment variables the provider supplies. Never store a secret in code or in workflow configuration. The user places secrets in the provider secret store out of band; this skill writes only the variable references. When a secret leaks into a config or code file, remove the secret from the file, rotate it, and re reference it as an env var before proceeding.
+
+## Author the deployment stage with its way back
+
+Configure the deployment pipeline stages (build, test, deploy) from the user supplied platform, environment, and commands, and include a defined rollback step. Add no stages the user did not request. Do not mark deployment configuration done while the rollback mechanism is missing.
+
+## Validate locally and interpret filters with the provider grammar
+
+Run the project local check set (lint, build, test) against the pipeline definition, and run the platform local validation for the workflow file when one exists: `actionlint` for GitHub Actions, `glab ci lint [--dry-run] [--ref <branch>] [--include-jobs]` for GitLab (see https://docs.gitlab.com/cli/ci/lint/). No `glab mr` command carries a general dry run (the dry run surface is CI only), so preview MR effects by local computation or JSON reads, never by submitting. Never trigger a deployment.
+
+Interpret trigger filters with the CI provider documented grammar, not a generic glob or regex engine. Before changing a filter, state the intended included and excluded events and verify representative boundary cases against that grammar; a numeric version triple is not a complete SemVer grammar. On GitLab this is the `rules:if` grammar (`$CI_PIPELINE_SOURCE == 'merge_request_event'`, branch patterns per https://docs.gitlab.com/ci/jobs/job_rules/). For action, tool, image, runner, and toolchain pins, record the primary source and resolved commit or artifact identity. Resolve annotated tags to their commit and verify asset digests through the applicable release source. Treat runner and runtime updates as possible compatibility floor changes; never claim a floor violation without target evidence. Distinguish YAML parsing, workflow validation, embedded shell analysis, and actual job execution; report which occurred and never imply shell checking merely because a workflow linter ran.
+
+## Route an existing failure to its owner instead of rerunning it
+
+When a CI run already failed, hand the failure back to the agent owning the change: copy the failing job name, the error text, and the repo state at failure, so the root cause gets fixed rather than re run. Skip this step when setting up a pipeline that never ran.
+
+For a GitLab MR read the head pipeline with `glab ci get --merge-request <iid> -F json` (explicit host from the remote URL or `GITLAB_HOST`, project via `-R GROUP/PROJECT`; forks need source and target projects bound separately; note `-p` on this command selects a pipeline ID, it is not a page flag), enumerate every page on list reads (`glab ci list -P/--per-page` with `-p`, or `glab api --paginate` for REST reads), and pull logs with `glab ci trace <job>`; the bundled helper `python3 "<path-to-skill>/scripts/inspect_mr_checks.py" --host HOST --project GROUP/PROJECT --mr IID --json` is the scripted equivalent. Match the pipeline `sha` against the MR head SHA: a missing, skipped, or unrelated successful pipeline is not proof. When the MR head moved during review, prior pipeline and approval evidence is invalid; re read the MR head SHA and its pipeline before reporting gates green.
+
+## When to stop instead
+
+Stop with a report naming exactly what is missing and what was tried, leaving edited files in place for the user to correct (or reverting them to prior state on request): unsupported provider; missing ecosystem commands; a gate failure you fix in code or configuration rather than by disabling the gate, skipping the test, or rerunning flake; a leaked secret, rotated before continuing; a missing rollback; a validation failure naming the file and line, never marking the pipeline verified while it fails. Keep all completed gate configuration on a partial result, but never commit a pipeline missing a blocking gate, a secret boundary, or a rollback. Platform side merge gates (required approvals, unresolved discussions, draft state, project merge policy) are enforced by the forge, not authored here; never treat CI green as merge approval and never bypass those gates from pipeline configuration.
+
+Before handing back, verify every element: all gates present in order, the pipeline running on every PR or MR and push to main, secrets referenced via env vars, deployment carrying a rollback mechanism, and local schema validation passing.
+
+## What you hand back
+
+The written `.github/workflows/*.yml` or `.gitlab-ci.yml` (per the detected provider) plus deployment configuration files implementing the fixed gate order, blocking gates, secret references via environment variables, a deployment rollback mechanism with local schema validation, plus a report listing files written and per check pass or fail status. No deployment triggered.

@@ -1,3293 +1,1528 @@
 {
   "schema": "odin-devin-skill-mirror/v1",
-  "sourceRepository": "https://github.com/OutlineDriven/odin-claude-plugin",
-  "releaseVersion": "2.1.6",
+  "sourceRepository": "https://github.com/gosuda/dalcom-skills",
+  "releaseVersion": "2.1.8",
   "generator": "scripts/sync-outline-skills.mjs",
   "skills": [
     {
       "slug": "abi-and-calling-conventions",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
       "slug": "abstract-well",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "adc-dac-baremetal",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "af-xdp",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "agent-environment-retrospective",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "agent-surface-forge",
-      "plugin": "odin-skills",
-      "files": 3
-    },
-    {
-      "slug": "agent-transcript",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "agents-md",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "ai-collab-protocols",
-      "plugin": "odin-core",
-      "files": 2
-    },
-    {
-      "slug": "analysis-artifacts",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "api-and-interface-design",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "append-run-log",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "apple-silicon",
-      "plugin": "odin-native",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "architect",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 6
     },
     {
-      "slug": "arm-sve",
-      "plugin": "odin-native",
+      "slug": "architecture-simplification",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "articulate",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
       "slug": "artifact-arena",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "askme",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "assembly-arm",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "assembly-riscv",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
     },
     {
       "slug": "assembly-x86",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
     },
     {
       "slug": "ast-grep",
-      "plugin": "odin-code",
+      "plugin": "dstack-code",
       "files": 14
     },
     {
-      "slug": "atheris",
-      "plugin": "odin-fuzzing",
-      "files": 2
-    },
-    {
       "slug": "atomic-issues-prs",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "attack-shape",
-      "plugin": "odin-critique",
-      "files": 2
-    },
-    {
-      "slug": "audit-loop-scaffold",
-      "plugin": "odin-run",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "audit-project",
-      "plugin": "odin-review",
-      "files": 4
+      "plugin": "dstack-core",
+      "files": 5
     },
     {
       "slug": "autolearn",
-      "plugin": "odin-knowledge",
-      "files": 7
-    },
-    {
-      "slug": "automate-me",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "automatic-cybernetic-flow-design",
-      "plugin": "odin-visual",
-      "files": 2
+      "plugin": "dstack-core",
+      "files": 8
     },
     {
       "slug": "automatic-freeform-graphs-design",
-      "plugin": "odin-visual",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "autopilot",
-      "plugin": "odin-run",
+      "plugin": "dstack-core",
       "files": 3
     },
     {
       "slug": "autoplan",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "autoship",
-      "plugin": "odin-release",
+      "slug": "autoplan-and-autopilot",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "ax-audit",
-      "plugin": "odin-review",
+      "slug": "autowatch",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "axiom-mode",
-      "plugin": "odin-core",
-      "files": 2
-    },
-    {
-      "slug": "backlog",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "baremetal-startup",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "bazel",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "behavior-validator",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "binutils",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "blast-radius",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
-      "slug": "book-to-skill",
-      "plugin": "odin-skills",
-      "files": 3
-    },
-    {
-      "slug": "bootloaders-embedded",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "bounded-model-checking-c",
-      "plugin": "odin-formal",
+      "slug": "bakeoff",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "brainstorm",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 16
     },
     {
-      "slug": "branch-prediction-and-speculation",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "brand-authority",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
       "slug": "breaking-driven",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "browser-cookie-store",
-      "plugin": "odin-web",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "browser-qa",
-      "plugin": "odin-testing",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "browser-testing",
-      "plugin": "odin-web",
-      "files": 5
-    },
-    {
-      "slug": "build-acceleration",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "burpsuite-project-parser",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "buyer-objection-research",
-      "plugin": "odin-product",
-      "files": 2
-    },
-    {
-      "slug": "buzzword-analysis",
-      "plugin": "odin-product",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "buzzword-hijack",
-      "plugin": "odin-product",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "c-hardening-baseline",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
       "slug": "c-security-review",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
-    },
-    {
-      "slug": "can-i-help",
-      "plugin": "odin-git",
-      "files": 4
     },
     {
       "slug": "capstone",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 3
     },
     {
-      "slug": "carbon-lang",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cargo-fuzz",
-      "plugin": "odin-fuzzing",
-      "files": 2
-    },
-    {
       "slug": "cargo-workflows",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
       "slug": "cascade-dedup",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "catchup",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "chain-vulnerability-scanner",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 8
     },
     {
-      "slug": "changelog-updates",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "check-agent-compatibility",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "cherrypick-to-release",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "chrome-extension",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
       "slug": "ci-cd",
-      "plugin": "odin-infra",
-      "files": 6
+      "plugin": "dstack-infra",
+      "files": 7
     },
     {
       "slug": "ci-fix",
-      "plugin": "odin-infra",
-      "files": 3
+      "plugin": "dstack-core",
+      "files": 4
     },
     {
-      "slug": "clang",
-      "plugin": "odin-native",
+      "slug": "clarify",
+      "plugin": "dstack-core",
       "files": 2
-    },
-    {
-      "slug": "claude-settings-audit",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "clean-and-true",
-      "plugin": "odin-writing",
-      "files": 3
-    },
-    {
-      "slug": "clean-clean-cut",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "cli-for-agents",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "close-done",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "cloud-task-orchestrator",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "cmake",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "code-generation-and-backends",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
+      "files": 2
+    },
+    {
+      "slug": "code-review",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "code-simplification",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "codeql-security-analysis",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "commit",
-      "plugin": "odin-git",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "commit-push-current",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
+      "files": 2
+    },
+    {
+      "slug": "commit-push-main",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "commit-push-pr",
-      "plugin": "odin-git",
+      "plugin": "dstack-core",
+      "files": 3
+    },
+    {
+      "slug": "competitive-content",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "competitor-feature-research",
-      "plugin": "odin-product",
+      "slug": "competitive-intelligence",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "compile-3d-workflow",
-      "plugin": "odin-visual",
+      "plugin": "dstack-visual",
       "files": 2
     },
     {
       "slug": "compiler-frontend",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "compiler-optimizations-deep",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
       "slug": "complexity-grill",
-      "plugin": "odin-review",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "compound",
-      "plugin": "odin-knowledge",
-      "files": 3
-    },
-    {
-      "slug": "conan-vcpkg",
-      "plugin": "odin-native",
-      "files": 3
+      "plugin": "dstack-core",
+      "files": 6
     },
     {
       "slug": "concurrency-debugging",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
-      "slug": "constant-time-analysis",
-      "plugin": "odin-security",
-      "files": 3
-    },
-    {
-      "slug": "constraint-driven-development",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "consult-deployment",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "containers-internals",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "context-engineering",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "continual-learning",
-      "plugin": "odin-knowledge",
+      "slug": "content-evidence-brief",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "contract-driven",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 4
     },
     {
+      "slug": "contraint-driven",
+      "plugin": "dstack-core",
+      "files": 3
+    },
+    {
       "slug": "control-cli",
-      "plugin": "odin-testing",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "control-ui",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "converge",
-      "plugin": "odin-planning",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "copywriting",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 4
     },
     {
-      "slug": "copywriting-tone-of-voice-creator",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "core-dumps",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "corroborate-by-independent-reruns",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "cost-reduction",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
       "slug": "council",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 2
-    },
-    {
-      "slug": "cpp-coroutines",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cpp-modules",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cpp-templates",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cpu-cache-opt",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "cpu-kernel-authoring",
-      "plugin": "odin-native",
+      "plugin": "dstack-performance",
       "files": 23
     },
     {
-      "slug": "cpu-pipelines-and-hazards",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "create-branch",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "create-learning-path",
-      "plugin": "odin-learn",
-      "files": 2
-    },
-    {
-      "slug": "create-plugin-scaffold",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "create-pull-request",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
       "slug": "cross-critique",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 2
-    },
-    {
-      "slug": "cross-gcc",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "cross-lens-converge",
-      "plugin": "odin-critique",
-      "files": 2
-    },
-    {
-      "slug": "cross-run-playbook",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "crypto-protocol-diagram",
-      "plugin": "odin-security",
-      "files": 3
-    },
-    {
-      "slug": "cuda",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cuda-debugging",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "cuda-profiling",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "culture-burnout-detection",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "culture-conflict-mediation",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "culture-interview-debrief",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "culture-interview-profile-prediction",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "culture-manager-coaching",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "culture-onboarding-plan",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "custom-allocators",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "customer-feedback-report",
-      "plugin": "odin-product",
-      "files": 2
-    },
-    {
-      "slug": "cut-new-release-candidate",
-      "plugin": "odin-release",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "cybernetic-loop",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "cycle-memo",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "dbt-model-index",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "debloat-respect-richness",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "debug-optimized-builds",
-      "plugin": "odin-native",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "decide",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "decision-diary",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "decision-rationale-gaps",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
-      "slug": "deductive-verification-with-dafny-and-why3",
-      "plugin": "odin-formal",
+      "slug": "decoded-memo-retention",
+      "plugin": "dstack-performance",
       "files": 2
     },
     {
       "slug": "dedup-skills",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "deep-research",
-      "plugin": "odin-research",
+      "plugin": "dstack-research",
       "files": 2
     },
     {
       "slug": "define-goalstate",
-      "plugin": "odin-planning",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
-      "slug": "deprecate-and-migrate",
-      "plugin": "odin-code",
-      "files": 3
-    },
-    {
       "slug": "deps-upgrade",
-      "plugin": "odin-code",
+      "plugin": "dstack-code",
       "files": 2
     },
     {
       "slug": "design",
-      "plugin": "odin-design",
+      "plugin": "dstack-design",
       "files": 22
     },
     {
       "slug": "design-gate-brainstorming",
-      "plugin": "odin-design",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
-      "slug": "design-it-twice",
-      "plugin": "odin-code",
+      "slug": "developer-advocacy",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "design-variants",
-      "plugin": "odin-design",
+      "slug": "developer-audience-context",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "deslop",
-      "plugin": "odin-code",
-      "files": 6
-    },
-    {
-      "slug": "devcontainer-setup",
-      "plugin": "odin-infra",
+      "slug": "developer-champion-programs",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "developer-experience-review",
-      "plugin": "odin-product",
+      "slug": "developer-community",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "device-drivers",
-      "plugin": "odin-native",
+      "slug": "developer-community-posting",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-content",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-discovery-surfaces",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-docs-led-growth",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-lifecycle-messaging",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-listening",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-publishing",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-release-communication",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-search",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-social-drafts",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-utility-growth",
+      "plugin": "dstack-marketing",
+      "files": 2
+    },
+    {
+      "slug": "developer-video",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "diagnose-loop-health",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "diagnose-wave-stall",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "diagramming-code",
-      "plugin": "odin-visual",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "diamond-task",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "diff-scoped-browser-qa",
-      "plugin": "odin-web",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "dimensional-analysis",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "diverge",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "django-access-review",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "django-perf-review",
-      "plugin": "odin-python",
-      "files": 2
-    },
-    {
-      "slug": "dma-baremetal",
-      "plugin": "odin-native",
+      "plugin": "dstack-code",
       "files": 2
     },
     {
       "slug": "do-it-now",
-      "plugin": "odin-run",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "doc-coauthoring",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "doc-review",
-      "plugin": "odin-writing",
-      "files": 15
-    },
-    {
-      "slug": "docs-and-adrs",
-      "plugin": "odin-knowledge",
-      "files": 7
-    },
-    {
-      "slug": "docs-canvas",
-      "plugin": "odin-visual",
+      "slug": "docs-practices",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "docs-update",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
       "slug": "docs-writing",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
-    },
-    {
-      "slug": "document-api-endpoint",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "domain-modeling",
-      "plugin": "odin-knowledge",
-      "files": 3
     },
     {
       "slug": "doubt-driven",
-      "plugin": "odin-critique",
+      "plugin": "dstack-core",
       "files": 3
-    },
-    {
-      "slug": "dpdk",
-      "plugin": "odin-native",
-      "files": 2
     },
     {
       "slug": "drift-detect",
-      "plugin": "odin-research",
+      "plugin": "dstack-research",
       "files": 3
-    },
-    {
-      "slug": "drill",
-      "plugin": "odin-learn",
-      "files": 3
-    },
-    {
-      "slug": "duet",
-      "plugin": "odin-run",
-      "files": 3
-    },
-    {
-      "slug": "dwarf-debug-format",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "dwarf-expert",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "dx-audit",
-      "plugin": "odin-review",
-      "files": 2
     },
     {
       "slug": "dynamic-linking",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "ebpf",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
     },
     {
       "slug": "elf-inspection",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "eligibility-batch-organizer",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "embedded-rust",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
     },
     {
       "slug": "enforce-workflow-constraints",
-      "plugin": "odin-core",
-      "files": 2
-    },
-    {
-      "slug": "engineering-retrospective",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "entropy-assisted-planning",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "environment-contract-audit",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "eslint-to-biome-migration",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "evaluation-leakage-audit",
-      "plugin": "odin-testing",
+      "plugin": "dstack-infra",
       "files": 2
     },
     {
       "slug": "exhaustive",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "explain-concept",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 3
     },
     {
       "slug": "explainer-artifact",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 2
     },
     {
       "slug": "explore",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "f-star-effectful-verification",
-      "plugin": "odin-formal",
+      "slug": "fastopt",
+      "plugin": "dstack-performance",
       "files": 2
     },
     {
-      "slug": "fail-design",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "fail-recover",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "fastify-inject-testing",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "fastify-production-hardening",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "fastify-schema-first-service",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "feedback-pattern-sweep",
-      "plugin": "odin-review",
+      "slug": "fastopt-extreme",
+      "plugin": "dstack-performance",
       "files": 2
     },
     {
       "slug": "feedback-sweep",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "figure-it-out",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 3
     },
     {
       "slug": "final-grain",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "finish-branch-menu",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "firebase-apk-scanner",
-      "plugin": "odin-security",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "first-load-byte-reduction",
-      "plugin": "odin-web",
+      "plugin": "dstack-code",
       "files": 2
     },
     {
-      "slug": "fix-p0-issues",
-      "plugin": "odin-git",
+      "slug": "fix",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "fixed-view-visual-benchmark",
-      "plugin": "odin-design",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
-      "slug": "flamegraphs",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "frame-rate-stability",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "freertos",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "fresh-reader-review",
-      "plugin": "odin-writing",
+      "slug": "frame",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "from-first-principle",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "from-perspective",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "fromzero",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "frontend-design-deslop",
-      "plugin": "odin-design",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "frontend-fidelity-rebuild",
-      "plugin": "odin-design",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "frontend-ui-engineering",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "full-product-evaluation",
-      "plugin": "odin-testing",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "function-audit-context-analyzer",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 3
-    },
-    {
-      "slug": "fuzz-harness-writing",
-      "plugin": "odin-fuzzing",
-      "files": 2
     },
     {
       "slug": "fuzzing",
-      "plugin": "odin-fuzzing",
-      "files": 3
-    },
-    {
-      "slug": "fuzzing-coverage-analysis",
-      "plugin": "odin-fuzzing",
+      "plugin": "dstack-fuzzing",
       "files": 3
     },
     {
       "slug": "fuzzing-dictionary",
-      "plugin": "odin-fuzzing",
+      "plugin": "dstack-fuzzing",
       "files": 2
     },
     {
       "slug": "fuzzing-obstacles",
-      "plugin": "odin-fuzzing",
+      "plugin": "dstack-fuzzing",
       "files": 3
     },
     {
       "slug": "gate-and-merge",
-      "plugin": "odin-git",
-      "files": 5
-    },
-    {
-      "slug": "gate-file-completion",
-      "plugin": "odin-run",
-      "files": 8
-    },
-    {
-      "slug": "gate-proposed-change",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "gcc",
-      "plugin": "odin-native",
-      "files": 2
+      "plugin": "dstack-git",
+      "files": 11
     },
     {
       "slug": "gdb",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 4
     },
     {
-      "slug": "genealogical-proof",
-      "plugin": "odin-research",
-      "files": 2
-    },
-    {
       "slug": "generalize",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "generate-my-taste",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 6
     },
     {
-      "slug": "gh-review-requests",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "gha-security-review",
-      "plugin": "odin-security",
-      "files": 3
-    },
-    {
       "slug": "git-branchless",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 5
     },
     {
       "slug": "git-cleanup",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "git-guardrails",
-      "plugin": "odin-git",
-      "files": 3
-    },
-    {
-      "slug": "git-history-analysis",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "git-workflow-and-versioning",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "github-backlog-triage",
-      "plugin": "odin-git",
-      "files": 3
-    },
-    {
-      "slug": "github-bug-report-triage",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "github-issue-dedupe",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "github-solution-research",
-      "plugin": "odin-research",
+      "plugin": "dstack-research",
       "files": 7
     },
     {
-      "slug": "goal-init",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
       "slug": "goal-prompt-drafting",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "good-readme",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 5
     },
     {
-      "slug": "gpio-baremetal",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "gpu-memory-model",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
       "slug": "graph-backbone",
-      "plugin": "odin-planning",
+      "plugin": "dstack-planning",
       "files": 3
     },
     {
-      "slug": "grill-with-docs",
-      "plugin": "odin-knowledge",
+      "slug": "grill-core",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "ground-latest",
-      "plugin": "odin-research",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "guardrail-carve-run",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "guillotine",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "gut-sync",
-      "plugin": "odin-knowledge",
+      "slug": "gut-check",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "handoff",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-core",
       "files": 4
     },
     {
-      "slug": "hare-lang",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "harness-port-guide",
-      "plugin": "odin-agent",
-      "files": 3
-    },
-    {
-      "slug": "headed-browser-takeover",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
       "slug": "heaptrack",
-      "plugin": "odin-native",
+      "plugin": "dstack-performance",
       "files": 3
-    },
-    {
-      "slug": "hip-rocm",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "history-forget",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "history-health",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "history-notes",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "history-recall",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "history-source-registry",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "history-sync",
-      "plugin": "odin-knowledge",
-      "files": 2
     },
     {
       "slug": "how",
-      "plugin": "odin-research",
+      "plugin": "dstack-research",
       "files": 2
     },
     {
       "slug": "humaniseur-fr",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
-      "slug": "humanizer-en-asd-ste100",
-      "plugin": "odin-writing",
+      "slug": "humanizer-korean-plain",
+      "plugin": "dstack-writing",
+      "files": 5
+    },
+    {
+      "slug": "humanizer-korean-ste",
+      "plugin": "dstack-writing",
+      "files": 5
+    },
+    {
+      "slug": "humanizer-plain-english",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
-      "slug": "humansense2system",
-      "plugin": "odin-skills",
+      "slug": "humanizer-simple-english-asd-ste100",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
-      "slug": "hypervisor-internals",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "idea-sparkbox",
-      "plugin": "odin-planning",
-      "files": 2
+      "slug": "ideate-multiple-agents",
+      "plugin": "dstack-planning",
+      "files": 4
     },
     {
       "slug": "idiomatic-rust",
-      "plugin": "odin-native",
-      "files": 11
+      "plugin": "dstack-rust",
+      "files": 13
     },
     {
       "slug": "implement-spec",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "include-what-you-use",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "incremental-implementation",
-      "plugin": "odin-code",
-      "files": 2
+      "plugin": "dstack-run",
+      "files": 3
     },
     {
       "slug": "influence-and-negotiation",
-      "plugin": "odin-people",
-      "files": 2
-    },
-    {
-      "slug": "infrastructure-mentor",
-      "plugin": "odin-learn",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "inits",
-      "plugin": "odin-agent",
+      "plugin": "dstack-core",
       "files": 2
-    },
-    {
-      "slug": "insecure-default-discovery",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "instruction-phrasing-microtest",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "intel-vtune-amd-uprof",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "interactive-drop-selector",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "interpreters",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "interrogate",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
-      "slug": "interrupts-and-exceptions-baremetal",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "io-uring",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "ios-build-cleanup",
-      "plugin": "odin-apple",
-      "files": 2
-    },
-    {
-      "slug": "ios-build-fix",
-      "plugin": "odin-apple",
-      "files": 2
-    },
-    {
-      "slug": "ios-visual-review",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "issue-intake",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "issue-now",
-      "plugin": "odin-git",
+      "plugin": "dstack-review",
       "files": 2
     },
     {
       "slug": "issue-triage",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "jit-compilation",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-autostart-examples",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-continuous-capture",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-interview",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-maintenance",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-repo-structure",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-repo-trust-boundary",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-retrospective",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "keep-why-schema-migration",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "kernel-concurrency",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "kernel-debugging",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "kernel-debugging-advanced",
-      "plugin": "odin-native",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "kernel-internals",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "kernel-memory-management",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "kernel-security",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "kernel-testing",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "knowledge-refresh",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "land-contribution",
-      "plugin": "odin-git",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
       "slug": "learning-retrospective",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 2
     },
     {
       "slug": "leave-only-first-principle",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "libafl",
-      "plugin": "odin-fuzzing",
-      "files": 2
+      "slug": "let-fate-decide",
+      "plugin": "dstack-core",
+      "files": 97
     },
     {
       "slug": "libfuzzer",
-      "plugin": "odin-fuzzing",
+      "plugin": "dstack-fuzzing",
       "files": 2
     },
     {
       "slug": "lighter-checks",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "linkedin-ghostwriting",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "linker-scripts",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "linkers-lto",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "linux-kernel-architecture",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "linux-kernel-modules",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "linux-perf",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "lldb",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "llm-self-loop",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "llms-visibility",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
-      "slug": "llvm",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "llvm-ir-and-passes",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "llvm-passes",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "load-bearing-assumption-test",
-      "plugin": "odin-critique",
-      "files": 2
-    },
-    {
-      "slug": "lockstep-version-guard",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "loop-me",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "low-power-embedded",
-      "plugin": "odin-native",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "make",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
     },
     {
-      "slug": "make-bot-ui",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
       "slug": "make-pr-easy-to-review",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "map-corpus",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 3
     },
     {
-      "slug": "markdown-to-pdf",
-      "plugin": "odin-writing",
+      "slug": "marketing-assumption-grill",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "mcp-builder",
-      "plugin": "odin-agent",
+      "slug": "marketing-behavior-audit",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
-      "slug": "meaningful-test-coverage",
-      "plugin": "odin-testing",
+      "slug": "marketing-decision-map",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "memory-clean",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-knowledge",
       "files": 5
     },
     {
-      "slug": "memory-hierarchy-and-caches",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
       "slug": "memory-model",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
-    },
-    {
-      "slug": "memory-sanitize",
-      "plugin": "odin-knowledge",
-      "files": 4
     },
     {
       "slug": "memory-update",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-knowledge",
       "files": 7
     },
     {
-      "slug": "merge-and-deploy",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
       "slug": "mermaid-to-proverif",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
-    },
-    {
-      "slug": "meson",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "minimalism-driven",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "minimap",
-      "plugin": "odin-planning",
+      "plugin": "dstack-planning",
       "files": 3
     },
     {
-      "slug": "mlir",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "mmio-and-bit-manipulation",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
       "slug": "model-challenge",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "model-retuning",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
-      "slug": "modern-cpp-practices",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "modern-python",
-      "plugin": "odin-python",
+      "slug": "modernize",
+      "plugin": "dstack-git",
       "files": 3
     },
     {
-      "slug": "mpi",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "msvc-cl",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "multi-agent-tournament-scorecard",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "multi-tenant-architecture",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "mutation-campaign-configuration",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "mutation-triage-genotoxic",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
       "slug": "mutual-sync",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "native-messaging-host-conflicts",
-      "plugin": "odin-web",
+      "plugin": "dstack-knowledge",
       "files": 2
     },
     {
       "slug": "necessary-work",
-      "plugin": "odin-core",
+      "plugin": "dstack-core",
       "files": 2
-    },
-    {
-      "slug": "negotiate-run-budget",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "new-branch-and-pr",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "new-space",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "next-best-action",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "ninja",
-      "plugin": "odin-native",
-      "files": 3
     },
     {
       "slug": "no-comments",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
+      "files": 2
+    },
+    {
+      "slug": "no-excuses",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "no-hide",
-      "plugin": "odin-review",
+      "plugin": "dstack-review",
       "files": 2
     },
     {
       "slug": "node-internals-diagnosis",
-      "plugin": "odin-typescript",
+      "plugin": "dstack-typescript",
       "files": 2
     },
     {
       "slug": "nodejs-graceful-shutdown",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "nodejs-hanging-test-diagnosis",
-      "plugin": "odin-typescript",
+      "plugin": "dstack-typescript",
       "files": 2
     },
     {
       "slug": "nodejs-service-foundations",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "nodejs-stream-pipeline",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "notion-writer",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "numa-programming",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "oauth2-flow-implementation",
-      "plugin": "odin-security",
+      "plugin": "dstack-typescript",
       "files": 2
     },
     {
       "slug": "observability",
-      "plugin": "odin-infra",
+      "plugin": "dstack-infra",
       "files": 2
     },
     {
-      "slug": "offense",
-      "plugin": "odin-code",
+      "slug": "offensive-driven",
+      "plugin": "dstack-core",
+      "files": 2
+    },
+    {
+      "slug": "offer-page-brief",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "onboard",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 3
     },
     {
-      "slug": "open-source-license-selection",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "open-source-readiness-audit",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "openmp",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "openocd-jtag",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "optimise-seo",
-      "plugin": "odin-web",
+      "slug": "open-source-adoption",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "optimize",
-      "plugin": "odin-code",
+      "plugin": "dstack-performance",
+      "files": 6
+    },
+    {
+      "slug": "optimize-extremely",
+      "plugin": "dstack-performance",
       "files": 6
     },
     {
       "slug": "orchestration-patterns",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "os-dev-scratch",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "oss-fuzz",
-      "plugin": "odin-fuzzing",
-      "files": 2
-    },
-    {
-      "slug": "paced-explanation",
-      "plugin": "odin-learn",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "parallel-launch",
-      "plugin": "odin-run",
+      "plugin": "dstack-core",
       "files": 3
     },
     {
       "slug": "partition-scopes-to-subagents",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "peripherals-from-datasheet",
-      "plugin": "odin-native",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "perspective-complete-review",
-      "plugin": "odin-review",
+      "plugin": "dstack-review",
       "files": 2
-    },
-    {
-      "slug": "pgo",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "plain-korean",
-      "plugin": "odin-writing",
-      "files": 5
     },
     {
       "slug": "plan",
-      "plugin": "odin-planning",
-      "files": 3
+      "plugin": "dstack-core",
+      "files": 2
     },
     {
-      "slug": "polished-web-prototype",
-      "plugin": "odin-design",
+      "slug": "plan-complete",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "possible-worlds",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "possible-worlds-qa",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "post-change-check-gate",
-      "plugin": "odin-core",
-      "files": 2
-    },
-    {
-      "slug": "post-daily-new-issues",
-      "plugin": "odin-git",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "post-merge-cleanup",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 2
-    },
-    {
-      "slug": "post-release-status",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "post-to-slack",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "pov",
-      "plugin": "odin-planning",
-      "files": 10
     },
     {
       "slug": "pr-impact-quiz",
-      "plugin": "odin-review",
+      "plugin": "dstack-review",
       "files": 2
     },
     {
       "slug": "pr-review-canvas",
-      "plugin": "odin-visual",
+      "plugin": "dstack-visual",
       "files": 2
     },
     {
       "slug": "pr-walkthrough",
-      "plugin": "odin-visual",
+      "plugin": "dstack-visual",
       "files": 2
-    },
-    {
-      "slug": "prepare-repository-for-public-release",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "presentation-creator",
-      "plugin": "odin-visual",
-      "files": 2
-    },
-    {
-      "slug": "press-release-writer",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "pricing-projection",
-      "plugin": "odin-product",
-      "files": 2
-    },
-    {
-      "slug": "principles",
-      "plugin": "odin-code",
-      "files": 7
     },
     {
       "slug": "prism",
-      "plugin": "odin-critique",
-      "files": 2
-    },
-    {
-      "slug": "product-design",
-      "plugin": "odin-design",
-      "files": 7
-    },
-    {
-      "slug": "product-signal-pulse",
-      "plugin": "odin-product",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "production-go",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 39
     },
     {
-      "slug": "prohibit-bad-habits",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
       "slug": "project-findings-onto-graph",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
-      "slug": "prompt-optimizer",
-      "plugin": "odin-skills",
-      "files": 4
-    },
-    {
-      "slug": "promql-cli",
-      "plugin": "odin-infra",
+      "slug": "proof",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
       "slug": "proof-driven",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 5
     },
     {
-      "slug": "property-test-authoring",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "propose-external-change",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
       "slug": "propose-issue",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "protocol-analysis",
-      "plugin": "odin-native",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
       "slug": "prototype",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "publish-branch",
-      "plugin": "odin-git",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "punishing-practices",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "purge-slop-docs",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "qemu-embedded-simulation",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "qemu-for-kernel-development",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "qemu-kvm",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "rdma-verbs",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "readiness-assessment",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "readout",
-      "plugin": "odin-research",
-      "files": 2
+      "plugin": "dstack-core",
+      "files": 3
     },
     {
       "slug": "recall",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "recorded-feedback-analysis",
-      "plugin": "odin-product",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "refactor-break-compat",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "reflect",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "release-gate",
-      "plugin": "odin-release",
-      "files": 2
-    },
-    {
-      "slug": "release-landing-report",
-      "plugin": "odin-release",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "release-promotion",
-      "plugin": "odin-product",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "reorder",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "reorder-respect-deliberate",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "replace-unsafe-typescript-assertions",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "repo-health-triage",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "repo-qa-investigate",
-      "plugin": "odin-research",
-      "files": 2
-    },
-    {
-      "slug": "reproduce-and-fix-issues",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "reproduce-bug-report",
-      "plugin": "odin-testing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
       "slug": "research",
-      "plugin": "odin-research",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "resolve",
-      "plugin": "odin-git",
-      "files": 6
+      "plugin": "dstack-core",
+      "files": 7
     },
     {
       "slug": "resolve-merge-conflicts",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 2
     },
     {
-      "slug": "resource-optimization-lowend",
-      "plugin": "odin-native",
-      "files": 2
+      "slug": "resolve-pr-comments",
+      "plugin": "dstack-core",
+      "files": 8
     },
     {
-      "slug": "respond-to-slack-thread",
-      "plugin": "odin-run",
-      "files": 2
+      "slug": "retro",
+      "plugin": "dstack-core",
+      "files": 4
     },
     {
-      "slug": "restart-keeping-lessons",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "retaxonomize-plugins",
-      "plugin": "odin-skills",
+      "slug": "retune",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "reverse-engineering",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 2
     },
     {
       "slug": "review",
-      "plugin": "odin-review",
-      "files": 22
+      "plugin": "dstack-review",
+      "files": 23
     },
     {
-      "slug": "review-and-ship",
-      "plugin": "odin-git",
-      "files": 2
+      "slug": "review-fix-loop",
+      "plugin": "dstack-core",
+      "files": 3
     },
     {
       "slug": "review-plugin-submission",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "review-speedread",
-      "plugin": "odin-review",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "rewrite-clean-v0",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "rewrite-denoise-v0",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
       "slug": "rhythmic-taste",
-      "plugin": "odin-writing",
+      "plugin": "dstack-writing",
       "files": 2
     },
     {
-      "slug": "riscv-privileged",
-      "plugin": "odin-native",
+      "slug": "riffrec-feedback-analysis",
+      "plugin": "dstack-knowledge",
       "files": 2
     },
     {
       "slug": "run-smoke-tests",
-      "plugin": "odin-testing",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "rust-async-internals",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 2
     },
     {
       "slug": "rust-build-times",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 2
     },
     {
       "slug": "rust-cross",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
       "slug": "rust-debugging",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
       "slug": "rust-ffi",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "rust-formal-verification",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "rust-no-std",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "rust-profiling",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
       "slug": "rust-security",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 2
     },
     {
-      "slug": "rust-security-review",
-      "plugin": "odin-security",
-      "files": 3
-    },
-    {
       "slug": "rust-unsafe",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
       "slug": "rustc-basics",
-      "plugin": "odin-native",
+      "plugin": "dstack-rust",
       "files": 3
     },
     {
-      "slug": "ruzzy",
-      "plugin": "odin-fuzzing",
-      "files": 2
-    },
-    {
-      "slug": "saga",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
       "slug": "sanitizers",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 4
     },
     {
-      "slug": "sarif-parsing",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
-      "slug": "save-md",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "scaffold-exercises",
-      "plugin": "odin-learn",
-      "files": 2
-    },
-    {
-      "slug": "scaffold-nextjs",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
       "slug": "schedule-dependency-waves",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "scheduler",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "scrape",
-      "plugin": "odin-research",
-      "files": 2
-    },
-    {
-      "slug": "secure-npm-package",
-      "plugin": "odin-release",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "security-finding-verification",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
-    },
-    {
-      "slug": "security-hardening",
-      "plugin": "odin-security",
-      "files": 8
     },
     {
       "slug": "security-review",
-      "plugin": "odin-security",
+      "plugin": "dstack-core",
       "files": 3
     },
     {
-      "slug": "seed-casebook",
-      "plugin": "odin-run",
+      "slug": "setup-repo",
+      "plugin": "dstack-core",
       "files": 2
-    },
-    {
-      "slug": "semgrep-rule-authoring",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "semgrep-security-scan",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "seo-aeo-audit",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
-      "slug": "session-share",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "session-viewer",
-      "plugin": "odin-knowledge",
-      "files": 2
-    },
-    {
-      "slug": "setup",
-      "plugin": "odin-agent",
-      "files": 2
-    },
-    {
-      "slug": "setup-repo-skills",
-      "plugin": "odin-git",
-      "files": 2
-    },
-    {
-      "slug": "setup-ts-deep-modules",
-      "plugin": "odin-typescript",
-      "files": 3
-    },
-    {
-      "slug": "shipping",
-      "plugin": "odin-release",
-      "files": 6
     },
     {
       "slug": "show-me",
-      "plugin": "odin-visual",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "show-me-your-work",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "show-review",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
-      "slug": "show-way",
-      "plugin": "odin-planning",
+      "plugin": "dstack-review",
       "files": 2
     },
     {
       "slug": "simd-intrinsics",
-      "plugin": "odin-native",
+      "plugin": "dstack-performance",
       "files": 3
     },
     {
       "slug": "simplify",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 6
     },
     {
-      "slug": "site-launch-checklist",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
       "slug": "size-the-run",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
-      "slug": "skill-benchmark",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "skill-doctor",
-      "plugin": "odin-agent",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "skill-gap-finder",
-      "plugin": "odin-core",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "skill-scanner",
-      "plugin": "odin-skills",
-      "files": 2
-    },
-    {
-      "slug": "skills-visibility",
-      "plugin": "odin-skills",
+      "plugin": "dstack-skills",
       "files": 2
     },
     {
       "slug": "slicing-code-context",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "smart-contract-audit-prep",
-      "plugin": "odin-security",
+      "plugin": "dstack-code",
       "files": 2
     },
     {
       "slug": "smart-contract-guidelines-advisor",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "smart-contract-secure-workflow",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "smt-solving-with-z3-cvc5",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "snippet-image-rendering",
-      "plugin": "odin-visual",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "social-sentiment",
-      "plugin": "odin-product",
-      "files": 2
-    },
-    {
-      "slug": "solidate",
-      "plugin": "odin-planning",
+      "plugin": "dstack-marketing",
       "files": 2
     },
     {
       "slug": "source-driven",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 3
     },
     {
       "slug": "spec-driven",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 3
-    },
-    {
-      "slug": "spec-driven-implementation",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "spec-to-code-compliance",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
-      "slug": "spi-i2c-baremetal",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "ssotize-audit-fold",
-      "plugin": "odin-knowledge",
-      "files": 2
     },
     {
       "slug": "state-machine-workflow",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "static-analysis",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "ste-korean",
-      "plugin": "odin-writing",
-      "files": 5
-    },
-    {
-      "slug": "stm32-baremetal",
-      "plugin": "odin-native",
+      "plugin": "dstack-planning",
       "files": 2
     },
     {
       "slug": "strace-ltrace",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
-    },
-    {
-      "slug": "strategy",
-      "plugin": "odin-product",
-      "files": 4
     },
     {
       "slug": "strict-validation-setup",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 8
     },
     {
-      "slug": "strike-the-root",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
       "slug": "subagent-driven",
-      "plugin": "odin-run",
+      "plugin": "dstack-core",
       "files": 10
     },
     {
-      "slug": "substack-ghostwriting",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "summarize-document-set",
-      "plugin": "odin-research",
-      "files": 2
-    },
-    {
       "slug": "supply-chain-risk-auditor",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 3
     },
     {
-      "slug": "swarm",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
       "slug": "sync-docs",
-      "plugin": "odin-writing",
+      "plugin": "dstack-core",
       "files": 4
     },
     {
-      "slug": "tailwind-best-practices",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
       "slug": "taste",
-      "plugin": "odin-critique",
+      "plugin": "dstack-planning",
       "files": 5
     },
     {
       "slug": "tasty-abstraction",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "tdd",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "teach",
-      "plugin": "odin-learn",
+      "plugin": "dstack-learn",
       "files": 6
     },
     {
-      "slug": "technical-article-writer",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "technical-writing",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
       "slug": "terraform-style-check",
-      "plugin": "odin-infra",
+      "plugin": "dstack-infra",
       "files": 2
-    },
-    {
-      "slug": "test-migration-coverage-gate",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "test-suite-acceleration",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "testing-handbook-generator",
-      "plugin": "odin-skills",
-      "files": 3
     },
     {
       "slug": "tests-adversarial",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
+      "files": 2
+    },
+    {
+      "slug": "tests-practices",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "tests-purge-unneeded",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 6
     },
     {
-      "slug": "thin-repo-pulse",
-      "plugin": "odin-run",
-      "files": 2
-    },
-    {
       "slug": "thumbnail-accuracy-scorecard",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "timers-pwm-baremetal",
-      "plugin": "odin-native",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "to-greenfield",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 2
-    },
-    {
-      "slug": "to-questionnaire",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "to-spec",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "to-tickets",
-      "plugin": "odin-planning",
-      "files": 3
     },
     {
       "slug": "todo-add",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "todos-enhance",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "todos-update",
-      "plugin": "odin-planning",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "token-integration-analyzer",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 3
     },
     {
-      "slug": "toolchain-health",
-      "plugin": "odin-infra",
-      "files": 2
-    },
-    {
-      "slug": "training-report",
-      "plugin": "odin-writing",
-      "files": 2
+      "slug": "triage",
+      "plugin": "dstack-git",
+      "files": 4
     },
     {
       "slug": "triage-security-finding",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "triton-lang",
-      "plugin": "odin-native",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "type-driven",
-      "plugin": "odin-code",
+      "plugin": "dstack-core",
       "files": 5
     },
     {
       "slug": "typescript-best-practices",
-      "plugin": "odin-typescript",
+      "plugin": "dstack-typescript",
       "files": 2
     },
     {
       "slug": "typescript-type-hardening",
-      "plugin": "odin-typescript",
-      "files": 2
-    },
-    {
-      "slug": "typing-exclusion-worker",
-      "plugin": "odin-python",
-      "files": 2
-    },
-    {
-      "slug": "typography-audit",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "uart-serial-baremetal",
-      "plugin": "odin-native",
+      "plugin": "dstack-typescript",
       "files": 2
     },
     {
       "slug": "ui-animation",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "ui-design",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "universal-invariant-baseline",
-      "plugin": "odin-code",
-      "files": 2
-    },
-    {
-      "slug": "unleak-abstraction",
-      "plugin": "odin-code",
+      "plugin": "dstack-design",
       "files": 2
     },
     {
       "slug": "unslop",
-      "plugin": "odin-writing",
+      "plugin": "dstack-core",
       "files": 4
     },
     {
-      "slug": "valgrind",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "validate-changes-match-specs",
-      "plugin": "odin-review",
-      "files": 2
-    },
-    {
       "slug": "validation-first-driven",
-      "plugin": "odin-testing",
+      "plugin": "dstack-core",
       "files": 6
     },
     {
       "slug": "vector-forge",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "verification-before-completion",
-      "plugin": "odin-core",
-      "files": 2
-    },
-    {
-      "slug": "verification-skill",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "verify-both-ways",
-      "plugin": "odin-research",
-      "files": 2
-    },
-    {
-      "slug": "verify-this",
-      "plugin": "odin-testing",
-      "files": 2
-    },
-    {
-      "slug": "verilog-basics-for-lowlevel",
-      "plugin": "odin-native",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "viral-opportunity-scout",
-      "plugin": "odin-product",
+      "plugin": "dstack-marketing",
       "files": 2
-    },
-    {
-      "slug": "virtual-memory-paging-and-tlb",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "visual-argument-diagram",
-      "plugin": "odin-visual",
-      "files": 2
-    },
-    {
-      "slug": "visual-diagram",
-      "plugin": "odin-visual",
-      "files": 3
     },
     {
       "slug": "visual-diff-review",
-      "plugin": "odin-review",
+      "plugin": "dstack-review",
       "files": 2
     },
     {
       "slug": "vulnerability-triage-brocards",
-      "plugin": "odin-security",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "wait-what",
-      "plugin": "odin-learn",
-      "files": 2
-    },
-    {
-      "slug": "walk-with-me",
-      "plugin": "odin-learn",
-      "files": 2
-    },
-    {
-      "slug": "wasm-emscripten",
-      "plugin": "odin-native",
-      "files": 3
-    },
-    {
-      "slug": "wasm-wasmtime",
-      "plugin": "odin-native",
+      "plugin": "dstack-learn",
       "files": 2
     },
     {
       "slug": "watch-and-repair-pr",
-      "plugin": "odin-git",
-      "files": 2
+      "plugin": "dstack-git",
+      "files": 3
     },
     {
       "slug": "watch-for",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "watch-for-harness-mode",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "watch-for-structured",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 2
     },
     {
       "slug": "wayfinder",
-      "plugin": "odin-planning",
-      "files": 2
-    },
-    {
-      "slug": "web-accessibility-audit",
-      "plugin": "odin-design",
-      "files": 4
-    },
-    {
-      "slug": "web-design-review",
-      "plugin": "odin-design",
-      "files": 2
-    },
-    {
-      "slug": "web-performance-audit",
-      "plugin": "odin-web",
-      "files": 2
-    },
-    {
-      "slug": "webapp-testing",
-      "plugin": "odin-web",
+      "plugin": "dstack-core",
       "files": 2
     },
     {
       "slug": "weekly-review",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-knowledge",
       "files": 2
-    },
-    {
-      "slug": "weekly-synthesis",
-      "plugin": "odin-knowledge",
-      "files": 3
-    },
-    {
-      "slug": "why",
-      "plugin": "odin-research",
-      "files": 15
     },
     {
       "slug": "wizard",
-      "plugin": "odin-run",
+      "plugin": "dstack-run",
       "files": 4
     },
     {
-      "slug": "wontfix",
-      "plugin": "odin-git",
+      "slug": "work-records-summary",
+      "plugin": "dstack-knowledge",
       "files": 2
     },
     {
-      "slug": "work",
-      "plugin": "odin-run",
-      "files": 10
-    },
-    {
-      "slug": "work-records-summary",
-      "plugin": "odin-knowledge",
+      "slug": "workflow-capacity-audit",
+      "plugin": "dstack-infra",
       "files": 2
     },
     {
       "slug": "workflow-evidence-mining",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-knowledge",
       "files": 2
     },
     {
       "slug": "workflow-from-chats",
-      "plugin": "odin-knowledge",
+      "plugin": "dstack-knowledge",
       "files": 2
     },
     {
       "slug": "workflows-driven",
-      "plugin": "odin-run",
+      "plugin": "dstack-core",
       "files": 5
-    },
-    {
-      "slug": "workspace-unfreeze",
-      "plugin": "odin-agent",
-      "files": 2
     },
     {
       "slug": "worktree",
-      "plugin": "odin-git",
+      "plugin": "dstack-git",
       "files": 3
     },
     {
-      "slug": "write-product-spec",
-      "plugin": "odin-product",
-      "files": 2
-    },
-    {
-      "slug": "writing-beats",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
       "slug": "writing-for-agents",
-      "plugin": "odin-skills",
+      "plugin": "dstack-core",
       "files": 5
     },
     {
-      "slug": "writing-fragments",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
-      "slug": "writing-isabelle-proofs",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "writing-lean-proofs",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "writing-rocq-proofs",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "writing-shape",
-      "plugin": "odin-writing",
-      "files": 2
-    },
-    {
       "slug": "writing-tla-plus-specs",
-      "plugin": "odin-formal",
-      "files": 2
-    },
-    {
-      "slug": "wycheproof",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "xcode-simulator-testing",
-      "plugin": "odin-apple",
+      "plugin": "dstack-testing",
       "files": 2
     },
     {
       "slug": "yara-rule-authoring",
-      "plugin": "odin-security",
-      "files": 3
-    },
-    {
-      "slug": "zephyr",
-      "plugin": "odin-native",
+      "plugin": "dstack-security",
       "files": 3
     },
     {
       "slug": "zeroize-audit",
-      "plugin": "odin-security",
-      "files": 2
-    },
-    {
-      "slug": "zig-build-system",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "zig-cinterop",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "zig-compiler",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "zig-comptime",
-      "plugin": "odin-native",
+      "plugin": "dstack-security",
       "files": 2
     },
     {
       "slug": "zig-cross",
-      "plugin": "odin-native",
+      "plugin": "dstack-native",
       "files": 3
-    },
-    {
-      "slug": "zig-debugging",
-      "plugin": "odin-native",
-      "files": 2
-    },
-    {
-      "slug": "zig-testing",
-      "plugin": "odin-native",
-      "files": 2
     }
   ]
 }

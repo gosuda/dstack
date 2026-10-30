@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared repo-grounding project-profile cache: deterministic get/put.
 
-Owner copy; pov invokes this by relative path.
+Owner copy; the brainstorm skill invokes this by path per references/repo-profile-cache.md.
 
 This helper owns the *deterministic* cache I/O for the question-agnostic
 project profile that repo-grounding skills reuse. The non-deterministic

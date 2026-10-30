@@ -7,4 +7,4 @@
 | JavaScript/TypeScript | `npm audit`, `pnpm audit`, `bun audit` | `gitleaks`, `trufflehog` | `cyclonedx-bom`, `syft` |
 | Go | `govulncheck`, `nancy` | `gitleaks`, `trufflehog` | `cyclonedx-gomod`, `syft` |
 | Java/Kotlin | OWASP Dependency-Check, `gradle dependencyCheckAnalyze` | `gitleaks`, `trufflehog` | CycloneDX Gradle/Maven, `syft` |
-| OCaml | `opam audit`, opam-repository advisory feed | `gitleaks`, `detect-secrets` | `syft` (filesystem) |
+| OCaml | `opam audit` plugin, opam-repository advisory feed | `gitleaks`, `detect-secrets` | `syft` (filesystem) |

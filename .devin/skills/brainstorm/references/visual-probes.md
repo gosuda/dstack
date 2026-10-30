@@ -125,4 +125,4 @@ Use OS temp by default because visual probes are disposable scratch:
     display-info.json
 ```
 
-Use `.context/odin/brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. The final requirements doc in `docs/plans/` is the durable artifact.
+Use `.context/odin/brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. For software brainstorms, the final requirements doc in `docs/plans/` is the durable artifact. From the universal (non-software) route, do not write a requirements-only plan under `docs/plans/` (draft the next artifact directly in conversation per `universal-brainstorming.md`).

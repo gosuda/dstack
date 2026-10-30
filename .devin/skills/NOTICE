@@ -1,7 +1,7 @@
 Third-party notices
 
-ODIN 2.0 includes or adapts material from the sources listed below. Source URLs pin the reviewed
-revision. Local adaptations have been modified for the ODIN skill format and conventions.
+Dalcom Skills includes or adapts material from the sources listed below. Source URLs pin the reviewed
+revision. Local adaptations have been modified for the DStack skill format and conventions.
 
 MIT-licensed works
 
@@ -20,6 +20,13 @@ Source: https://github.com/EveryInc/compound-knowledge-plugin/tree/766942e9eaee5
 License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2026 Every, Inc.
 Local adaptations: knowledge-refresh, plan, readiness-assessment
+
+EveryInc/compound-engineering-plugin — reviewed current source
+Source: https://github.com/EveryInc/compound-engineering-plugin/tree/fbd794f329f5b65d0ea00a5e6487336c385ff2be
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2025 Every
+Local adaptations: compound, autolearn, plan
+Scope: `plugins/dstack-core/skills/compound/SKILL.md` (ce-compound + keep-why rationale folds), `plugins/dstack-core/skills/autolearn/SKILL.md` (ce-compound-refresh merge), `plugins/dstack-core/skills/plan/SKILL.md` (selective ce-plan insertions). No new skill. keep-why MIT attribution + nine adaptation names preserved; keep-why-setup-wizard body unavailable, not ported.
 
 Jia-Ethan/github-solution-research
 Source: https://github.com/Jia-Ethan/github-solution-research
@@ -61,11 +68,18 @@ Local adaptations: api-and-interface-design, browser-testing, ci-cd, code-simpli
   incremental-implementation, askme, observability, orchestration-patterns, plan,
   security-hardening, shipping, skill-gap-finder, source-driven, spec-driven
 
+addyosmani/agent-skills (reviewed current-source selective adaptations)
+Source: https://github.com/addyosmani/agent-skills/tree/aeac41d4d005999432bb7312f7ff06383a91d59d
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2025 Addy Osmani
+Local adaptations: askme, grill-core, ideate-multiple-agents, optimize, review, tests-practices (formerly tdd)
+Scope: `plugins/dstack-core/skills/askme/SKILL.md`, `plugins/dstack-core/skills/grill-core/SKILL.md` (debugging fold), `plugins/dstack-planning/skills/ideate-multiple-agents/SKILL.md`, `plugins/dstack-performance/skills/optimize/SKILL.md`, `plugins/dstack-review/skills/review/SKILL.md`, `plugins/dstack-core/skills/tests-practices/SKILL.md`. `brainstorm` excluded — ideation adaptation belongs to `ideate-multiple-agents` only.
+
 agent-sh
 Source: https://github.com/agent-sh
 License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2026 Avi Fenesh
-Local adaptations (ported in 1.15.43; some later renamed or retired): repo-intel, agnix, deslop, sync-docs, banthis, drift-detect, audit-project, onboard, can-i-help, learn, system-prompt-curator, skillers, agent-surface-forge, perf-investigate, next-task
+Local adaptations: audit-project, can-i-help, deslop, drift-detect, onboard, sync-docs
 
 bentossell/visualise
 Source: https://github.com/bentossell/visualise/tree/35cd185b58af5db2f9d0fe13d9872b544a467483
@@ -120,11 +134,26 @@ Local adaptations: autoplan, browse, browser-cookie-store, browser-qa, canary-de
   polished-web-prototype, release-gate, release-landing-report, scrape, skill-benchmark,
   toolchain-health, web-design-review, workspace-unfreeze
 
+garrytan/gstack (reviewed upstream-port additions)
+Source: https://github.com/garrytan/gstack/tree/4729f4752ba6aa6524f52fa49f51c28779a3ea24
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2026 Garry Tan
+Local adaptations: modernize, plan-complete, grill-core
+Scope: `plugins/dstack-git/skills/modernize/SKILL.md`, `plugins/dstack-core/skills/plan-complete/SKILL.md`, insertion into surviving `plugins/dstack-core/skills/grill-core/SKILL.md` (prior `odin-planning/plan-complete` and `odin-code/strike-the-root` paths superseded; strike-the-root folds, no shadow copy)
+The MODERNIZE / REWORK / CLOSE verdict names are credited as ideas-not-text from tstack at https://github.com/t3dotgg/tstack, `skills/modernize`, revision `7de017b3`. No tstack sentence copied, no tstack file distributed, so tstack MIT text not bundled.
+
 humanlayer/skills
 Source: https://github.com/humanlayer/skills
 License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2026 HumanLayer
 Local adaptations: show-me
+
+jonathimer/devmarketing-skills
+Source: https://github.com/jonathimer/devmarketing-skills/tree/500b44b532202928792a34ce80f349aafe2537
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2026 Jonathan Reimer
+Local adaptations: competitive-content, competitive-intelligence, developer-advocacy, developer-audience-context, developer-champion-programs, developer-community, developer-community-posting, developer-content, developer-discovery-surfaces, developer-docs-led-growth, developer-lifecycle-messaging, developer-listening, developer-publishing, developer-release-communication, developer-search, developer-social-drafts, developer-utility-growth, developer-video, open-source-adoption
+Note: upstream commit message says 33 skills; pinned tree/README enumerate 34. Fictional example-apitest.md used for shape only.
 
 mattpocock/skills
 Source: https://github.com/mattpocock/skills/tree/6654f6b60cd9d5be8b54c6fafe44346dabeb3b76
@@ -138,6 +167,20 @@ Local adaptations: agent-environment-retrospective, answer-stub-questionnaire, a
   setup-ts-deep-modules, sourced-learning-workspace, spec-driven, teach, to-questionnaire,
   to-spec, to-tickets, wait-what, wayfinder, wizard, writing-beats, writing-for-agents,
   writing-fragments, writing-shape
+
+mattpocock/skills — reviewed current source
+Source: https://github.com/mattpocock/skills/tree/59db609eb1e18aaf59b63284d0e52255aff0c63c
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2026 Matt Pocock
+Reviewed source paths:
+  skills/engineering/codebase-design/SKILL.md
+  skills/engineering/codebase-design/DEEPENING.md
+  skills/engineering/codebase-design/DESIGN-IT-TWICE.md
+  skills/engineering/improve-codebase-architecture/SKILL.md
+  skills/engineering/improve-codebase-architecture/HTML-REPORT.md
+Local adaptation:
+  architect — current-source incorporation of portable deepening and YAGNI-scoped survey behavior (`plugins/dstack-core/skills/architect/SKILL.md`)
+ODIN-authored (not Pocock): plan-complete — new completion/readiness owner grounded in settled ODIN plan + four PlanCompletion reviews; current Matt source has no plan-complete path. resolve-merge-conflicts retained as historical provenance only; current revision removed it.
 
 mblode/agent-skills
 Source: https://github.com/mblode/agent-skills/tree/e97a3b383f5944f90d41eb92b24b4fb3b917a7f9
@@ -194,7 +237,7 @@ License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2026 Samuel Berthe
 Local adaptations: chrome-extension, conventional-git, copywriting,
   copywriting-tone-of-voice-creator, deep-research, frontend-design-deslop, humaniseur-fr,
-  humanizer-en-asd-ste100, influence-and-negotiation, linkedin-ghostwriting,
+  humanizer-simple-english-asd-ste100, influence-and-negotiation, linkedin-ghostwriting,
   press-release-writer, promql-cli, site-launch-checklist, writing-for-agents,
   snyk-agent-scan-compliance, substack-ghostwriting, technical-article-writer,
   training-report
@@ -293,6 +336,19 @@ Copyright: Copyright (c) 2024 Apollo Graph, Inc.
 Local adaptations: idiomatic-rust (skill wrapper; the handbook chapters are listed under
   apollographql/rust-best-practices below)
 
+ztemerbekov/a1-marketing-skills
+Source: https://github.com/ztemerbekov/a1-marketing-skills/tree/8adddbaf6e18ed4fa03480a2cb30d4339e5fda2d
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2026 Zinnur Temerbekov
+Local adaptations: content-evidence-brief, marketing-assumption-grill, marketing-behavior-audit, marketing-decision-map, offer-page-brief
+Derivative note: per pinned A1 spec, a1-grill adapts Pocock grilling (1495d014303e041c51c29f9e442485ba06f5878d) and a1-wayfinder adapts Pocock wayfinding (38d62e71ed01fc05d5ae63b0807172e9546049d5). Behavioral rebuild only; no A1 footer/icons/manifests/evals copied. Pocock provenance also covered by existing mattpocock/skills NOTICE entry.
+
+ast-grep catalog
+Source: https://ast-grep.github.io/catalog/
+License: MIT (https://opensource.org/licenses/MIT)
+Copyright: Copyright (c) 2022-2026 Herrington Darkholme
+Local adaptations: ast-grep (recipes reference: plugins/dstack-code/skills/ast-grep/references/recipes.md)
+
 The MIT permission text below applies to every work in the preceding section. Each work retains the
 copyright notice shown with its source. bentossell/visualise declares MIT in its README but supplies
 no copyright notice at the pinned revision; this file does not invent one.
@@ -333,7 +389,16 @@ Source: https://github.com/apollographql/rust-best-practices/tree/b26fa6f15253cd
 License: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0)
 Copyright: The repository's LICENSE carries the Apache-2.0 text without a named copyright line;
   the handbook is published by Apollo Graph, Inc.
-Local adaptations: idiomatic-rust (references/chapter_01.md through chapter_09.md)
+Local adaptations: idiomatic-rust topic references:
+  references/coding-styles-and-idioms.md
+  references/clippy-and-linting.md
+  references/performance.md
+  references/errors-and-resilience.md
+  references/testing.md
+  references/generics-and-dispatch.md
+  references/type-state-pattern.md
+  references/comments-versus-documentation.md
+  references/pointers-and-thread-safety.md
 
 huggingface/kernels
 Source: https://github.com/huggingface/kernels/tree/a7f0afdb29a6a3372b1d47180cc0c182454c5e3b/kernel-builder/skills/cpu-kernels
@@ -342,6 +407,23 @@ Copyright: The repository's LICENSE carries the Apache-2.0 text without a named 
   the skill is published by Hugging Face.
 Local adaptations: cpu-kernel-authoring (the bundled correctness comparator is replaced by a
   dtype-aware structured comparator)
+
+apache/magpie
+Source: https://github.com/apache/magpie/tree/338e8e97934502ddbcccf0e6c7e08d2281a15061
+License: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+Copyright: Copyright 2026 The Apache Software Foundation
+Upstream NOTICE attribution:
+Apache Magpie
+Copyright 2026 The Apache Software Foundation
+
+Apache Airflow
+Copyright 2016-2026 The Apache Software Foundation
+
+Apache Groovy
+Copyright 2003-2026 The Apache Software Foundation
+
+Local adaptations: resolve (one-batch audit-finding route), review (three-pass correctness/security/conventions merge), review-fix-loop, supply-chain-risk-auditor (dependency-audit enrichment), workflow-capacity-audit, license-compliance-audit (folded into security-review)
+Scope: `plugins/dstack-core/skills/resolve/SKILL.md`, `plugins/dstack-review/skills/review/SKILL.md`, `plugins/dstack-core/skills/review-fix-loop/SKILL.md`, `plugins/dstack-security/skills/supply-chain-risk-auditor/SKILL.md`, `plugins/dstack-infra/skills/workflow-capacity-audit/SKILL.md`, `plugins/dstack-core/skills/security-review/SKILL.md` (license-compliance-audit fold). No Magpie scripts bundled; Magpie vetted-ops/ASF-config/external-reviewer machinery rejected.
 
 The Apache License, Version 2.0 applies to the preceding works. The full license is included in this
 distribution as LICENSE and is also available at https://www.apache.org/licenses/LICENSE-2.0.
@@ -376,7 +458,16 @@ Local adaptations: sanitizers, agentic-actions-injection-audit, atheris,
   vector-forge, vulnerability-triage-brocards,
   writing-lean-proofs, wycheproof, yara-rule-authoring, zeroize-audit
 
-The preceding material is attributed to Trail of Bits and was modified for ODIN 2.0. It is
+trailofbits/skills (current-revision adaptations)
+Source: https://github.com/trailofbits/skills/tree/2be6433b39e009cd2b6fd3be1895f6b1faa5af9a
+License: CC-BY-SA-4.0 (https://creativecommons.org/licenses/by-sa/4.0/legalcode)
+Copyright: Made by Trail of Bits
+Scope delimitation: the historical d1f1575… row records adaptations made for ODIN 2.0 and covers only its own Local adaptations line (including prior project-findings-onto-graph work at that revision). Current 2be6433… entry covers only: (a) rebuilt entry-point-analyzer and variant-hunt modes, (b) restored /fix security-proof matrix, (c) let-fate-decide port — and no other project-findings-onto-graph, /fix, or Trail-derived material. Neither entry re-attributes the other's work; review-fix-loop attributed to neither Trail entry.
+Local adaptations (scope group 1, security, substantially rewritten): project-findings-onto-graph entry-point-analyzer mode, variant-hunt mode, restored /fix security-sensitive repair-proof material. ODIN destinations: plugins/dstack-security/skills/project-findings-onto-graph/SKILL.md, plugins/dstack-core/skills/fix/SKILL.md (historical code-improver stays on d1f1575...). Upstream source paths for project-findings-onto-graph: plugins/entry-point-analyzer/skills/entry-point-analyzer/SKILL.md, plugins/variant-analysis/skills/variant-analysis/SKILL.md.
+Local adaptations (scope group 2, let-fate-decide port): let-fate-decide (plugins/dstack-core/skills/let-fate-decide/; SKILL.md, scripts/draw.py stdlib replacement, agents/draw.md, references/SOURCE-MAP.md; 92-file corpus: 78 cards + 12 houses + 2 references, byte-identical to the pinned source). Upstream plugin author named upstream as Scott Arciszewski; version 1.2.6. Modifications: odin-core home, stdlib python3 instead of uv, always-on fail-closed asset verification, isolated test-only --seed, dropped --legacy, no bundled trademark (trail-of-bits-mark.svg excluded per Section 2(b)(2)). Patent and trademark rights are not licensed; upstream trail-of-bits-mark.svg is explicitly excluded and must not be copied, recolored, or used as branding.
+Distributed under CC-BY-SA-4.0. No Trail sponsorship or endorsement implied. No Trail of Bits logo, mark, brand color, or marketplace metadata is included.
+
+The preceding material is attributed to Trail of Bits and was modified for ODIN. It is
 distributed under the Creative Commons Attribution-ShareAlike 4.0 International License. Legal code:
 https://creativecommons.org/licenses/by-sa/4.0/legalcode.
 

@@ -1,67 +1,98 @@
 ---
 name: tests-adversarial
-description: 'Use when hardening error handling, validating boundary behavior, or hunting silent failures. Not for feature development: use tdd. Not for test deletion: use tests-purge-unneeded.'
+description: 'Use when hardening error handling, validating boundary behavior, or hunting silent failures. Not for feature development: use tests-practices. Not for test deletion: use tests-purge-unneeded.'
 ---
 
 # Adversarial test authoring
 
-## Contract
+Most suites prove the happy path works. This job proves the sad paths fail loudly. You write tests that attack inputs, ordering, timing, state, resources, and impossible cases, and you fix any silent failure they expose so every failure path produces a descriptive error.
 
-| Field | Bound contract |
+This job is reversible and local. You write only test files, local artifacts, and the minimal production changes needed to make silent failures signal. Rollback is reverting the commit or deleting the added files. There is no remote mutation.
+
+## What you need before starting
+
+| Input | Why it matters |
 |---|---|
-| Trigger | The work is hardening error handling, validating boundary behavior, or hunting silent failures. |
-| Authority | Reversible local: writes only test files, local artifacts, and minimal production code changes to fix silent failures discovered by the tests; rollback is reverting the commit or deleting added files. No remote mutation. |
-| Side effect | Writes assumption-violation tests over inputs, ordering, timing, state, resources, and impossible cases; fixes silent failures in production code so every failure path signals; runs sanitized race-detector gates. |
-| Done | Every documented assumption has a violation test, every failure path produces a descriptive error, and every selected sanitizer available on the toolchain passes with zero warnings; a sanitizer unavailable on the toolchain is recorded as a gap and never excuses a failure in one that ran. |
+| Code under test | The source files, modules, or functions to harden. Required. |
+| Language runtime and sanitizer toolchain | The compiler, test runner, and available sanitizers (ASan, TSan, MSan, Miri, `-race`, or equivalent). Required. |
+| Existing suite | Prior tests, so you avoid duplication and can see the gaps. Optional. |
 
-## Inputs
+Three lines you do not cross: never commit with an unresolved sanitizer warning, never commit while silent failures remain, and never commit while documented assumptions lack violation tests. A gate that fails stops the work at that gate.
 
-- Code under test (required): source files, modules, or functions to harden.
-- Language runtime and sanitizer toolchain (required): compiler, test runner, and available sanitizers (ASan, TSan, MSan, Miri, `-race`, or equivalent).
-- Existing test suite (optional): prior tests to avoid duplication and to identify gaps.
+## Recording what the code assumes
 
-## Refusals
+Read the code for what it actually does, not what its documentation claims. For each function or module, record the assumptions that touch error paths, boundary behavior, or silent failures. Cover these six categories and skip correct-path behavior the existing suite already proves:
 
-- Will not commit while any sanitizer warning is unresolved.
-- Will not commit while silent failures remain; every failure path must produce a descriptive error.
-- Will not commit while untested assumptions remain; every documented assumption needs a violation test.
-- Will not accept partial results; if any gate fails, the procedure stops at that gate.
+| Category | What to record |
+|---|---|
+| Inputs | Types, nullability, ranges, empty collections, boundary values, encoding |
+| Ordering | Argument order, sequence dependencies, lifecycle ordering, concurrent call interleaving |
+| Timing | Timeouts, premature delivery, clock skew, token expiry mid-operation |
+| State | Half-initialized state, shared-state corruption during operation, post-error recovery, double-close |
+| Resources | File descriptor exhaustion, disk full, permission revocation, allocation failure, connection pool saturation |
+| Impossible cases | Concurrent modification during iteration, recursive re-entry, self-referential data, deep nesting overflow |
 
-## Procedure
+Each assumption becomes a named, executable check with a unique identifier. You are done with this pass when every error-surface assumption is named.
 
-1. **Read the code under test.** Understand actual behavior, not documentation claims. **Done when:** the code's real behavior is understood.
+## Writing one violation per assumption
 
-2. **Document implicit assumptions, bounded to the error surface.** For each function or module, record assumptions across six categories that affect error paths, boundary behavior, or silent failures: inputs (types, nullability, ranges, empty collections, boundary values, encoding); ordering (argument order, sequence dependencies, lifecycle ordering, concurrent call interleaving); timing (timeouts, premature delivery, clock skew, token expiry mid-operation); state (half-initialized state, shared-state corruption during operation, post-error recovery, double-close); resources (file descriptor exhaustion, disk full, permission revocation, allocation failure, connection pool saturation); impossible cases (concurrent modification during iteration, recursive re-entry, self-referential data, deep nesting overflow). Do not enumerate assumptions about correct-path behavior that the existing test suite already covers. **Done when:** every error-surface assumption is a named, executable check with a unique identifier.
+Name each test after the violation it proves, such as `test_rejects_negative_quantity` or `test_recovers_from_mid_write_crash`. Test through the public API only. If triggering a failure needs private access, record that as a finding. You are done when every documented assumption has at least one violation test.
 
-3. **Write one violation test per assumption.** Name each test after what it violates (e.g., `test_rejects_negative_quantity`, `test_handles_empty_result_set`, `test_recovers_from_mid_write_crash`). Test through the public API only; if private access is needed to trigger a failure, record that as a finding. **Done when:** every documented assumption has at least one violation test.
+## Throwing the standard attacks
 
-4. **Apply attack vectors systematically.** Data: zero, negative, MAX_INT, NaN, Infinity, negative zero, empty string, null bytes, multi-byte Unicode (emoji, RTL, ZWJ), empty/single/capacity collections, encode-corrupt-decode. State: double-close, use-after-dispose, read-after-error, concurrent mutation during iteration or serialization, half-written interrupted state, out-of-state-machine events. Environment: file not found, permission denied, disk full, read-only filesystem, network timeout, connection reset, DNS failure, partial write, clock jumps, OOM during cleanup. Protocol: out-of-order messages, duplicate delivery, missing acknowledgment, partial writes (truncated JSON/protobuf), version mismatch, request after close, response after timeout. **Done when:** every attack vector category has at least one test per applicable assumption.
+Run these attack families against every applicable assumption:
 
-5. **Verify error quality and fix silent failures.** Every failure path must produce a descriptive error. Silent corruption or generic messages are failures. When a test exposes a silent failure in production code, apply the minimal fix that makes the failure path signal descriptively: add an error return, raise a typed exception, or log and propagate. Do not refactor unrelated code or widen scope. **Done when:** every failure path produces a descriptive, non-generic error.
+- Data: zero, negative, MAX_INT, NaN, Infinity, negative zero, empty string, null bytes, multi-byte Unicode (emoji, RTL, ZWJ), empty, single, and capacity-sized collections, encode-corrupt-decode.
+- State: double-close, use-after-dispose, read-after-error, concurrent mutation during iteration or serialization, half-written interrupted state, out-of-state-machine events.
+- Environment: file not found, permission denied, disk full, read-only filesystem, network timeout, connection reset, DNS failure, partial write, clock jumps, OOM during cleanup.
+- Protocol: out-of-order messages, duplicate delivery, missing acknowledgment, partial writes (truncated JSON or protobuf), version mismatch, request after close, response after timeout.
 
-6. **Test boundaries from both sides.** If the limit is N, test N-1, N, and N+1. If the limit is 0, test -1, 0, and 1. **Done when:** every boundary is tested from both sides.
+## Testing the boundaries from both sides
 
-7. **Run sanitizer gates.** Select sanitizers by failure class and language, at most two per run to keep the gate tractable:
-   - Memory safety in C/C++: ASan. Add MSan when uninitialized reads are in scope.
-   - Data races in concurrent languages: TSan (C/C++/Go), `-race` (Go), ThreadSanitizer (Swift).
-   - Rust unsafe code: Miri.
-   - Java: ThreadSanitizer or `-XX:+UseThreadSanitizer` where available.
-   If the project's toolchain does not support a selected sanitizer, record the gap and proceed with the available one. Execute the full test suite under each selected sanitizer. Tests that pass without sanitizers may hide undefined behavior. **Done when:** all tests pass under the selected sanitizers with zero warnings, or unsupported sanitizer gaps are recorded.
+If the limit is N, test N-1, N, and N+1. If the limit is 0, test -1, 0, and 1.
 
-8. **Commit test files and silent-failure fixes.** Stage and commit with a message identifying the assumptions violated, the silent failures fixed, and the sanitizer results. **Done when:** the commit is made with the assumption list, fix list, and sanitizer results in the message.
+## Keeping negative tests honest
 
-## Failure and recovery
+A negative-path test must witness entry into the protected path and assert the intended rejection or recovery. A shared error code, an empty result, or an elapsed timeout is not proof. Reject empty assertion populations and malformed fixtures that never reach the behavior under test.
 
-| Failure class | Detection | Recovery |
-|---|---|---|
-| Untested assumptions | Assumption list has entries without corresponding violation tests | Write the missing tests before committing |
-| Silent failures | Code swallows errors or produces wrong output without signaling | Apply the minimal production fix that makes the failure path signal; do not commit until error paths produce descriptive output |
-| Crashes or panics | Unhandled exceptions, segfaults, or undefined behavior under sanitizers | Flag as exit code 3; fix or document the defect before committing |
-| Sanitizer warnings | Non-zero warning count from the selected sanitizers | Do not commit; resolve every warning |
-| Sanitizer unavailable | The selected sanitizer is not supported by the project toolchain | Record the gap; proceed with the available sanitizer; note the unsupported gap in the commit message |
+| Test kind | What honesty requires |
+|---|---|
+| Checker and inventory tests | Start with a valid fixture, introduce one defect per scenario, and demand its specific diagnostic. Check required inventory against the independently settled contract, not only manifest-tree agreement. Cover missing required items, unmanifested items, and altered generated results when those are in scope. A missed defect is a coverage finding, never automatic permission to delete the checker. |
+| Default and literal tests | Classify default references as expectations, invalid inputs, or explicit alternatives before changing them. Keep the pinned product requirement as text and state the check as an independent property. Use literals as input data only, never as the verdict. For producer-consumer agreement, compare the actual producer against the composed consumer segment, exercise every relevant composition path, and fail if a pointer lacks its owner there. Do not widen the bundle merely to make the assertion pass. |
+| Shared-state and concurrency tests | Build a causal poison-before-victim or held-operation scenario, witness the protected state, assert the guard-specific result, and release or cancel deterministically. Choose cleanup hooks from the actual lifecycle. Redundant hooks need a joint explanation rather than invented independent necessity. |
+| Subprocess tests | Derive the test budget from the product contract and an explicitly named test bound. Witness actual spawn and route reachability, use a fake that obeys the real argument and result-channel contract, and test required cancellation or signal threading per distinct route. Observe owned-child termination and reaping. Never infer success from a fail-open return that could occur before spawning. |
+| Target and harness tests | Exercise the claimed minimum runtime, the actual parser, the package entrypoint, or the real substrate when that is the boundary under test. Keep instrumentation-compatible containment. Do not remove resource protection solely from an unvalidated environment heuristic. Publish executable fixtures completely before launch and isolate packaged artifacts from development fallbacks. |
 
-Partial results are not accepted. If any gate fails, the procedure stops at the failing gate and reports the exit code. No rollback is needed because no commit occurs until all gates pass.
+Temporary production mutations used to establish causal test coverage need a separately authorized regression-proof workflow. The authority to fix discovered silent failures below is not blanket authority to mutate arbitrary production guards.
 
-## Output
+## Fixing the silent failures you find
 
-A validation gate table (assumptions documented, violations tested, errors meaningful, sanitizers pass) with exit code 0 (all clear), 1 (untested assumptions), 2 (silent failures), or 3 (crashes or panics), followed by the exit code with its meaning.
+Every failure path must produce a descriptive error. Silent corruption and generic messages are failures. When a test exposes one, apply the minimal production fix that makes the path signal: add an error return, raise a typed exception, or log and propagate. Do not refactor unrelated code or widen scope.
+
+## Running the sanitizer gates
+
+Pick sanitizers by failure class and language, at most two per run to keep the gate tractable:
+
+| Situation | Sanitizer |
+|---|---|
+| Memory safety in C or C++ | ASan, plus MSan when uninitialized reads are in scope |
+| Data races in concurrent languages | TSan (C, C++, Swift), `-race` (Go) |
+| Rust unsafe code | Miri |
+| Java | No ThreadSanitizer exists for standard Java toolchains. Record the gap and use the available checks. |
+
+If the project toolchain does not support a selected sanitizer, record the gap and proceed with the available one. Run the full suite under each selected sanitizer, since tests that pass without sanitizers can hide undefined behavior. You are done when everything passes with zero warnings, or the unsupported gaps are recorded.
+
+## Committing the work
+
+Stage and commit once all gates pass, with a message naming the assumptions violated, the silent failures fixed, and the sanitizer results. No commit happens until every gate passes, so no rollback is ever needed.
+
+## Reading the exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | All clear: assumptions documented, violations tested, errors meaningful, sanitizers pass |
+| 1 | Untested assumptions remain |
+| 2 | Silent failures remain |
+| 3 | Crashes or panics |
+
+Report the code with its meaning. A sanitizer warning or a crash blocks the commit until it is resolved or documented as a defect. An unavailable sanitizer is recorded as a gap in the commit message and never excuses a failure in one that ran.

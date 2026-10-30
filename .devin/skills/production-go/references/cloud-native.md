@@ -2,12 +2,12 @@
 
 Kubernetes controllers are **level-triggered, idempotent state reconcilers**, not event handlers. `client-go` versions as `v0.<k8s-minor>` (not semver), `controller-runtime` splits its client (**cached reads, direct writes**), webhooks and workqueues went **generic**, and Server-Side Apply replaced GET-modify-PUT. Reconcile the full desired state every call; never assume a read is fresh or an event fires once.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC**, **Kubernetes 1.36** / `client-go` **v0.36.x** / `controller-runtime` **v0.24.1** / `controller-tools` v0.21.0 / Kubebuilder go/v4, 2026-06. This ecosystem moves fast: version tags `[CR vX]` / `[k8s 1.N]` mark the release a claim applies to; patch numbers drift weekly. Deepened from multi-source research, corroborated against pkg.go.dev.
+> Verified against Go **1.27.3** (stable), **Kubernetes 1.37** / `client-go` **v0.37.x** / `controller-runtime` **v0.25.2** / `controller-tools` v0.23.0 / Kubebuilder v4.16.0 go/v4, 2026-06. This ecosystem moves fast: version tags `[CR vX]` / `[k8s 1.N]` mark the release a claim applies to; patch numbers drift weekly.
 
 ## TL;DR: the modern deltas (read first)
 
-- `client-go` is `v0.<k8s-minor>.<patch>`, NOT semver. `v0.36.x` ⇔ k8s 1.36; `apimachinery` matches. The `kubernetes-1.x.y` tags are legacy (pre-1.17). There is no "client-go v1".
-- controller-runtime version is locked to a k8s minor: **CR v0.24 ⇔ k8s 1.36 ⇔ client-go v0.36**; v0.23⇔1.35, v0.22⇔1.34, v0.21⇔1.33, v0.20⇔1.32. The README is explicit: cross-minor pairings are "neither supported nor tested" and often won't compile. CR v0.24 minimum Go is 1.26.
+- `client-go` is `v0.<k8s-minor>.<patch>`, NOT semver. `v0.37.x` ⇔ k8s 1.37; `apimachinery` matches. The `kubernetes-1.x.y` tags are legacy (pre-1.17). There is no "client-go v1".
+- controller-runtime version is locked to a k8s minor: **CR v0.25 ⇔ k8s 1.37 ⇔ client-go v0.37**; v0.23⇔1.35, v0.22⇔1.34, v0.21⇔1.33, v0.20⇔1.32. The README is explicit: cross-minor pairings are "neither supported nor tested" and often won't compile. CR v0.25 minimum Go is 1.26.
 - The webhook builder is generic and lost `.For()` [CR v0.23]. `ctrl.NewWebhookManagedBy(mgr, &T{})` (two args) + typed `admission.Validator[T]`/`Defaulter[T]` structs in `internal/webhook/`. The old `ctrl.NewWebhookManagedBy(mgr).For(r)` + `webhook.Validator` methods **on the API type** are gone. This is the #1 stale-model trap.
 - Workqueues/handlers/sources/predicates are generic: `workqueue.TypedRateLimitingInterface[T]`, `handler.TypedEnqueueRequestForObject[*T]`, `source.TypedKind[T]`. The untyped versions are deprecated aliases.
 - Server-Side Apply via `applyconfigurations` is the idiomatic controller write path, not GET-modify-PUT-retry, not strategic-merge. Build the *apply config* (all-pointer fields), `Force: true`, unique `FieldManager`.
@@ -31,13 +31,13 @@ Kubernetes controllers are **level-triggered, idempotent state reconcilers**, no
 13. [Configuration](#configuration)
 14. [Library landscape & status](#libraries)
 15. [Version & maturity map](#versions)
-16. [What models get wrong](#stale)
+16. [Common mistakes](#stale)
 
 ---
 
 ## client-go: client types & config {#client-go}
 
-> **Agent needs this:** choose the right client and set rate limits: the foundation every K8s controller/tool builds on.
+Choose the right client and set rate limits: this is the foundation every K8s controller and tool builds on.
 
 Four client kinds. Pick by *what you know at compile time* and *how much of the object you need*:
 
@@ -49,26 +49,44 @@ Four client kinds. Pick by *what you know at compile time* and *how much of the 
 | **Discovery** | `k8s.io/client-go/discovery` | API group/version lists | Feature detection; pair with dynamic. |
 
 ```go
-config, err := rest.InClusterConfig()        // in-cluster; or clientcmd.BuildConfigFromFlags("", kubeconfig)
-config.QPS, config.Burst = 50, 100           // CRITICAL: default is 5 QPS / 10 burst — silent client-side throttling
+config, err := rest.InClusterConfig() // in-cluster; or clientcmd.BuildConfigFromFlags("", kubeconfig)
+if err != nil {
+    return err
+}
+config.QPS, config.Burst = 50, 100 // defaults are 5 QPS / 10 burst: silent client-side throttling
 clientset, err := kubernetes.NewForConfig(config)
+if err != nil {
+    return err
+}
 pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+if err != nil {
+    return err
+}
+_ = pods
 
-// Dynamic — runtime flexibility
+// Dynamic: runtime flexibility for arbitrary GVKs.
 gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 list, err := dynClient.Resource(gvr).Namespace("default").List(ctx, metav1.ListOptions{})
+if err != nil {
+    return err
+}
+_ = list
 
-// Metadata — ObjectMeta only; Update unsupported, use Patch
-mc, _ := metadata.NewForConfig(metadata.ConfigFor(config))
+// Metadata: ObjectMeta only; Update unsupported, use Patch
+mc, err := metadata.NewForConfig(metadata.ConfigFor(config))
+if err != nil {
+    return err
+}
+_ = mc
 ```
 
-Traps models hit: omitting `QPS`/`Burst` (the default 5/10 throttles silently; the symptom is mysterious latency under load); `context.TODO()` everywhere instead of a real cancellable `ctx`; assuming GVR `Resource` is the kind (it's the lowercase **plural**: `"deployments"`, not `"Deployment"`). Client-side rate limiting is increasingly superseded by server-side **API Priority & Fairness**, but the client knobs still apply.
+Traps: omitting `QPS`/`Burst` (the default 5/10 throttles silently; the symptom is mysterious latency under load); `context.TODO()` everywhere instead of a real cancellable `ctx`; assuming GVR `Resource` is the kind (it's the lowercase **plural**: `"deployments"`, not `"Deployment"`). Client-side rate limiting is increasingly superseded by server-side **API Priority & Fairness**, but the client knobs still apply.
 
 ---
 
 ## Informers, listers, workqueues {#informers}
 
-> **Agent needs this:** never poll the API server in a loop. Informers maintain a watch-synced local cache; listers read it for free; workqueues decouple detection from processing with backoff.
+Never poll the API server in a loop. Informers maintain a watch-synced local cache; listers read it for free; workqueues decouple detection from processing with backoff.
 
 ```go
 factory := informers.NewSharedInformerFactory(clientset, 30*time.Minute) // resync period; 0 = no resync
@@ -76,14 +94,14 @@ factory := informers.NewSharedInformerFactory(clientset, 30*time.Minute) // resy
 
 podInformer := factory.Core().V1().Pods()
 reg, err := podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-    AddFunc:    func(obj any) { queue.Add(key(obj)) },       // enqueue ONLY — no heavy work in handlers
+    AddFunc:    func(obj any) { queue.Add(key(obj)) },       // enqueue only: no heavy work in handlers
     UpdateFunc: func(_, obj any) { queue.Add(key(obj)) },
     DeleteFunc: func(obj any) { queue.Add(key(obj)) },
-})                                                            // [verify] AddEventHandler returns (registration, error) — handle err
+})                                                            // [verify] AddEventHandler returns (registration, error): handle err
 _ = reg
 
 factory.Start(ctx.Done())
-if !cache.WaitForCacheSync(ctx.Done(), podInformer.Informer().HasSynced) { // ALWAYS wait before reading listers
+if !cache.WaitForCacheSync(ctx.Done(), podInformer.Informer().HasSynced) { // always wait before reading listers
     return errors.New("cache sync failed")
 }
 pods, _ := podInformer.Lister().Pods("default").List(labels.Everything()) // reads cache, zero API calls (eventually consistent)
@@ -98,7 +116,7 @@ for { // run N workers in parallel
     key, shutdown := queue.Get()
     if shutdown { return }
     func() {
-        defer queue.Done(key)                 // ALWAYS — even on error/panic; pairs with Get
+        defer queue.Done(key)                 // always, even on error or panic: pairs with Get
         if err := reconcile(ctx, key); err != nil {
             queue.AddRateLimited(key)         // requeue with per-item exponential backoff
             return
@@ -119,7 +137,7 @@ The preferred controller write path. SSA tracks **field ownership** server-side,
 ```go
 import appsv1ac "k8s.io/client-go/applyconfigurations/apps/v1"
 
-// RIGHT — build the apply CONFIG (all-pointer fields), recreate it fully each reconcile
+// RIGHT: build the apply CONFIG (all-pointer fields); recreate it fully each reconcile
 dep := appsv1ac.Deployment("my-app", "default").
     WithSpec(appsv1ac.DeploymentSpec().WithReplicas(2))
 applied, err := clientset.AppsV1().Deployments("default").
@@ -127,11 +145,11 @@ applied, err := clientset.AppsV1().Deployments("default").
 ```
 
 ```go
-// WRONG — applying a normal API struct sends every zero-valued required field (e.g. replicas: 0,
-// strategy: {}) as an intentional value → can shrink/break the object. Apply configs use all-pointer
-// fields precisely so unset ≠ zero.
+// WRONG: a normal API struct sends every zero-valued required field
+// (replicas: 0, strategy: {}) as an intentional value, which can shrink or break
+// the object. Apply configs use all-pointer fields so unset stays distinct from zero.
 dep := &appsv1.Deployment{ /* ... */ }
-clientset.AppsV1().Deployments("default").Apply(ctx, dep, ...) // type error anyway — Apply wants the *ac type
+clientset.AppsV1().Deployments("default").Apply(ctx, dep, ...) // type error anyway: Apply wants the *ac type
 ```
 
 `Force: true` is correct for a controller (it owns its fields and should win shared-field conflicts). For read-modify-apply preserving other managers' fields, extract first: `appsv1ac.ExtractDeployment(obj, "my-controller")`. In controller-runtime, the equivalent is `client.Apply` with `client.FieldOwner(...)` / `client.ForceOwnership`, or `controllerutil.CreateOrUpdate`/`CreateOrPatch` for the GET-then-mutate style.
@@ -140,9 +158,9 @@ clientset.AppsV1().Deployments("default").Apply(ctx, dep, ...) // type error any
 
 ## Operator development with controller-runtime {#operator-dev}
 
-> **Agent needs this:** scaffold an operator with the *current* Manager/Builder API: the flat `MetricsBindAddress` options and `Requeue bool` are gone.
+Scaffold an operator with the *current* Manager/Builder API: the flat `MetricsBindAddress` options and `Requeue bool` are gone.
 
-Import: `sigs.k8s.io/controller-runtime` **v0.24.x** [CR v0.24] (k8s 1.36). The Manager owns the shared cache, split client, leader election, webhook server, and metrics.
+Import: `sigs.k8s.io/controller-runtime` **v0.25.x** [CR v0.25] (k8s 1.37). The Manager owns the shared cache, split client, leader election, webhook server, and metrics.
 
 ```go
 mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -150,7 +168,7 @@ mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
     Metrics: metricsserver.Options{BindAddress: ":8443", SecureServing: true}, // secure HTTPS is the scaffold default
     LeaderElection:                true,
     LeaderElectionID:              "my-operator.example.com",
-    LeaderElectionReleaseOnCancel: true,                          // fast handoff — safe ONLY if the binary exits promptly
+    LeaderElectionReleaseOnCancel: true,
     HealthProbeBindAddress:        ":8081",
 })
 mgr.AddHealthzCheck("healthz", healthz.Ping)
@@ -160,7 +178,7 @@ mgr.Start(ctrl.SetupSignalHandler()) // blocks until signal; returns error
 ```
 
 ```go
-// WRONG — flat fields removed several minors ago; the kube-rbac-proxy metrics sidecar is also gone
+// WRONG: flat fields removed several minors ago; the kube-rbac-proxy metrics sidecar is also gone
 mgr, _ := ctrl.NewManager(cfg, manager.Options{MetricsBindAddress: ":8080", Port: 9443, CertDir: "/tmp"})
 ```
 
@@ -171,7 +189,7 @@ mgr, _ := ctrl.NewManager(cfg, manager.Options{MetricsBindAddress: ":8080", Port
 ```go
 func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
-        For(&myapiv1.Database{}).                                  // primary type — exactly one
+        For(&myapiv1.Database{}).                                  // primary type: exactly one
         Owns(&appsv1.Deployment{}).                                // enqueue owner on owned-object events (owner refs)
         Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.mapConfigMap)).
         WithEventFilter(predicate.GenerationChangedPredicate{}).   // skip status-only updates → avoid hot loops
@@ -180,13 +198,13 @@ func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 ```
 
-**Typed/generic builders** exist (`reconcile.TypedReconciler[T]`, `source.TypedKind[T]`, `handler.TypedEnqueueRequestForObject[*corev1.Pod]`). But Go through 1.26 forbids type parameters on *methods*, so the builder's `Watches` still takes `handler.TypedEventHandler[client.Object, request]`; a fully-generic `Watches` isn't possible yet (blocked on golang/go#49085; 1.27's generic methods may relax this).
+**Typed/generic builders** exist (`reconcile.TypedReconciler[T]`, `source.TypedKind[T]`, `handler.TypedEnqueueRequestForObject[*corev1.Pod]`). Go through 1.26 forbade type parameters on *methods*; 1.27 shipped generic methods, but interface methods may not declare type parameters nor be implemented by generic methods: so the builder's `Watches` still takes `handler.TypedEventHandler[client.Object, request]`, and a fully-generic `Watches` remains impossible (golang/go#49085).
 
 ---
 
 ## The reconcile loop {#reconcile}
 
-> **Agent needs this:** the idempotent, level-based reconcile that pre-training routinely gets wrong (edge-based handlers, busy-loops, `r.Update` for status).
+Reconcile is idempotent and level-based. Do not write edge-based handlers, busy-loops, or status writes through `r.Update`.
 
 Reconcile is level-triggered: each call observes current state and converges the full desired state; it must be **idempotent** and must not assume which event triggered it. Signal "come back later" with `RequeueAfter`, never a `for`/`sleep`.
 
@@ -214,7 +232,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req reconcile.Reques
         if err := r.Update(ctx, &db); err != nil { return reconcile.Result{}, err }
     }
 
-    // Converge owned resources — SSA or CreateOrUpdate; set the owner ref for GC.
+    // Converge owned resources: SSA or CreateOrUpdate; set the owner ref for GC.
     dep := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: db.Name, Namespace: db.Namespace}}
     _, err := controllerutil.CreateOrUpdate(ctx, r.Client, dep, func() error {
         dep.Spec.Replicas = db.Spec.Replicas
@@ -226,7 +244,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 }
 ```
 
-Return-value semantics (memorize):
+Return-value semantics:
 - `Result{}, nil`: done; requeue only on a watched change.
 - `Result{}, err`: requeue with **exponential backoff** (the rate limiter handles timing; do not sleep).
 - `Result{RequeueAfter: d}, nil`: requeue after `d` (level re-sync / external poll).
@@ -264,7 +282,7 @@ Event recording: `mgr.GetEventRecorderFor("db-controller").Event(obj, corev1.Eve
 
 ## CRDs & code generation {#crds}
 
-CRDs are generated **`apiextensions.k8s.io/v1` only** (controller-tools v0.21.0) with structural schemas. Annotate Go types with kubebuilder markers; `make manifests` / `controller-gen` emits the YAML.
+CRDs are generated **`apiextensions.k8s.io/v1` only** (controller-tools v0.23.0) with structural schemas. Annotate Go types with kubebuilder markers; `make manifests` / `controller-gen` emits the YAML.
 
 Type markers: `+kubebuilder:object:root=true`, `+kubebuilder:subresource:status`, `+kubebuilder:resource:shortName=db,scope=Namespaced`, `+kubebuilder:printcolumn:name=Phase,type=string,JSONPath=.status.phase`.
 Field markers: `+kubebuilder:validation:MinLength=1`, `+kubebuilder:validation:Enum=postgres;mysql`, `+kubebuilder:default=3`, `+kubebuilder:validation:XValidation:rule="self >= oldSelf",message="immutable"` (CEL), `+optional`.
@@ -272,10 +290,10 @@ Field markers: `+kubebuilder:validation:MinLength=1`, `+kubebuilder:validation:E
 Multi-version CRDs use hub-and-spoke conversion: one storage ("hub") version; spokes implement `conversion.Convertible` (`ConvertTo(hub)`/`ConvertFrom(hub)`), hub implements `conversion.Hub`. Exactly one version has `storage: true`; each served version carries a schema. Wire `spec.conversion.strategy: Webhook` and let cert-manager inject the CA (`cert-manager.io/inject-ca-from`). [CR v0.23] lets conversion live outside the API package.
 
 ```go
-// WRONG — every v1beta1 CRD shape was removed in k8s 1.22 (hard error on apply):
+// WRONG: every v1beta1 CRD shape was removed in k8s 1.22 (hard error on apply).
 apiVersion: apiextensions.k8s.io/v1beta1   // removed
 spec:
-  validation: {...}                        // top-level (non-per-version) validation — removed
+  validation: {...}                        // top-level (non-per-version) validation: removed
   preserveUnknownFields: true              // removed; structural schemas required in v1
 ```
 
@@ -283,7 +301,7 @@ spec:
 
 ## Admission webhooks {#webhooks}
 
-> **Agent needs this:** the *current* generic webhook API. Stale models emit `ctrl.NewWebhookManagedBy(mgr).For(r)` and put `Validate*` methods on the API type, both gone since [CR v0.23].
+The *current* generic webhook API: `ctrl.NewWebhookManagedBy(mgr).For(r)` and `Validate*` methods on the API type are both gone since [CR v0.23].
 
 The validator/defaulter is a **separate struct** taking the **concrete typed object**, wired by a **two-argument generic builder** (`internal/webhook/v1/`):
 
@@ -295,7 +313,7 @@ func SetupDatabaseWebhookWithManager(mgr ctrl.Manager) error {
         Complete()
 }
 
-// admission.Validator[T] — replaces deprecated CustomValidator (= Validator[runtime.Object])
+// admission.Validator[T] replaces the deprecated CustomValidator (= Validator[runtime.Object])
 type DatabaseValidator struct{}
 func (v *DatabaseValidator) ValidateCreate(ctx context.Context, obj *myapiv1.Database) (admission.Warnings, error) {
     if obj.Spec.Replicas != nil && *obj.Spec.Replicas > 10 {
@@ -313,7 +331,7 @@ func (v *DatabaseValidator) ValidateDelete(ctx context.Context, obj *myapiv1.Dat
     return nil, nil
 }
 
-// admission.Defaulter[T] — replaces deprecated CustomDefaulter
+// admission.Defaulter[T] replaces the deprecated CustomDefaulter
 type DatabaseDefaulter struct{}
 func (d *DatabaseDefaulter) Default(ctx context.Context, obj *myapiv1.Database) error {
     if obj.Spec.Replicas == nil { three := int32(3); obj.Spec.Replicas = &three }
@@ -322,13 +340,13 @@ func (d *DatabaseDefaulter) Default(ctx context.Context, obj *myapiv1.Database) 
 ```
 
 ```go
-// WRONG (pre-v0.23, the dominant stale pattern):
+// WRONG (pre-v0.23 pattern):
 func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
     return ctrl.NewWebhookManagedBy(mgr).For(r).Complete() // .For() removed; ctor now needs (mgr, &T{})
 }
 var _ webhook.Validator = &Database{}                        // interface-on-the-API-type removed (coupled API to a CR version)
 func (r *Database) ValidateCreate() (admission.Warnings, error) { ... }
-// WRONG — runtime.Object params satisfy only the deprecated CustomValidator alias, not Validator[*Database]:
+// WRONG: runtime.Object params satisfy only the deprecated CustomValidator alias, not Validator[*Database].
 func (v *V) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) { ... }
 ```
 
@@ -353,7 +371,7 @@ Decision: prefer VAP/MAP for label/naming/registry/securityContext/replica-limit
 
 ## Leader election {#leader-election}
 
-> **Agent needs this:** correct single-active-instance controllers. Missing leader election → duplicate reconciliation and conflicts.
+Leader election gives single-active-instance controllers. Without it, replicas reconcile duplicates and conflict.
 
 Uses **Lease objects** (`coordination.k8s.io/v1`) by default; ConfigMap/Endpoints locks are obsolete.
 
@@ -371,8 +389,8 @@ leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
     Lock: lock, ReleaseOnCancel: true,
     LeaseDuration: 15 * time.Second, RenewDeadline: 10 * time.Second, RetryPeriod: 2 * time.Second,
     Callbacks: leaderelection.LeaderCallbacks{
-        OnStartedLeading: run,                       // its ctx is cancelled when leadership is LOST
-        OnStoppedLeading: func() { os.Exit(0) },     // stop ALL work or risk split-brain
+        OnStartedLeading: run,                       // its ctx is cancelled when leadership is lost
+        OnStoppedLeading: func() { os.Exit(0) },     // stop all work here or risk split-brain
     },
 })
 ```
@@ -383,7 +401,7 @@ Invariants: `RetryPeriod < RenewDeadline < LeaseDuration` (`RunOrDie` panics oth
 
 ## Containers & GOMAXPROCS {#containers}
 
-> **Agent needs this:** Go 1.25+ makes `automaxprocs` obsolete.
+Go 1.25+ makes `automaxprocs` obsolete: the runtime reads the cgroup CPU limit natively.
 
 Automatic [Go 1.25+], no code: the runtime reads the cgroup CPU **bandwidth limit** (K8s `limits.cpu`, **not** requests). `limits.cpu: "2"` on an 8-core node ⇒ GOMAXPROCS=2 (cgroup v1 and v2). Without a limit, GOMAXPROCS still defaults to all host CPUs → scheduler thrash under a CFS quota.
 
@@ -393,7 +411,7 @@ Manual override `runtime.GOMAXPROCS(4)`; re-enable auto `runtime.SetDefaultGOMAX
 
 ## Health probes {#health-probes}
 
-> **Agent needs this:** the #1 probe mistake is checking the DB in the liveness probe: a transient DB blip restarts every pod, turning a dependency hiccup into a cascade outage.
+The #1 probe mistake is checking the DB in the liveness probe: a transient DB blip restarts every pod, turning a dependency hiccup into a cascade outage.
 
 | Endpoint | K8s probe | Fail when |
 |---|---|---|
@@ -426,11 +444,11 @@ Fast-moving: pin to the row matching your cluster's k8s minor.
 
 | Library | Status [mid-2026] | Note |
 |---|---|---|
-| `k8s.io/client-go` | **v0.36.x** ⇔ k8s 1.36 *(fast-moving)* | `v0.<minor>` scheme since 1.17; not semver |
-| `k8s.io/apimachinery` | **v0.36.x** *(fast-moving)* | Matches client-go minor |
-| `sigs.k8s.io/controller-runtime` | **v0.24.1** ⇔ k8s 1.36 *(fast-moving)* | Generic webhooks/queues; priority queue default; min Go 1.26 |
-| `sigs.k8s.io/controller-tools` | v0.21.0 *(fast-moving)* | `controller-gen`: CRD/RBAC/webhook codegen; v1 CRDs only |
-| Kubebuilder | go/v4 (k8s 1.36 / Go 1.26) *(fast-moving)* | go/v2, go/v3 layouts removed; Apple-silicon support |
+| `k8s.io/client-go` | **v0.37.2** ⇔ k8s 1.37 *(fast-moving)* | `v0.<minor>` scheme since 1.17; not semver |
+| `k8s.io/apimachinery` | **v0.37.2** *(fast-moving)* | Matches client-go minor |
+| `sigs.k8s.io/controller-runtime` | **v0.25.2** ⇔ k8s 1.37 *(fast-moving)* | Generic webhooks/queues; priority queue default; min Go 1.26 |
+| `sigs.k8s.io/controller-tools` | v0.23.0 *(fast-moving)* | `controller-gen`: CRD/RBAC/webhook codegen; v1 CRDs only |
+| Kubebuilder | v4.16.0 go/v4 (k8s 1.37 / Go 1.27) *(fast-moving)* | go/v2, go/v3 layouts removed; Apple-silicon support |
 | Operator SDK | tracks Kubebuilder *(fast-moving)* | Uses Kubebuilder as a library |
 | `cert-manager` | `cert-manager.io/v1` | Webhook/conversion CA injection |
 | `go.uber.org/automaxprocs` | **Obsolete for `go 1.25+`** | Runtime does it natively |
@@ -446,13 +464,13 @@ Fast-moving: pin to the row matching your cluster's k8s minor.
 | **1.33** | v0.33 | **v0.21** | Webhook custom paths (`WithValidatorCustomPath`) |
 | **1.34** | v0.34 | **v0.22** | MutatingAdmissionPolicy progressing `[verify]` |
 | **1.35** | v0.35 | **v0.23** | **Generic webhook builder** (`NewWebhookManagedBy(mgr, &T{})`, no `.For()`); priority queue default-on; events → `events.k8s.io` |
-| **1.36** | v0.36 | **v0.24** | Current; min Go 1.26; MutatingAdmissionPolicy GA `[verify]`; v0.24.1 "Fix regression in Apply typed error handling" |
+| **1.37** | v0.37 | **v0.25** | Current; min Go 1.26; MutatingAdmissionPolicy GA; v0.25.2 latest patch |
 
-Cross-minor pairings are untested and often won't compile; always match the row. Go: **1.26.4** stable (green-tea GC default), **1.27 RC** (generic methods → may finally enable fully-generic `Watches`).
+Cross-minor pairings are untested and often won't compile; always match the row. Go: **1.27.3** stable (green-tea GC default), **generic methods shipped [1.27]** (interface methods still may not declare type parameters nor be implemented by generic methods).
 
 ---
 
-## What models get wrong {#stale}
+## Common mistakes {#stale}
 
 1. **Webhook builder.** Emitting `ctrl.NewWebhookManagedBy(mgr).For(r)` + `webhook.Validator` methods on the API type: gone [CR v0.23]. Now two-arg generic `(mgr, &T{})` + a typed `Validator[T]` struct in `internal/webhook/`.
 2. **`runtime.Object` webhook signatures** instead of the concrete type; they satisfy only the deprecated `CustomValidator = Validator[runtime.Object]` alias.
@@ -488,7 +506,7 @@ Cross-minor pairings are untested and often won't compile; always match the row.
 - [http-and-apis.md](http-and-apis.md): HTTP server patterns, graceful shutdown, middleware
 
 ## Sources {#sources}
-- pkg.go.dev/{k8s.io/client-go@v0.36.1, sigs.k8s.io/controller-runtime@v0.24.1, .../pkg/webhook/admission, .../pkg/builder} (API signatures verified)
+- pkg.go.dev/{k8s.io/client-go@v0.36.1, sigs.k8s.io/controller-runtime@v0.25.2, .../pkg/webhook/admission, .../pkg/builder} (API signatures verified)
 - github.com/kubernetes-sigs/controller-runtime: VERSIONING.md, compatibility matrix, v0.24.1 release notes
 - book.kubebuilder.io: cronjob-tutorial/webhook-implementation, markers reference, versions_compatibility_supportability
 - kubernetes.io: admission controllers reference (ValidatingAdmissionPolicy GA 1.30; MutatingAdmissionPolicy / KEP-3962); CRD versioning; API Priority & Fairness

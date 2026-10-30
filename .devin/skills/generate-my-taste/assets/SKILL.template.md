@@ -18,7 +18,7 @@ This personal taste skill encodes observed taste through 5 evidence-derived anch
 
 Conviction with restraint. The anchors define what to pursue; the two-sided charter defines what to avoid. Side A blocks slop/default convergence. Side B blocks overkill/compensatory excess. Both sides fail by refusing to commit.
 
-## Modes [LOAD-BEARING]
+## Modes
 
 Two modes share the auto-clarity exception.
 

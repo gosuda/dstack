@@ -5,38 +5,24 @@ description: 'Use when a design dispute has at least two live interpretations an
 
 # Possible worlds
 
-## Contract
+This skill lays out a design dispute as a set of live possible worlds and ends with one suggestion for what to examine next. It leaves the design unselected and the dispute open. Nothing is decided, recorded, or authorized here.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A design dispute has at least two live interpretations and the caller wants the alternative worlds made explicit, or wants a plain-language paragraph ending in one recommendation. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. Does not select or record a decision or authorize downstream mutation. |
-| Side effect | Emit one paragraph only; make no mutation, decision record, design selection, or downstream authorization. |
-| Done | One paragraph at a five-year-old abstraction level lays out the live interpretations and ends with exactly one recommendation while the dispute remains open. |
+It is read-only. It reads no file, repository, card, or external state, and it modifies nothing (no file, version control, credential, payment, publication, deployment, remote, or downstream state, on success paths or failure paths).
 
-## Inputs
+## When it applies
 
-Supply a design dispute containing at least two live interpretations. Include any declared premises, axes of disagreement, or evidence needed to distinguish them. No file, repository, card, or external state is read.
+The caller supplies a design dispute with at least two live interpretations, plus whatever premises, axes of disagreement, or distinguishing evidence is available. If the subject is not a design dispute, if fewer than two interpretations are still live, or if the dispute statement is ambiguous or missing, the skill stops before emitting anything. It reports that the dispute does not meet the two-interpretation threshold, or asks the caller to state the dispute. It never invents interpretations to reach the threshold.
 
-## Procedure
+## How it builds the worlds
 
-1. Confirm that the subject is a design dispute, at least two interpretations remain live, and the caller wants those alternatives made explicit or a recommendation. Otherwise stop with the applicable failure result. Done when: the subject is confirmed as a design dispute with at least two live interpretations.
-2. Extract the shared premise set and the axes on which the interpretations vary from the supplied dispute. Treat unsupported claims as premises rather than inventing evidence. Done when: the shared premise set and variation axes are extracted.
-3. Construct one possible world for each live interpretation. Keep shared premises fixed, identify the premise delta that reaches each world, and require every world to be internally consistent. When the caller wants a quick recommendation without the full worlds analysis, produce the paragraph directly from the dispute without requiring world construction. Done when: one internally consistent world is constructed per live interpretation, or the direct-production path is taken.
-4. Present the worlds neutrally rather than as failure-only scenarios, and make no claim that they cover every possibility. Done when: the worlds are presented neutrally with no exhaustiveness claim.
-5. Translate the contrast to a five-year-old abstraction level using familiar objects, simple actions, and direct cause-and-effect language. Keep the entire result in one paragraph. Use plain words, no jargon, no framework names. Done when: the contrast is translated to one paragraph at a five-year-old level.
-6. End that paragraph with exactly one recommendation about which disputed premise or evidence to examine next. The recommendation must leave the design unselected and the dispute open. If no single recommendation follows from the dispute, stop and report that no one recommendation follows; do not force a selection. Done when: the paragraph ends with exactly one non-binding recommendation leaving the design unselected.
-7. Return the paragraph only after confirming that it contains at least two live worlds, one final recommendation, no decision record, and no authorization to mutate anything. Done when: the paragraph is confirmed to contain two worlds, one recommendation, no decision record, and no mutation authorization.
+It pulls out the shared premises and the axes where the interpretations vary, treating unsupported claims as premises rather than inventing evidence. Then it constructs one possible world per live interpretation, keeping shared premises fixed and naming the premise delta that reaches each world. Every world must be internally consistent. If the worlds cannot be built without invented premises, it returns `blocked: dispute cannot support internally consistent alternative worlds without invented premises`, and starts over only after the caller supplies a corrected dispute or the missing premises. When the caller wants a quick recommendation without the full worlds analysis, the paragraph may be produced directly from the dispute without requiring world construction.
 
-## Failure and recovery
+## How it writes the paragraph
 
-- Fewer than two live interpretations: stop before emitting anything. Report that the dispute does not meet the two-interpretation threshold. Emit no paragraph.
-- Dispute cannot support internally consistent alternative worlds without invented premises: return `blocked: dispute cannot support internally consistent alternative worlds without invented premises`. Recovery requires the caller to supply a corrected dispute or the missing premises, after which the procedure starts again.
-- Ambiguous or missing dispute statement: stop and ask the user to state the dispute. Do not invent interpretations.
-- No single recommendation reachable: stop and report that no one recommendation follows. Do not force a selection.
-- Partial-result rule: the output is atomic. Never emit a partial paragraph.
-- Non-mutation rule: no file, VCS, credential, or downstream state is touched on any path, including failure paths.
+The whole output is one prose paragraph, atomic and complete. Partial paragraphs are never emitted. The paragraph follows these constraints:
 
-## Output
+- It presents the worlds neutrally, not as failure-only scenarios, and claims no exhaustiveness.
+- It is written at a five-year-old abstraction level, using familiar objects, simple actions, and direct cause and effect, with plain words and no jargon or framework names.
+- It ends with exactly one non-binding recommendation about which disputed premise or piece of evidence to examine next. The recommendation leaves the design unselected and the dispute open. If no single recommendation follows from the dispute, the skill stops and reports that no one recommendation follows instead of forcing a selection.
 
-One prose paragraph at a five-year-old abstraction level laying out the live possible worlds and ending with exactly one non-binding recommendation. Design selection, decision recording, and downstream action are left to the caller. No file, repository, card, or external state is read or modified.
+The paragraph is returned only after confirming it holds at least two live worlds, one final recommendation, no decision record, and no authorization to change anything.

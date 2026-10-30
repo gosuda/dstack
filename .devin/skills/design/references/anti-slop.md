@@ -1,6 +1,6 @@
 # anti-slop.md, taste anchors and ban-lists
 
-Depth for the anti-slop charter inlined in `design/SKILL.md` (Procedure step 6).
+Depth for the anti-slop charter inlined in `design/SKILL.md` (the "Anti-slop charter used by the audit" section).
 
 **Grounded: 2026-08-31**
 
@@ -223,7 +223,7 @@ Counter: cut decoration; sharpen the headline; ship the surface or kill it.
    **Font reflex-reject list** (snapshot 2026-04-28; review yearly when font fashion clearly shifts; treat as second-order reflex-reject: banned by default; pick anyway when the surface has a defensible historical / homage rationale): Fraunces, Newsreader, Lora, Crimson, Crimson Pro, Crimson Text, Playfair Display, Cormorant, Cormorant Garamond, Syne, IBM Plex Mono, IBM Plex Sans, IBM Plex Serif, Space Mono, Space Grotesk, Inter, DM Sans, DM Serif Display, DM Serif Text, Outfit, Plus Jakarta Sans, Instrument Sans, Instrument Serif.
 
 2. **Style anchoring on production exemplars.** Every direction names 1-2 taste anchors from §4 below; vague references ("clean", "modern") underspecify and the model defaults to slop.
-3. **Density commitment (2-3x default LLM output).** Vertical rhythm, line-height, and information density tighten 2-3x relative to the model's default. Default LLM output is sparse and air-padded; the sparseness itself reads as slop.
+3. **Density commitment (roughly 2-3x default LLM output, a heuristic starting point, not a guarantee).** Vertical rhythm, line-height, and information density tighten roughly 2-3x relative to the model's default. Default LLM output is sparse and air-padded; the sparseness itself reads as slop.
 4. **Asymmetric grid (one optical-alignment override per page).** A single deliberate asymmetry, a hero left-aligned where the rest is centered, a sidebar that breaks the column rhythm, prevents the surface from reading as preset.
 5. **OKLCH custom palette derivation.** Never the default Tailwind / Material ramp. Derive 4-6 swatches from a chosen accent in OKLCH space, with named lightness steps that match the direction's mood. Lightness ramps in OKLCH are perceptually uniform; HSL ramps are not.
 6. **Code-level constraints.** Surface the bans in CSS via property-level lints (`stylelint-no-restricted-syntax`) or DTCG token validators. If a banned value enters tokens, every component inherits the slop.
@@ -235,8 +235,8 @@ Nine exemplars. OKLCH values use `oklch(L C H)` triples; hex companion noted in 
 | Exemplar | Primary OKLCH | Accent OKLCH | Heading Type | Body Type | Mono Type | Spacing Base | Signature Trait | Source URL |
 |---|---|---|---|---|---|---|---|---|
 | Linear | `oklch(0.139 0.003 246)` | `oklch(0.567 0.159 275)` | Inter Display | Inter Text | system mono | 4px | Velocity-driven density; indigo `#5E6AD2` carries interactive states; mono cells defer to terminal-default monospace (no branded webfont) | https://linear.app |
-| Stripe | `oklch(1 0 0)` | `oklch(0.578 0.235 278)` | Tiempos Headline | Söhne | Source Code Pro | 8px | Editorial type on transactional UI; Stripe Purple `#533AFD`; mono is Source Code Pro (Adobe SIL OFL, hosted by Stripe), observed in docs.stripe.com code samples | https://stripe.com |
-| Vercel | `oklch(0 0 0)` | `oklch(0.569 0.235 254)` | Geist Sans | Geist Sans Text | Geist Mono | 4px | Monochrome black surface; Geist Blue `#0070F3` as restrained accent | https://vercel.com |
+| Stripe | `oklch(1 0 0)` | `oklch(0.521 0.268 277.4)` | Tiempos Headline | Söhne | Source Code Pro | 8px | Editorial type on transactional UI; Stripe Purple `#533AFD`; mono is Source Code Pro (Adobe SIL OFL, hosted by Stripe), observed in docs.stripe.com code samples | https://stripe.com |
+| Vercel | `oklch(0 0 0)` | `oklch(0.573 0.214 258.2)` | Geist Sans | Geist Sans Text | Geist Mono | 4px | Monochrome black surface; Geist Blue `#0070F3` as restrained accent | https://vercel.com |
 | Anthropic | `oklch(0.982 0.005 95)` | `oklch(0.66 0.13 38)` | Tiempos Headline | DM Sans | DM Mono | 8px | "Stewardship" register; cream `#FAF9F5` + clay `#D97757` + near-black `#141413`; spacing observed at ~16-24px rhythm consistent with an 8px base | https://www.anthropic.com |
 | Things 3 | `oklch(0.95 0 0)` | `oklch(0.865 0.177 90)` | SF Pro Display | SF Pro Text | SF Mono | 8px | Inherits macOS AppKit materials; primary is light-mode `windowBackgroundColor` (~`oklch(0.95 0 0)`); dark mode applies Desktop Tinting (~`oklch(0.18 0 0)`); accent is `systemYellow` `#FFCC00` | https://culturedcode.com/things |
 | Rosé Pine | `oklch(0.213 0.025 291)` | `oklch(0.776 0.095 305)` | n/a (TUI / editor theme) | n/a | terminal mono | n/a | Three variants (Main / Moon / Dawn); semantic palette (rose / love / gold / pine / foam / iris); base `#191724`, iris `#C4A7E7` | https://rosepinetheme.com |

@@ -67,9 +67,9 @@ Simplicity 25 conference theme: "Vision Driven Design."
 
 ## 4. Daangn Seed Design System
 
-Open Apache 2.0 (github.com/daangn/seed-design). 858+ stars. Latest release 2026-04-24. Bun monorepo. Packages:
+Open Apache 2.0 (github.com/daangn/seed-design). 858+ stars. Latest release 3.1.0 (2026-10-29). Bun monorepo. Packages:
 
-- `@seed-design/rootage`
+- `@seed-design/rootage-artifacts`
 - `@seed-design/qvism-preset`
 - `@seed-design/css`
 - `@seed-design/react-headless`
@@ -77,6 +77,7 @@ Open Apache 2.0 (github.com/daangn/seed-design). 858+ stars. Latest release 2026
 - `@seed-design/stackflow`
 - `@seed-design/figma`
 - `@seed-design/mcp`
+- `@seed-design/tailwind4-theme`
 
 Sister repos: `daangn/seed-icon` (Figma source-of-truth) and `daangn/karrot-ui-icon`.
 

@@ -2,9 +2,9 @@
 
 cgo is not Go: it severs trivial cross-compilation, dynamically links your binary, blocks an OS thread per blocking call, and "features out" your tracebacks/pprof across the boundary. The boundary itself is cheap (~20-40 ns, **~30% cheaper in 1.26**), not the ~200 ns folklore. Reach for it only when no pure-Go path exists; and before you do, weigh **purego** (dlopen/dlsym, no toolchain) and **wazero** (C-to-Wasm, sandboxed). When you must, the pointer rules + `runtime.Pinner`/`cgo.Handle` keep you out of GC-corruption territory.
 
-> Verified against Go **1.26.1** (stable) + **1.27 RC** notes, 2026-06, against go.dev/cmd/cgo, the runtime docs, and the 1.21/1.24/1.26 release notes. Version tags `[1.N]` mark the release a claim applies to. Deepened from deep-research + primary sources.
+> Verified against Go **1.26.1** (stable) and the **final** Go 1.27 release notes (GA 2026-08-19), rechecked 2026-10, against go.dev/cmd/cgo, the runtime docs, and the 1.21/1.24/1.26/1.27 release notes. Version tags `[1.N]` mark the release a claim applies to. Deepened from deep-research + primary sources.
 
-## TL;DR: the modern deltas (read first)
+## What changed recently
 
 - `GODEBUG=cgocheck=2` no longer exists [1.21]. The thorough pointer checker became a *build-time* `GOEXPERIMENT=cgocheck2`. `GODEBUG=cgocheck=1` (cheap, default) and `=0` (off) remain. Models emit `cgocheck=2` constantly; stale since 1.21.
 - `checkptr` is a different thing from `cgocheck`; a compiler instrumentation (`-gcflags=all=-d=checkptr`, on under `-race`) that catches `unsafe.Pointer` *conversion/arithmetic* abuse, not the cgo pointer-passing rules. Don't conflate them.
@@ -89,12 +89,14 @@ cgo types are **unexported** per-package: a `C.foo` in package A is a *different
 
 `C.GoString*` and `C.GoBytes` **copy** into Go memory; safe to keep after C frees. `C.CString`/`C.CBytes` **malloc** on the C heap; the GC never touches them; you must `C.free`.
 
-**Zero-copy view of a C array** [1.17]: no allocation, *aliases* C memory (dangling if C frees):
+**Zero-copy view of a C array** [1.17] creates no allocation and aliases C memory, so the view dangles if C frees first:
 
 ```go
-b := unsafe.Slice((*byte)(cArray), n)   // []byte view over C memory; do NOT retain past C's lifetime
-s := unsafe.String((*byte)(cArray), n)  // string view (immutable assumption — never mutate underlying C mem)
+b := unsafe.Slice((*byte)(cArray), n)
+s := unsafe.String((*byte)(cArray), n)
 ```
+
+Treat the slice as borrowed for the C lifetime only, and never mutate memory behind a string view.
 
 A C function can also take a Go string directly via the special `_GoString_` parameter type; but the contents are pinned only for the call and **may lack a trailing NUL**; C must not retain or modify them.
 
@@ -109,12 +111,13 @@ Golden rule: whoever allocates frees, with the *matching* allocator. The GC mana
 | `C.CString` / `C.CBytes` / `C.malloc` | Go code | `C.free(unsafe.Pointer(p))` |
 | C library function | per library API | library-specific free |
 | Go (`new`, `make`, `&T{}`) | GC | automatic (subject to pointer rules) |
-
 ```go
 cs := C.CString(s)
-defer C.free(unsafe.Pointer(cs)) // MUST — Go GC does NOT collect C memory
+defer C.free(unsafe.Pointer(cs))
 C.use(cs)
 ```
+
+The deferred free is mandatory: the Go collector never reclaims C memory.
 
 `C.malloc` is special: it wraps libc malloc but **crashes the program on OOM (never returns nil)**, so there is no errno form. **Cleanup for wrapped C resources: prefer `runtime.AddCleanup` [1.24] over `runtime.SetFinalizer`**; multiple cleanups per object, attachable to interior pointers, no cycle leaks, no delayed free. But a `defer C.free` at the call site is still clearer than any finalizer when the lifetime is scoped. **Leak detection:** `go build -asan` detects C-side leaks at exit [1.25].
 
@@ -293,7 +296,7 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC="zig cc -target x86_64-linux-gnu" go bu
 xgo --targets=linux/amd64,linux/arm64,windows/amd64 ./cmd/app
 ```
 
-Guidance: (1) avoid cgo if you can; `CGO_ENABLED=0` makes this a non-problem; (2) if required, `zig cc` or a Docker builder; (3) in CI, prefer one job per target with a native compiler; (4) test on real targets. [1.27 RC] switches big-endian `linux/ppc64` to the ELFv2 ABI (cgo/PIE/external linking); re-check if you target it.
+Guidance: (1) avoid cgo if you can; `CGO_ENABLED=0` makes this a non-problem; (2) if required, `zig cc` or a Docker builder; (3) in CI, prefer one job per target with a native compiler; (4) test on real targets. [1.27] switches big-endian `linux/ppc64` to the ELFv2 ABI: cgo, PIE, and external linking are now supported there. Using them requires an ELFv2-compatible runtime (libc and all linked/loaded libraries) and Linux kernel 3.13+ (RHEL7 backported the support to its 3.10 kernel); `CGO_ENABLED=0` still produces a static, internally linked binary.
 
 ---
 
@@ -334,19 +337,24 @@ Before reaching for cgo, check for a pure-Go path; it preserves `CGO_ENABLED=0`,
 
 | C library | Pure-Go alternative | Notes |
 |---|---|---|
-| SQLite | `modernc.org/sqlite` | C transpiled to Go (no cgo) |
-| SQLite | `ncruces/go-sqlite3` | SQLite-on-Wasm via wazero |
+| SQLite | `modernc.org/sqlite` | C transpiled to Go via ccgo (default, v1.61.0; no cgo) |
+| SQLite | `ncruces/go-sqlite3` | SQLite-on-Wasm via wazero (alt, v0.36.0; no cgo) |
 | libpng/libjpeg | `image/png`, `image/jpeg` | stdlib |
 | OpenSSL | `crypto/*` | stdlib TLS/hashing |
 | libsodium | `golang.org/x/crypto` | NaCl, Argon2 |
-| libpcap | `google/gopacket/pcapgo` | pure-Go capture (main `pcap` uses cgo) |
+| libpcap (file I/O) | `github.com/gopacket/gopacket/pcapgo` | Pure-Go pcap/pcapng file read/write (v1.7.4; no cgo) |
+| libpcap (Linux live) | `github.com/gopacket/gopacket/afpacket` | Pure-Go Linux live packet capture via AF_PACKET raw sockets (no cgo) |
 | libgit2 | `go-git/go-git/v5` | pure-Go Git |
 | libcurl / zlib | `net/http` / `compress/gzip` | stdlib |
 | gRPC C core | `google.golang.org/grpc` | pure-Go gRPC |
 
-purego (`github.com/ebitengine/purego`): call C **shared libraries without cgo** via `Dlopen`/`Dlsym` + `RegisterLibFunc`/`SyscallN`/`NewCallback`. Works with `CGO_ENABLED=0` (cross-compile, faster builds, smaller binaries, no per-call C wrapper) and as a cgo fallback. **Same pointer-lifetime rules as cgo**; C must not retain Go memory; non-NUL strings are copied into purego-owned memory valid only for that call; struct padding is your responsibility. Caveats: platform support is **tiered and evolving** (verify your GOOS/GOARCH at build time `[verify]`); on amd64 `SyscallN` mishandles mixed int/float and >8 float args.
+purego (`github.com/ebitengine/purego`, v0.11.2): call C **shared libraries without cgo** via `Dlopen`/`Dlsym` + `RegisterLibFunc`/`SyscallN`/`NewCallback`. Works with `CGO_ENABLED=0` (cross-compile, faster builds, smaller binaries, no per-call C wrapper) and as a cgo fallback. **Same pointer-lifetime rules as cgo**; C must not retain Go memory; non-NUL strings are copied into purego-owned memory valid only for that call; struct padding is your responsibility. Caveats: platform support is **tiered and evolving** (verify your GOOS/GOARCH at build time `[verify]`); on amd64 `SyscallN` mishandles mixed int/float and >8 float args.
 
-wazero (`github.com/tetratelabs/wazero`): pure-Go WebAssembly runtime, **no cgo, zero deps beyond Go + x/sys**. Compile C/Rust/etc. to Wasm and run it from Go with full cross-compile and sandboxing. The compiler (AOT) backend is ~an order of magnitude faster than the interpreter; the interpreter has no arch-specific code (runs anywhere, e.g. riscv64). Trade-off: sandbox-boundary cost, and Wasm sees only numeric types (Go host functions bridge the rest).
+wazero (`github.com/tetratelabs/wazero`, v1.12.0; repo transferred to `github.com/wazero/wazero` with module path retained): pure-Go WebAssembly runtime, **no cgo, zero deps beyond Go + x/sys**. Compile C/Rust/etc. to Wasm and run it from Go with full cross-compile and sandboxing. The compiler (AOT) backend is ~an order of magnitude faster than the interpreter; the interpreter has no arch-specific code (runs anywhere, e.g. riscv64). Trade-off: sandbox-boundary cost, and Wasm sees only numeric types (Go host functions bridge the rest).
+
+SQLite alternatives: `modernc.org/sqlite` (v1.61.0) is the established pure-Go default (C transpiled to Go via ccgo, no C toolchain required). `ncruces/go-sqlite3` (v0.36.0) is the Wasm alternative (SQLite compiled to WebAssembly executed via wazero, sandboxed with zero C toolchain dependencies). Both preserve `CGO_ENABLED=0`, unlike traditional `mattn/go-sqlite3` which requires CGO and a host C compiler.
+
+Packet processing: replace stagnant `google/gopacket` with the maintained community fork `github.com/gopacket/gopacket` (v1.7.4). Distinguish subpackages by CGO and capture requirements: `pcapgo` handles pure-Go reading and writing of pcap/pcapng capture files (file I/O only); `afpacket` handles pure-Go live packet capture on Linux via AF_PACKET raw sockets (no libpcap or CGO); `pcap` requires CGO and system `libpcap` for live capture and device enumeration.
 
 Escalation order: pure-Go reimplementation → **purego** (lib is a shared object on target) → **wazero** (untrusted/portable C, want sandbox + cross-compile) → **cgo** (tight FFI to a specific native lib, can manage a C toolchain).
 
@@ -413,7 +421,7 @@ Limits: single-threaded, no maps/slices/channels across the boundary, serializat
 | **1.24** | **`#cgo noescape` / `#cgo nocallback`** ship; `runtime.AddCleanup` (prefer over `SetFinalizer`); `go:wasmexport` + `wasip1 -buildmode=c-shared`; cgo type-via-alias method error; `B.Loop` |
 | **1.25** | `-asan` detects C leaks at exit; `GOMAXPROCS` cgroup-aware + dynamic; loong64 cgo internal linking + race + `SetCgoTraceback` |
 | **1.26** | **cgo baseline overhead −30%**: heap base-address randomization (security; `GOEXPERIMENT=norandomizedheapbase64` opt-out); `crypto/subtle.WithDataIndependentTiming` propagates DIT across cgo; `windows/arm64` cgo internal linking; `B.Loop` stops suppressing inlining |
-| **1.27 (RC)** | big-endian `linux/ppc64` → ELFv2 ABI (cgo/PIE/external linking). Treat as draft until GA (~Aug 2026). |
+| **1.27** | big-endian `linux/ppc64` → ELFv2 ABI: cgo/PIE/external linking now supported (requires an ELFv2-compatible runtime; Linux kernel 3.13+, RHEL7 backport to 3.10). Final release 2026-08-19. |
 
 ---
 
@@ -431,7 +439,7 @@ Limits: single-threaded, no maps/slices/channels across the boundary, serializat
 10. Assuming `GOMAXPROCS` bounds C/cgo threads, or that goroutine-cheapness carries into C; blocking cgo pins OS threads; [1.25] also changed the `GOMAXPROCS` default (cgroup-aware).
 11. Returning a Go pointer to unpinned memory from an exported function, or letting C retain a string/slice/map/chan.
 12. Exposing `C.*` types in a package's public API (they're unexported and per-package-distinct).
-13. Reaching for cgo at all when `modernc.org/sqlite`, purego, or wazero would keep the build pure-Go and cross-compilable.
+13. Reaching for cgo at all when `modernc.org/sqlite` (v1.61.0) or `ncruces/go-sqlite3` (v0.36.0), purego, or wazero would keep the build pure-Go and cross-compilable.
 
 ---
 
@@ -443,7 +451,7 @@ Limits: single-threaded, no maps/slices/channels across the boundary, serializat
 
 ## Sources {#sources}
 - go.dev/cmd/cgo (go1.26.1: Passing pointers, Optimizing calls of C code, C references to Go); pkg.go.dev/{runtime#Pinner, runtime/cgo#Handle}
-- go.dev/doc/go1.21 (cgocheck2, Pinner, C→Go thread setup), go1.24 (noescape/nocallback, AddCleanup, B.Loop, wasmexport), go1.25 (GOMAXPROCS, -asan), go1.26 ("Faster cgo calls" −30%, heap randomization)
+- go.dev/doc/go1.21 (cgocheck2, Pinner, C→Go thread setup), go1.24 (noescape/nocallback, AddCleanup, B.Loop, wasmexport), go1.25 (GOMAXPROCS, -asan), go1.26 ("Faster cgo calls" −30%, heap randomization), go1.27 (final 2026-08-19: big-endian `linux/ppc64` ELFv2, cgo/PIE/external linking)
 - go.dev/blog/cgo; go.dev/wiki/cgo; runtime/cgocheck.go (`unpinned Go pointer stored into non-Go memory`)
 - Accepted proposals/issues: Pinner #46787; noescape/nocallback #56378 (reverted #63739); cgo speedup #58492 (mechanism unverified vs release notes); Handle lifetime #68044
-- ebitengine/purego, tetratelabs/wazero, modernc.org/sqlite repos
+- ebitengine/purego (v0.11.2), wazero (v1.12.0; tetratelabs/wazero), modernc.org/sqlite (v1.61.0), ncruces/go-sqlite3 (v0.36.0), gopacket/gopacket (v1.7.4) repos

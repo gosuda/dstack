@@ -54,7 +54,7 @@ The reference cobra application for status-color register is the GitHub CLI (`gh
 
 ## 4. cmdliner (OCaml)
 
-`cmdliner` 2.1.x is the current stable line; 2.0 replaced the old `Term.eval` entry point with the `Cmd` API. Declarative term-based CLI definition; arguments and options are values combined into a `Term` that the runtime evaluates against argv.
+`cmdliner` 2.1.1 is the current stable line; 2.0 replaced the old `Term.eval` entry point with the `Cmd` API. Declarative term-based CLI definition; arguments and options are values combined into a `Term` that the runtime evaluates against argv.
 
 ```ocaml
 let pattern =

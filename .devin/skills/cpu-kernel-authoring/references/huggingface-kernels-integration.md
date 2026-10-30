@@ -2,25 +2,22 @@
 
 How to load and publish CPU kernels with the Hugging Face kernels library.
 
-## Overview
-
 The [Hugging Face kernels](https://huggingface.co/docs/kernels/en/index) library loads pre-compiled kernels from the Hugging Face Hub at run time. CPU kernels are compiled with `kernel-builder` and distributed as platform-specific wheels.
 
 What the library gives a CPU kernel:
+
 - No local compilation: the user downloads a built wheel.
 - Version pinning: `get_kernel` loads a named revision.
 - One API for CUDA, XPU, and CPU kernels.
 - The wheel is matched to the user's PyTorch build.
 
-## Installation
+## Install the loader
 
 ```bash
 pip install kernels torch
 ```
 
-## Core API
-
-### get_kernel
+## Load a kernel by repo and version
 
 ```python
 from kernels import get_kernel
@@ -28,7 +25,7 @@ from kernels import get_kernel
 kernel = get_kernel("kernels-community/rmsnorm", version=1)
 ```
 
-### has_kernel
+## Check availability before loading
 
 ```python
 from kernels import has_kernel
@@ -37,7 +34,7 @@ if has_kernel("kernels-community/rmsnorm", version=1):
     kernel = get_kernel("kernels-community/rmsnorm", version=1)
 ```
 
-### get_local_kernel (Development)
+## Load from a local checkout while developing
 
 ```python
 from pathlib import Path
@@ -47,9 +44,7 @@ from kernels import get_local_kernel
 kernel = get_local_kernel(Path("/path/to/my-kernel"), "my_kernel")
 ```
 
-## CPU Kernel Usage
-
-### RMSNorm Example
+## Run RMSNorm on CPU
 
 ```python
 import torch
@@ -67,7 +62,7 @@ if has_kernel(repo_id, version=1):
     out = rmsnorm_kernel.apply_rms_norm_forward(x, weight, eps=1e-6)
 ```
 
-### Integration with Transformers
+## Patch a Transformers model to use the kernel
 
 ```python
 import torch
@@ -95,9 +90,11 @@ if has_kernel(repo_id, version=1):
         return patched
 ```
 
-## Publishing a CPU Kernel
+## Ship a CPU kernel
 
-### 1. Build with kernel-builder
+Build the wheel, try it locally, then publish the source so the Hub CI can build per-backend wheels.
+
+Build with kernel-builder:
 
 ```bash
 cd my-kernel/
@@ -105,23 +102,21 @@ kernel-builder build --release
 # Produces dist/my_kernel-*.whl
 ```
 
-### 2. Test locally
+Try the wheel locally:
 
 ```bash
 pip install dist/*.whl --force-reinstall
 python -c "from pathlib import Path; from kernels import get_local_kernel; k = get_local_kernel(Path('.'), 'my_kernel'); print(dir(k))"
 ```
 
-### 3. Create Hub repository
+Create the Hub repository:
 
 ```bash
 # Create repo on huggingface.co/kernels-community/
 # Upload the kernel source and build.toml
 ```
 
-### 4. Multi-backend support
-
-A single kernel repo can support CUDA, XPU, and CPU. The `build.toml` defines all backends:
+One kernel repo can serve CUDA, XPU, and CPU. The `build.toml` defines all backends:
 
 ```toml
 # CUDA sections
@@ -137,7 +132,7 @@ backend = "cpu"
 
 The kernel-builder CI builds wheels for each backend. `get_kernel()` automatically selects the right wheel for the user's hardware.
 
-## Kernel File Layout (Hub)
+## What the Hub repo contains
 
 ```
 my-kernel/
@@ -156,7 +151,7 @@ my-kernel/
 └── README.md
 ```
 
-## Notes
+## Dispatch and platform facts worth remembering
 
 - CPU kernels use the same `torch_binding.cpp` and `registration.h` pattern as CUDA/XPU kernels
 - The `ops.impl("forward", torch::kCPU, &func)` call ensures CPU dispatch (element-wise kernels such as rmsnorm instead register with `c10::DispatchKey::CompositeExplicitAutograd`)

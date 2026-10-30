@@ -5,41 +5,32 @@ description: 'Use when the user says "wait, what", "the explanation is unclear",
 
 # Wait, what
 
-## Contract
+You re-pitch an explanation that did not land. The claim and its conclusions stay exactly the same, and you supply the context the first version assumed. The result is one plain language message in chat. Nothing touches disk, and you never soften the claim into an easier one to make it land.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User says "wait, what", "I don't follow", "say that again", "the explanation is unclear", or "restate in plain language". |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Restates the same claim without softening; nothing touches disk. |
-| Done | The claim is re-pitched with the missing frame supplied, in plain English and the project''s ubiquitous language. |
+The failed explanation is the last assistant message before the trigger. If a `CONTEXT.md` exists, read it. When the project keeps a `CONTEXT-MAP.md`, read the per-context `CONTEXT.md` beside the relevant source instead. When neither exists, use the names already in the code. No external file is required beyond this.
 
-## Inputs
+## The three ways in
 
-The trigger identifies which explanation failed. Read `CONTEXT.md` if it exists; no external file is required when it is absent. Read the per-context `CONTEXT.md` beside the relevant source when the project keeps a `CONTEXT-MAP.md`. If no `CONTEXT.md` or `CONTEXT-MAP.md` exists, use the names already in the code.
+One skill, three entry phrasings, one mechanism:
 
-## Entry phrasings
+| The user says | What went wrong | How you respond |
+|---|---|---|
+| Wait, what, or say that again | The explanation did not land | Re-pitch the same claim and lead with the context it assumed |
+| The explanation is unclear, or context was omitted | The prior version skipped background, definitions, assumptions, causal links, or prerequisite steps | Re-pitch from scratch in plain language, embedding the missing context where the original jumped ahead |
+| Restate in plain language | Jargon or length got in the way | Restate the last response concisely, preserving its meaning and adding no new claims, opinions, or information |
 
-One skill, three entry phrasings, one mechanism: re-pitch the same claim with the missing frame supplied in plain language:
+All three produce a single re-pitched message in the conversation.
 
-- "wait, what" or "say that again": the explanation did not land. Re-pitch the same claim, preserving its substance and conclusions, and lead with the context the explanation assumed.
-- "the explanation is unclear" or "context was omitted": the prior explanation skipped background, definitions, assumptions, causal links, or prerequisite steps. Re-pitch from scratch in plain language, embedding the missing context at the point where the original jumped ahead.
-- "restate in plain language" or "bro": restate the last response concisely without jargon. Preserve the original meaning and add no new claims, opinions, or information beyond the source response.
+## How to re-pitch
 
-All three produce one plain-language re-pitch in chat. None touches disk.
+1. Identify the failed explanation: the last assistant message immediately before the trigger.
+2. Restate the same claim with its substance and conclusions intact, without hedging or substituting a simpler point.
+3. Lead with the missing frame in one or two sentences (where the conversation is and what the message was answering), then give the claim in ISO 24495-1 English: short sentences, active voice, direct address, common words in place of jargon, and the project's own ubiquitous language for its concepts.
 
-## Procedure
+## When to stop instead
 
-1. Identify the explanation that did not land: the last assistant message immediately before the trigger. Done when: the failed explanation is identified.
-2. Restate the same claim, preserving its substance and conclusions. Do not soften, hedge, or replace it with an easier version. Done when: the claim is restated with substance and conclusions intact.
-3. Re-pitch it: lead with the context the explanation assumed (one or two sentences on where the conversation is and what the message was answering: the gap is a missing frame, not a missing word); write in ISO 24495-1 English (short sentences, active voice, direct address, common words replacing jargon); use the project''s ubiquitous language. Done when: the claim is re-pitched with the missing frame supplied in plain English and ubiquitous language.
-
-## Failure and recovery
-- Non-converged: the user signals they do not understand after one re-pitch. Stop. Do not elaborate, restate a third time, or widen scope. The user is the authority on whether the explanation landed. Report `non-converged`.
-- No prior explanation or response: if no prior assistant message exists to re-pitch or restate, stop and report that there is nothing to restate. Do not invent a prior explanation.
-- Ambiguous confusion signal: if the user's indication is unclear about which part was hard to follow, ask which part of the prior explanation was unclear before re-pitching.
-- Scope creep: if the re-pitch would require teaching an entire prerequisite topic, state the prerequisite boundary and offer to cover it separately. Do not widen into a tutorial.
-- Clean re-pitch: keep the re-pitch free of caveats, meta-commentary, or references to the original explanation's failure.
-
-## Output
-A single re-pitched message in the conversation, in plain English with the missing context supplied.
+- If the user signals they still do not follow after one re-pitch, stop and report non-converged. The user is the authority on whether the explanation landed, so do not elaborate, restate a third time, or widen scope.
+- If no prior assistant message exists, stop and say there is nothing to restate. Never invent a prior explanation.
+- If the confusion signal is ambiguous about which part was hard to follow, ask which part before re-pitching.
+- If the re-pitch would require teaching a whole prerequisite topic, state that boundary and offer to cover it separately instead of widening into a tutorial.
+- Leave no caveats, meta-commentary, or references to the original explanation failing in the re-pitch.

@@ -1,5 +1,0 @@
-interface:
-  display_name: "Culture Burnout Detection"
-  short_description: "Use when Survey and Job Culture Index profiles need analysis for stress, burnout, disengagement, or flight-risk signals."
-policy:
-  allow_implicit_invocation: false

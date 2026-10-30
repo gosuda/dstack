@@ -1,0 +1,3 @@
+interface:
+  display_name: "Autowatch"
+  short_description: "Use when the user explicitly asks for autonomous end-to-end work from request to open pull request or merge request with CI watched to decided."

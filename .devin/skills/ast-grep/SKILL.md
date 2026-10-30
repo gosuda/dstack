@@ -3,48 +3,51 @@ name: ast-grep
 description: 'Use when asked to run AST-based structural search, lint, or rewrite of code when regex is too fragile. Not for remote, credential, publish, deploy, or irreversible changes.'
 ---
 
-# ast-grep
+# Structural search and rewrite with ast-grep
 
-## Contract
+Use this when the task is about code shape (a call, function, class, or import that looks a certain way) rather than about text. ast-grep matches syntax trees, not bytes: if you catch yourself reaching for `|`, `.*`, `\w`, or `[...]`, the task is lexical and you want grep instead. If you need types, references, or callers resolved semantically, you want the language server or compiler instead. Only structural work belongs here.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | AST-based modification, structural search, lint, or replacement too fragile for regex. |
-| Authority | Reversible local: writes only VCS-tracked source files (search is read-only; rewrites apply only through the helper after dry-run review); rollback is version control. No remote mutation. |
-| Side effect | Local file writes through the helper two-pass validate/dry-run/apply flow; no remote, credential, or published mutation. |
-| Done | Pattern validated and blast radius reviewed; any rewrite landed at the correct scope (search/lint-only runs are valid). |
+Everything here is local and reversible. Searching reads nothing but the tree; rewriting touches only version-controlled source files, and only through the helper's dry-run-then-apply flow, so `git` is always your rollback. Nothing here mutates remotes, credentials, or published artifacts.
 
-## Inputs
+## What you need up front
 
-- An ast-grep pattern, single-quoted in the shell so `$VAR` reaches ast-grep unexpanded.
-- A language (`--lang`) or a single target path whose extension auto-detects it; required for stdin patterns.
-- For rewrites: a rewrite template and one or more target paths (defaults to the current directory).
-- Optional: include/exclude globs (repeatable, prefix `!` to exclude), context lines, JSON output mode.
+A pattern, always single-quoted in the shell so `$VAR` reaches ast-grep unexpanded. A language (`--lang`) or a target path whose extension detects it (stdin patterns always need `--lang`). For a rewrite, a rewrite template plus one or more target paths (current directory when omitted). Optional extras: repeatable include/exclude globs (`!` excludes), context lines, JSON output.
 
-## Procedure
+Pattern syntax in brief: `$VAR` matches any single node, `$$$ARGS` matches zero or more nodes, `$_` matches any node without capturing. A pattern is code, not regex.
 
-1. Confirm the task is structural (call, function, class, or import shaped like a pattern), not text/regex/filename matching (use grep) or semantic type/reference lookup (use LSP or the compiler). ast-grep matches syntax, not bytes. Done when: the task is confirmed structural.
-2. Validate the pattern before searching: `python3 scripts/ast_grep_helper.py validate '<pattern>' --lang <L>`. Exit 0 means ast-grep parses it cleanly; exit 2 means malformed (the helper prints the parsed pattern tree showing the ERROR node). Fix and re-validate. Done when: validate exits 0.
-3. For a rewrite, run the dry-run: `python3 scripts/ast_grep_helper.py replace '<pattern>' '<rewrite>' --lang <L> <paths>`. Read the diff and the `N matches across M files` count. If the blast radius is wrong, stop and refine the pattern (tighten meta-variables, add `--lang`, add context); re-run the dry-run. Done when: the dry-run diff and match count are correct.
-4. Apply only after the dry-run diff is correct: `python3 scripts/ast_grep_helper.py replace '<pattern>' '<rewrite>' --lang <L> <paths> --apply`. The helper writes via a separate `--update-all` pass. Done when: files are updated via `--update-all`.
-5. Invoke `ast-grep`, never `sg`: `sg` collides with the `setgroups` binary on many systems. Done when: `ast-grep` is invoked, not `sg`.
+One more naming rule, because it bites: invoke `ast-grep`, never `sg` (`sg` collides with the `setgroups` binary on many systems).
 
-Pattern syntax: `$VAR` matches any single node; `$$$ARGS` matches zero or more nodes; `$_` matches any node (non-capturing).
+## Validate, then search
 
-Invariants: validate before searching; dry-run before applying; single-quote patterns; `--lang` is required for stdin; a pattern is code, not regex; switch to grep the moment `|`, `.*`, `\w`, or `[...]` would be needed. The helper keeps `--json` and `--update-all` as separate passes because combining them makes `--json` silently win and the write is dropped with no error.
+Never search with an unvalidated pattern. Run:
 
-For complex tasks, ast-grep supports YAML rule files (`sgconfig.yml`, `ast-grep new project`) with `rule`, `fix`, `inside`, `any`, and `matches` fields; invoke `ast-grep scan`/`run`/`test` directly for these.
+```sh
+python3 scripts/ast_grep_helper.py validate '<pattern>' --lang <L>
+```
 
-## Failure and recovery
-- Malformed pattern: `validate` exits 2 and prints the pattern debug tree with the ERROR node. No files touched. Fix the pattern and re-validate.
-- Wrong blast radius: the dry-run diff or match count is not as expected. Do not `--apply`. Refine the pattern and re-run the dry-run. No files touched.
-- Zero matches unexpectedly: run the 0-matches ladder in order: (1) validate the pattern; (2) check `--lang` (`tsx` is not `ts`; the wrong dialect silently matches nothing); (3) `ast-grep run -p '<pattern>' -l <L> --debug-query=pattern` and look for `ERROR`; (4) inspect the target's actual tree with `--debug-query=ast` on a known-matching snippet; (5) reproduce in the online playground. No files touched until a correct match is confirmed.
-- ast-grep binary absent: `validate` skips the parse check (regex-smell only) and warns; `replace` exits 2 without running. Install ast-grep before proceeding.
-- Apply pass failure: the helper reports the ast-grep error and returns non-zero. Revert the partially-written VCS-tracked targets via version control and re-run the full dry-run/apply sequence.
-- Partial-result rule: a failed apply pass leaves whatever ast-grep wrote; never report done. Recover via version control and re-run from the dry-run.
+Exit 0 means ast-grep parses it cleanly and you may proceed. Exit 2 means malformed, and the helper prints the parsed pattern tree with the ERROR node marked, so fix the pattern and re-validate. If the ast-grep binary is absent, validation degrades: it checks only for regex smell, warns, and `replace` will exit 2 without running, so install ast-grep before going further.
 
-## Output
-- `validate`: exit 0 (valid) or 2 (malformed, with the pattern debug tree); advisory regex-smell hints on stderr.
-- `replace` dry-run: a compact unified diff and an `N matches across M files` summary; no files modified.
-- `replace --apply`: VCS-tracked files updated via `--update-all` plus a confirmation line.
-- Direct `ast-grep` search: matched code locations.
+If a search unexpectedly matches nothing, work this ladder in order: re-validate the pattern; check the dialect (`tsx` is not `ts`, and the wrong one silently matches nothing); run `ast-grep run -p '<pattern>' -l <L> --debug-query=pattern` and look for `ERROR`; inspect the target's real tree with `--debug-query=ast` on a snippet you know should match; reproduce in the online playground. Touch no files until a correct match is confirmed.
+
+## Rewrite in two passes, never one
+
+A rewrite is a dry run first, eyes on the diff, and only then an apply:
+
+```sh
+python3 scripts/ast_grep_helper.py replace '<pattern>' '<rewrite>' --lang <L> <paths>
+python3 scripts/ast_grep_helper.py replace '<pattern>' '<rewrite>' --lang <L> <paths> --apply
+```
+
+Read the dry-run diff and the `N matches across M files` count. If the blast radius is wrong (too wide, too narrow, the wrong shape), stop. Tighten meta-variables, add `--lang`, add context, and re-run the dry run. Never `--apply` a diff you have not approved. The helper writes through a separate `--update-all` pass; keep it that way, because combining `--json` and `--update-all` makes `--json` silently win and the write is dropped with no error.
+
+Before a structural migration, inventory the distinct syntactic roles carrying the changed contract: declarations, construction expressions, destructuring patterns, reconstruction paths, accessors. A pattern matching one role does not cover the others, so review an example from every affected role and record how each migrates. Match counts never prove semantic completeness.
+
+If the apply pass fails partway, whatever ast-grep wrote stays written: never report done. Revert the version-controlled targets and re-run the full dry-run/apply sequence.
+
+## For larger rule sets
+
+Complex tasks graduate to YAML rule files (`sgconfig.yml`, `ast-grep new project`) with `rule`, `fix`, `inside`, `any`, and `matches` fields; drive those with `ast-grep scan` / `run` / `test` directly rather than the helper.
+
+## What each command reports
+
+`validate` exits 0 for a clean pattern, 2 for a malformed one (with the pattern debug tree), plus advisory regex-smell hints on stderr. A dry-run `replace` prints a compact unified diff and an `N matches across M files` summary and modifies nothing. `replace --apply` updates the version-controlled files via `--update-all` and prints a confirmation line. A direct `ast-grep` search reports matched code locations.

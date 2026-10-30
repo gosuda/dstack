@@ -2,7 +2,7 @@
 
 `database/sql` is a *pool* with a thin conversion layer, not a driver: tune the pool, always pass `ctx`, and remember the conversion machinery (`Scan`, `driver.Valuer`/`Scanner`) is where NULLs and custom types bite. For PostgreSQL, **pgx v5** is the default, but pick its native, single-conn, or `database/sql`-adapter mode deliberately, because their semantics differ (notably ctx-cancel rollback). The library you pick matters less than pool discipline + transaction discipline.
 
-> Source horizon: verified against Go **1.26.4** (stable, GA 2026-02-10) + **1.27 RC** draft notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 rows were checked against the final notes. Ecosystem pins (as of 2026-06): pgx **v5.10.0**, sqlc **v1.31.1**, golang-migrate **v4.19.1**, goose **v3.27.x**, Atlas CLI **v1.2.0**. Version tags `[1.N]` mark the Go release a claim applies to. Triangulated from two deep-research reports + go.dev/pkg.go.dev.
+> Source horizon: verified against Go **1.26.4** (stable, GA 2026-02-10) + **1.27 RC** draft notes, 2026-06, before general availability. Go 1.27 has since gone GA (2026-08-19, current pin in SKILL.md) and the 1.27 rows were checked against the final notes. Ecosystem pins (as of 2026-10): pgx **v5.11.0**, sqlc **v1.31.1**, lib/pq **v1.12.3**, golang-migrate **v4.20.1**, goose **v3.29.0**, Atlas CLI **v1.3.0**. Version tags `[1.N]` mark the Go release a claim applies to. Triangulated from two deep-research reports + go.dev/pkg.go.dev.
 
 ## TL;DR: the modern deltas (read first)
 
@@ -43,7 +43,7 @@
 |----------|------------|-----|
 | PostgreSQL (default) | `jackc/pgx/v5` (native `pgxpool`) | Binary protocol, native types, `COPY`, `LISTEN/NOTIFY`, batch, own pool |
 | PostgreSQL behind `database/sql` | `pgx/v5/stdlib` adapter | ORM / multi-DB / existing libs need `*sql.DB`; lose direct COPY/batch ergonomics |
-| Conservative PG `database/sql`-only | `lib/pq` | Maintenance-mode (see note); only for existing code with no pgx-native needs |
+| Conservative PG `database/sql`-only | `lib/pq` (v1.12.3) | Maintenance mode (PR #1053; see note); only for existing code with no pgx-native needs |
 | Any SQL DB (generic) | `database/sql` + driver | stdlib interface, driver-agnostic |
 | MySQL | `go-sql-driver/mysql` | Standard |
 | SQLite (CGO-free) | `modernc.org/sqlite`; CGO: `mattn/go-sqlite3` | Pick by CGO appetite |
@@ -52,7 +52,7 @@
 | ORM | `gorm.io/gorm`, `ent` | Only if team has chosen one; understand the query-cost/N+1 tradeoffs |
 | Schema migration | `goose` / `golang-migrate` / `atlas` | See [Migrations](#migrations) |
 
-On `lib/pq`: it is **not** dead, still tagged (v1.12.x, 2026) and documents PG-specific COPY/LISTEN. The two source reports conflict on whether it is "officially deprecated"; an official deprecation banner could **not** be corroborated. Defensible synthesis: lib/pq is in **maintenance mode** (no new feature work), pgx is the recommended default for new PG code, but "lib/pq is gone/unusable" is overstated. One persistent lib/pq fact: PostgreSQL does **not** support `sql.Result.LastInsertId()`; use `INSERT … RETURNING`.
+On `lib/pq`: it is **not** dead, officially in maintenance mode (PR #1053; latest `v1.12.3` released 2026-04-03, supporting PostgreSQL 18, CockroachDB, and EnterpriseDB). It is not officially deprecated (no deprecation banner in repo, no `Deprecated:` in doc.go, no retraction in go.mod), but receives no active feature development. Use standard `errors.As(err, &pqErr)` with `*pq.Error` for error inspection (not `pq.As`). Defensible synthesis: `jackc/pgx/v5` remains the standard default for new Go code, but lib/pq remains supported in maintenance mode for legacy `database/sql` codebases. One persistent lib/pq fact: PostgreSQL does **not** support `sql.Result.LastInsertId()`; use `INSERT … RETURNING`.
 
 ---
 
@@ -578,16 +578,16 @@ Translate `ErrNoRows` to a domain sentinel at the repo boundary; don't leak driv
 
 | Area | Use now | Avoid / superseded | Why |
 |---|---|---|---|
-| PG driver | **pgx v5** (`jackc/pgx/v5`, v5.10.0; needs **Go 1.25+**) | lib/pq for new code | pgx faster, PG-native features; lib/pq maintenance-mode |
+| PG driver | **pgx v5** (`jackc/pgx/v5`, v5.11.0; needs **Go 1.25+**) | lib/pq for new code | pgx faster, PG-native features; lib/pq in maintenance mode (v1.12.3, PR #1053) |
 | pgx pool ctor | `pgxpool.New`/`NewWithConfig` | `pgxpool.Connect`/`ConnectConfig` | v4→v5 rename |
 | pgx nulls | `pgtype.*` (`Valid bool`) | v4 tri-state `Status` | v5 simplified |
 | stdlib nulls | `sql.Null[T]` [1.22] | per-type `sql.NullString`/… (valid, verbose) | one generic type |
 | Bulk insert | `pgx.CopyFrom` | `pq.CopyIn` | ergonomic, COPY protocol |
 | MySQL / SQLite | `go-sql-driver/mysql` / `modernc.org/sqlite` (pure) or `mattn/go-sqlite3` (CGO) | - | standard |
 | Codegen | **sqlc v1.31.1** | hand-rolled scan boilerplate | typed, validated, `vet`/`verify` |
-| Migrations (embed lib) | **goose v3.27.x** | - | `embed.FS`, Go migrations, provider/locker API |
-| Migrations (CLI) | **golang-migrate v4.19.1** | its lib/pq driver path | use the native `pgx5://` driver |
-| Migrations (schema-as-code) | **Atlas v1.2.0** | manual diffing | auto-plan + 50+ linters + drift |
+| Migrations (embed lib) | **goose v3.29.0** | - | `embed.FS`, Go migrations, provider/locker API |
+| Migrations (CLI) | **golang-migrate v4.20.1** | its lib/pq driver path | use the native `pgx5://` driver |
+| Migrations (schema-as-code) | **Atlas v1.3.0** | manual diffing | auto-plan + 50+ linters + drift |
 | Query helper | `jmoiron/sqlx` | - | named params/`StructScan` over `database/sql` |
 | MongoDB | `mongo-driver/v2` | v1 (deprecated) | v2 import paths |
 
@@ -624,7 +624,7 @@ Translate `ErrNoRows` to a domain sentinel at the repo boundary; don't leak driv
 9. Migration footguns: golang-migrate dirty state (blocks until `migrate force`); Atlas without `--dev-url` (and no `atlas migrate hash` after a manual edit); goose missing `StatementBegin/End` around PL/pgSQL.
 10. Stale pgx Go floor: pgx v5.10 needs **Go 1.25+**; old toolchain + new pgx fails to build.
 11. "`database/sql` ctx guarantees cancellation": false if the *driver* lacks context-cancellation support (query runs to completion regardless).
-12. "lib/pq is officially deprecated": overstated; it's maintenance-mode, still released. The defensible claim is "pgx is the default for new PG code."
+12. "lib/pq is officially deprecated": overstated; it is in maintenance mode (PR #1053, v1.12.3 released 2026-04-03, no Deprecated notice). The defensible claim is "pgx is the default for new PG code."
 13. Ignoring Go 1.27: `sql.ConvertAssign`/`driver.RowsColumnScanner` are real additions since GA 2026-08-19 (driver authors); a stdlib `uuid` package landed too.
 
 ---
@@ -641,6 +641,6 @@ Translate `ErrNoRows` to a domain sentinel at the repo boundary; don't leak driv
 ## Sources {#sources}
 - go.dev/doc/go1.22 (`sql.Null[T]`), go1.26, **go.dev/doc/go1.27 (`sql.ConvertAssign`, `driver.RowsColumnScanner`, stdlib `uuid`, `encoding/json/v2`)**; go.dev/doc/database/manage-connections
 - pkg.go.dev/{database/sql, database/sql/driver}; pkg.go.dev/github.com/jackc/pgx/v5 (+ `/pgxpool`, `/stdlib`, `/pgconn`); github.com/jackc/pgx CHANGELOG; github.com/jackc/pgerrcode
-- pkg.go.dev/github.com/lib/pq (maintenance status: no deprecation banner corroborated; `LastInsertId` unsupported)
+- pkg.go.dev/github.com/lib/pq (v1.12.3; maintenance mode PR #1053, no deprecation banner; errors.As with *pq.Error; LastInsertId unsupported)
 - docs.sqlc.dev (config, annotations, vet/verify/managed-db); pkg.go.dev/github.com/pressly/goose/v3; pkg.go.dev/github.com/golang-migrate/migrate/v4 (v4.19.1); pkg.go.dev/ariga.io/atlas (v1.2.0) + atlasgo.io
 - golang/go issues #45993, #69728, #69837; redis/go-redis v9; go.mongodb.org/mongo-driver/v2

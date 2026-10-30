@@ -1,10 +1,10 @@
-# Platform, Build, and Distribution
+# Platform, build, and distribution
 
 Go's build system is a *constraint solver over files*: `GOOS`/`GOARCH`/build-tags pick which `.go` files compile, and the toolchain cross-compiles to any of ~45 targets with **zero** extra setup. The static `CGO_ENABLED=0` binary is the deployment superpower. The modern moves: **stamp version metadata via VCS (`runtime/debug.ReadBuildInfo`), not `-X`**; `-trimpath` + pinned toolchain for **reproducible** builds; reach for `plugin` almost never.
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Version tags `[1.N]` mark the release a claim applies to. Baseline assumed: **1.22**.
+> Verified against Go **1.26.4** (stable, 2026-06) and the final **Go 1.27** release notes (GA 2026-08-19). Version tags `[1.N]` mark the release a claim applies to.
 
-## TL;DR: the modern deltas (read first)
+## Start here: what is new
 
 - **Prefer VCS stamping over `-X` for version info.** `go build` already embeds `vcs.revision`/`vcs.time`/`vcs.modified` [1.18], readable via `runtime/debug.ReadBuildInfo()`; no `-ldflags` plumbing, no stale tags. Use `-X` only for a human-friendly *semver tag* the VCS doesn't carry.
 - **`//go:build` [1.17] is the only constraint syntax you should write.** The old `// +build` is legacy; `gofmt` keeps them in sync but you never author it new. **Exactly one `//go:build` line per file**, before the package clause, followed by a blank line.
@@ -13,32 +13,32 @@ Go's build system is a *constraint solver over files*: `GOOS`/`GOARCH`/build-tag
 - `plugin` is a near-anti-pattern: Linux/FreeBSD/macOS only, cannot be unloaded, and crashes unless host + every plugin share the *exact* toolchain/tags/flags/dependency source. Prefer `os/exec` + RPC (`hashicorp/go-plugin`).
 - `-pgo=auto` is the default [1.21]: a `default.pgo` in the main package dir is applied automatically; commit it.
 
-## Table of Contents
-1. [Build Tags and Conditional Compilation](#build-tags)
-2. [Cross-Compilation](#cross-compile)
+## Contents
+1. [Build tags and conditional compilation](#build-tags)
+2. [Cross-compilation](#cross-compile)
 3. [Microarchitecture levels (GOAMD64 et al.)](#microarch)
-4. [Linker flags: -ldflags, -X, -s -w](#ldflags)
+4. [Linker flags (-ldflags, -X, -s -w)](#ldflags)
 5. [Build metadata via ReadBuildInfo](#versioning)
-6. [Reproducible builds & -trimpath](#reproducible)
+6. [Reproducible builds and -trimpath](#reproducible)
 7. [Build modes (c-shared, pie, plugin)](#buildmodes)
-8. [GOFLAGS, GODEBUG defaults, env](#goflags)
-9. [PGO (default.pgo)](#pgo)
+8. [GOFLAGS, GODEBUG defaults, and environment](#goflags)
+9. [Profile-guided optimization (default.pgo)](#pgo)
 10. [go:generate](#generate)
-11. [//go:linkname danger](#linkname)
-12. [Embedding Files](#embed)
-13. [Windows-Specific Patterns](#windows)
-14. [Docker Builds](#docker)
-15. [ko; Dockerless Container Builds](#ko)
-16. [Release Automation](#releases)
-17. [go fix Modernizers](#go-fix)
+11. [The //go:linkname trap](#linkname)
+12. [Embedding files](#embed)
+13. [Windows patterns](#windows)
+14. [Docker builds](#docker)
+15. [Container builds without Docker (ko)](#ko)
+16. [Release automation](#releases)
+17. [go fix modernizers](#go-fix)
 18. [WebAssembly](#wasm)
-19. [Flag/feature status table](#status)
-20. [Version map 1.17→1.27](#versions)
-21. [What models get wrong](#stale)
+19. [Which flag to reach for](#status)
+20. [When each change landed (1.17 to 1.27)](#versions)
+21. [Mistakes to avoid](#stale)
 
 ---
 
-## Build Tags and Conditional Compilation {#build-tags}
+## Build tags and conditional compilation {#build-tags}
 
 A file compiles into a build iff its constraints are satisfied. Two mechanisms, **AND-ed together**:
 
@@ -78,7 +78,7 @@ See also: [modules-and-dependencies.md](modules-and-dependencies.md) for module-
 
 ---
 
-## Cross-Compilation {#cross-compile}
+## Cross-compilation {#cross-compile}
 
 Set two env vars; no toolchain install needed (the stdlib is recompiled on demand):
 
@@ -124,7 +124,7 @@ Levels are **cumulative**: `GOAMD64=v2` sets `amd64.v1` *and* `amd64.v2` build t
 
 ---
 
-## Linker flags: -ldflags, -X, -s -w {#ldflags}
+## Linker flags (-ldflags, -X, -s -w) {#ldflags}
 
 `-ldflags` passes args to `go tool link` (use `'pattern=flags'` to scope in a multi-package build; bare applies to the main package):
 
@@ -182,7 +182,7 @@ This survives `go install module@version` (which can't run your shell pipeline) 
 
 ---
 
-## Reproducible builds & -trimpath {#reproducible}
+## Reproducible builds and -trimpath {#reproducible}
 
 Bit-for-bit reproducibility (supply-chain verification, cache hits) requires eliminating every environment-dependent input:
 
@@ -224,7 +224,7 @@ go build -buildmode=c-shared -o libfoo.so ./cmd/libfoo      # FFI target
 
 ---
 
-## GOFLAGS, GODEBUG defaults, env {#goflags}
+## GOFLAGS, GODEBUG defaults, and environment {#goflags}
 
 **`GOFLAGS`** (verified) is a **space-separated** list of `-flag=value` settings applied to every `go` command that knows the flag; values must not contain spaces; command-line flags override it. Use it to make a project default sticky:
 
@@ -243,7 +243,7 @@ Override at runtime via the `GODEBUG` env var (`GODEBUG=http2client=0 ./myapp`).
 
 ---
 
-## PGO (default.pgo) {#pgo}
+## Profile-guided optimization (default.pgo) {#pgo}
 
 Profile-Guided Optimization [1.21 GA] feeds a runtime CPU profile back to the compiler for inlining/devirtualization decisions (typically a few % throughput). **`-pgo=auto` is the default** (verified): if a file named **`default.pgo`** exists in a `main` package's directory, the compiler applies it to that package's transitive deps automatically.
 
@@ -274,7 +274,7 @@ The generator binary itself is often kept as a `//go:build ignore` file or pinne
 
 ---
 
-## //go:linkname danger {#linkname}
+## The //go:linkname trap {#linkname}
 
 `//go:linkname localname importpath.name` aliases a local symbol to a private symbol in another package; bypassing the type system and export rules. It needs an `import _ "unsafe"`. It is a **last resort**: it couples you to *unexported* runtime internals that change without notice and have no compatibility promise.
 
@@ -289,7 +289,7 @@ func nanotime() int64
 
 ---
 
-## Embedding Files {#embed}
+## Embedding files {#embed}
 
 `//go:embed` bakes files into the binary at compile time (needs `import "embed"`, even when unused for the `embed.FS` form):
 
@@ -310,7 +310,7 @@ Gotchas: patterns are **relative to the source file** and can't escape it (no `.
 
 ---
 
-## Windows-Specific Patterns {#windows}
+## Windows patterns {#windows}
 
 Paths: use `path/filepath` (OS-aware separators), never `path` (forward-slash only; breaks on Windows). `os.UserConfigDir()` → `%APPDATA%` vs `~/.config`; `os.TempDir()` is portable. `filepath.ToSlash`/`FromSlash` bridge when a slash form is required (URLs, archives).
 
@@ -335,7 +335,7 @@ Services & signals: `golang.org/x/sys/windows/svc` (`svc.IsWindowsService()` to 
 
 ---
 
-## Docker Builds {#docker}
+## Docker builds {#docker}
 
 ```dockerfile
 FROM golang:1.26 AS build
@@ -355,9 +355,9 @@ Key points: **`CGO_ENABLED=0`** so the binary runs on `scratch`/distroless (no g
 
 ---
 
-## ko: Dockerless Container Builds {#ko}
+## Container builds without Docker (ko) {#ko}
 
-**Agent: use this to build Go container images without a Dockerfile or Docker daemon when cgo is not required.** ko runs `go build` locally, layers the binary onto a minimal base (`cgr.dev/chainguard/static`), and pushes an OCI image.
+Use this section when you need a Go container image without a Dockerfile or Docker daemon and cgo is not required. ko runs `go build` locally, layers the binary onto a minimal base (`cgr.dev/chainguard/static`), and pushes an OCI image.
 
 ```bash
 go install github.com/google/ko@latest
@@ -378,7 +378,7 @@ ko build --platform=linux/amd64,linux/arm64 ./cmd/myapp # multi-arch, no buildx
 
 ---
 
-## Release Automation {#releases}
+## Release automation {#releases}
 
 GoReleaser orchestrates cross-platform build + archive + checksum + publish from a git tag:
 
@@ -406,9 +406,9 @@ git tag v1.0.0 && git push --tags        # CI (GoReleaser Action) does the real 
 
 ---
 
-## go fix Modernizers {#go-fix}
+## go fix modernizers {#go-fix}
 
-**Agent: run this after every toolchain upgrade to apply automated modernizations.** `go fix` was rewritten [1.26] with ~two dozen analyzers that rewrite code to newer language/stdlib idioms.
+Run this after every toolchain upgrade to apply automated modernizations. `go fix` was rewritten [1.26] with ~two dozen analyzers that rewrite code to newer language/stdlib idioms.
 
 ```bash
 go fix ./...          # apply
@@ -442,7 +442,7 @@ WASM compilation (`GOOS=js`/`GOOS=wasip1`, `//go:wasmexport` [1.24], TinyGo) is 
 
 ---
 
-## Flag/feature status table {#status}
+## Which flag to reach for {#status}
 
 | Flag / feature | Status [2026] | Use when |
 |---|---|---|
@@ -461,7 +461,7 @@ WASM compilation (`GOOS=js`/`GOOS=wasip1`, `//go:wasmexport` [1.24], TinyGo) is 
 
 ---
 
-## Version map 1.17→1.27 {#versions}
+## When each change landed (1.17 to 1.27) {#versions}
 
 | Ver | Platform/build-relevant |
 |---|---|
@@ -469,16 +469,16 @@ WASM compilation (`GOOS=js`/`GOOS=wasip1`, `//go:wasmexport` [1.24], TinyGo) is 
 | **1.18** | VCS stamping (`vcs.*` in BuildInfo); `ParseBuildInfo`; generics (affects buildmodes only indirectly) |
 | **1.20** | PGO **preview**: multi-error build of stdlib |
 | **1.21** | **PGO GA + `-pgo=auto`/`default.pgo`**; `toolchain` directive + GODEBUG defaults keyed to `go.mod` `go` line; `//go:debug` directive; `GOEXPERIMENT` loopvar settled |
-| **1.22** | range-over-int (`rangeint`); `http.FileServerFS`/`http.ServeFileFS`; baseline for this doc |
+| **1.22** | range-over-int (`rangeint`); `http.FileServerFS`/`http.ServeFileFS` |
 | **1.23** | **`//go:linkname` to stdlib-internal symbols blocked** (`-checklinkname=0` escape); `GORISCV64` levels; timers GC'd unreferenced |
 | **1.24** | `tool` directive in `go.mod`; `//go:wasmexport`; FIPS 140-3 module (`GOFIPS140`); `os.Root` |
 | **1.25** | `GODEBUG` additions; flight recorder; `GOARM64`/microarch refinements |
 | **1.26** | **`go fix` rewritten** (~24 modernizers, `//go:fix inline`); `errorsastype` modernizer; `GOFIPS140` BuildSetting |
-| **1.27 (RC)** | Generic methods; `encoding/json/v2` GA; treat as draft until GA (~Aug 2026) |
+| **1.27** | Generic methods; `encoding/json/v2` + `jsontext` stable; linux/ppc64 emits the ELFv2 ABI (kernel ≥3.13; cgo/PIE/external linking now supported); macOS 13 Ventura+ required; response-file (`@file`) parsing in compile/link/asm/cgo/cover/pack; linker `-macos`/`-macsdk` options |
 
 ---
 
-## What models get wrong {#stale}
+## Mistakes to avoid {#stale}
 
 1. Claiming `CGO_ENABLED=0` is *always* the default; it's `1` on **native** builds; a stray C dep then breaks scratch/distroless. Set it explicitly.
 2. Hand-writing `// +build` lines; legacy; author only `//go:build` [1.17] (one line, blank line after, above `package`).
@@ -498,7 +498,7 @@ WASM compilation (`GOOS=js`/`GOOS=wasip1`, `//go:wasmexport` [1.24], TinyGo) is 
 
 ---
 
-## See Also {#see-also}
+## Where to look next {#see-also}
 - [cgo-and-interop.md](cgo-and-interop.md); cgo `//export`, c-shared/c-archive contracts, cross-compiling with a C toolchain
 - [modules-and-dependencies.md](modules-and-dependencies.md); `toolchain` directive, GODEBUG defaults, `tool` directive, vendoring
 - [supply-chain-security.md](supply-chain-security.md#reproducible-builds); reproducibility verification, SBOM, signing

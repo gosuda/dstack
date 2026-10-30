@@ -1,7 +1,5 @@
 # Optimization strategies (CPU)
 
-## Optimization levels
-
 Work the levels in order. The speedup column records what existing kernels in the Hugging Face kernels tree reached at each level against the PyTorch baseline; a new kernel on different shapes or hardware will land elsewhere.
 
 | Level | Focus | Speedup seen in existing kernels |
@@ -11,7 +9,7 @@ Work the levels in order. The speedup column records what existing kernels in th
 | L3 compute | FMA use, loop unrolling, brgemm for GEMM | 3x to 6x |
 | L4 expert | 2D thread decomposition, tinygemm micro-kernel, VNNI packing | 5x to 10x and above |
 
-## Decision tree
+## What to do after each level
 
 | Observation after a level | Next action |
 |---|---|
@@ -22,6 +20,8 @@ Work the levels in order. The speedup column records what existing kernels in th
 
 ## Element-wise kernels (RMSNorm, activations)
 
+Vectorize every access, then parallelize rows. Prefetch helps only once the miss rates say the kernel is memory bound:
+
 1. Use `_mm512_loadu_ps` and `_mm512_storeu_ps` for every memory access.
 2. Handle tail elements with a scalar loop or masked operations.
 3. Use `_mm512_fmadd_ps` for multiply-add.
@@ -31,6 +31,8 @@ Work the levels in order. The speedup column records what existing kernels in th
 7. Use grain size 1024 for `at::parallel_for`.
 
 ## GEMM kernels (quantized GEMM, MoE)
+
+Small M cannot amortize packing, so the two paths split at M 4. Block for L2 so the working set fits in the 1 MB budget:
 
 1. Implement the dual path: tinygemm for M at or below 4, brgemm above.
 2. Use the `Unroll<N>` template for compile-time loop unrolling.
@@ -43,13 +45,17 @@ Work the levels in order. The speedup column records what existing kernels in th
 
 ## Attention kernels (Flash-Attention)
 
+Tile to keep QK and softmax blocks resident, and let brgemm carry both matmuls:
+
 1. Tile attention with BLOCK_M=256 and BLOCK_N=768.
 2. Use brgemm for the Q K^T and softmax(S) V matmul blocks.
 3. Use online softmax with a running max and sum.
 4. Thread over batch, heads, and M tiles.
 5. Requires AVX512 and AMX (through brgemm).
 
-## Constraints
+## Hard limits
+
+These cost correctness or silently give the speedup back, so they hold at every level:
 
 - Use `_mm512_loadu_*`; never `_mm512_load_*`. PyTorch does not guarantee 64-byte alignment of a tensor's data pointer.
 - Do not mix AVX2 and AVX512 intrinsics in one translation unit.
@@ -58,7 +64,7 @@ Work the levels in order. The speedup column records what existing kernels in th
 - Handle the tail for hidden sizes that are not a multiple of the vector width.
 - Keep the ATen fallback tier.
 
-## Profiling quick reference
+## Read the profiler
 
 These bands are heuristics for the Xeon cores the existing kernels ran on. Read IPC together with the miss rates: a pure AVX512 FMA loop retires few wide instructions per cycle by design, so a low IPC with low miss rates is not a memory bound.
 
@@ -69,7 +75,7 @@ These bands are heuristics for the Xeon cores the existing kernels ran on. Read 
 | LLC miss rate above 20% | Working set exceeds L3 | Add cache blocking for L2 (1 MB budget) |
 | Branch miss rate above 5% | Unpredictable branches | Use SIMD masking or `__builtin_expect` |
 
-## Reference index
+## Where to look next
 
 | Question | File |
 |---|---|
@@ -84,7 +90,7 @@ These bands are heuristics for the Xeon cores the existing kernels ran on. Read 
 | Data types | `references/dtype_optimizations.yaml` |
 | More speedup | `references/optimization_levels.yaml` |
 
-## Checklist
+## Before calling it done
 
 - [ ] Operation type identified (element-wise, reduction, GEMM, attention)
 - [ ] `cpu_features.hpp` created in the kernel's own namespace

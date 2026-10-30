@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-# Replies to a PR review thread. Body is read from stdin to avoid
-# shell escaping issues with markdown (quotes, newlines, etc.).
+# Replies to a PR review thread. Body is read from stdin and carried through
+# a file-backed structured payload so markdown with quotes, backticks,
+# dollar signs, and newlines never passes through argv.
+# Emits a structured receipt on success: {"id": "...", "url": "..."}.
+# Rejects GraphQL errors and absent expected nodes; exit zero alone is never
+# a receipt. The caller owns authorization, expected-head checks, read-back,
+# and partial-batch accounting.
 
 set -e
 
@@ -12,22 +17,30 @@ if [ $# -lt 1 ]; then
 fi
 
 THREAD_ID=$1
-BODY=$(cat)
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/odin-reply-to-thread.XXXXXX")
+trap 'rm -rf "$tmp_dir"' EXIT
+body_file="$tmp_dir/body.txt"
+payload_file="$tmp_dir/payload.json"
+resp_file="$tmp_dir/resp.json"
 
-if [ -z "$BODY" ]; then
-    echo "Error: No body provided on stdin."
+cat > "$body_file"
+
+if [ ! -s "$body_file" ]; then
+    echo "Error: No body provided on stdin." >&2
     exit 1
 fi
 
-gh api graphql -f threadId="$THREAD_ID" -f body="$BODY" -f query='
-mutation ReplyToReviewThread($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {
-    pullRequestReviewThreadId: $threadId
-    body: $body
-  }) {
-    comment {
-      id
-      url
-    }
-  }
-}'
+jq -n --arg tid "$THREAD_ID" --rawfile b "$body_file" '
+  {
+    query: "mutation ReplyToReviewThread($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) { comment { id url } } }",
+    variables: { threadId: $tid, body: $b }
+  }' > "$payload_file"
+
+gh api graphql --input "$payload_file" > "$resp_file"
+
+jq -e '
+  if (.errors != null and (.errors | length > 0)) then error("GraphQL errors: \(.errors)")
+  elif (.data.addPullRequestReviewThreadReply.comment.id == null) then error("missing receipt: no comment id returned")
+  elif (.data.addPullRequestReviewThreadReply.comment.url == null) then error("missing receipt: no comment url returned")
+  else .data.addPullRequestReviewThreadReply.comment | {id, url} end
+' "$resp_file"

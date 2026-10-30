@@ -18,7 +18,7 @@ The only wildcards are meta-variables:
 | `foo\|bar` | bitwise-or of `foo` and `bar` (valid code, wrong intent) | run two searches, or an `any:` YAML rule |
 | `.*foo` | not parseable as code | `$$$ foo`, or use `rg` |
 | `\w+` | not parseable → ERROR node | `$VAR` to capture any identifier |
-| `[a-z]` | char class → not code | switch to `rg` |
+| `[a-z]` | array with subtraction (valid code, wrong intent) | switch to `rg` |
 
 Note: the helper's `validate` catches the `\w` / `\d` / `\s` / `.*` class as a hint, but its authoritative check is whether the pattern parses to a clean CST (no `(ERROR` nodes). A clean parse with the wrong intent, like `foo|bar`, passes validation yet still matches the wrong thing.
 
@@ -37,9 +37,9 @@ ast-grep run -p '<pattern>' -l <lang> --debug-query=cst
 
 If the output shows `(ERROR ...)` anywhere, the pattern is malformed; fix it before trusting the (empty) result.
 
-## §3: `--json` and `--update-all` conflict; preview and apply are separate passes
+## §3: Keep `--json` preview and `--update-all` apply in separate passes
 
-`--update-all` conflicts with `--json` (see `-U` in `ast-grep run --help`: "It conflicts with both the `--interactive`, `--json` ... flags"). You cannot get a JSON preview and a mutation from one invocation: combine them and files stay untouched while JSON still prints, so a script that expects the write to land silently never applies it.
+Do not combine `--update-all` with `--json` in one invocation. The JSON output wins and the write is dropped with no error, so a script that expects the write to land silently never applies it. (In `ast-grep run --help`, the "conflicts with `--interactive`, `--json`" line belongs to `--files-with-matches`, not to `-U`.)
 
 Run two separate passes; never pass both flags together:
 

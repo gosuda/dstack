@@ -1,10 +1,11 @@
 # Diversity
 
 The model defaults toward centroid output. Diversity is engineered, not wished. This file documents six techniques for engineering it; combine them, none alone is sufficient. Skipping any one technique re-anchors the candidate set to the centroid; the techniques compound, they do not substitute.
+Counts, temperatures, and gains below are tuned defaults fitted to the model's failure modes, not formal guarantees; keep them unless the surface gives a reason to move.
 
 ## §1. Verbalized sampling
 
-Source: arXiv 2510.01171 ("Verbalized Sampling Yields More Diverse and Higher-Quality LLM Generations").
+Source: arXiv 2510.01171 ("Verbalized Sampling: How to Mitigate Mode Collapse and Unlock LLM Diversity").
 
 Algorithm:
 

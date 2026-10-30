@@ -1,3 +1,0 @@
-interface:
-  display_name: "Memory Hierarchy And Caches"
-  short_description: "Use when explaining cache levels, associativity, cache lines, false sharing, prefetching, or MESI coherence."

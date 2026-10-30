@@ -5,30 +5,21 @@ description: 'Use when selecting RUSTFLAGS, configuring Cargo profiles, tuning r
 
 # rustc basics
 
-rustc is driven through Cargo profiles and `-C` codegen flags. The right answer is a profile entry or a flag, verified against the installed toolchain.
+rustc is driven through Cargo profiles and `-C` codegen flags. The right answer is a profile entry or a flag, verified against the installed toolchain, and that is what you hand back: a chat-output recommendation or explanation, never a source edit.
 
-## Contract
+What you need before starting: the goal (build mode, profile tuning, output inspection, binary size, or error triage). The `rustc --version` output and target triple when they cannot be inferred, plus the workspace Cargo.toml profiles and `.cargo/config.toml` when they exist.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Choosing RUSTFLAGS or Cargo profile settings, inspecting compiler output (assembly, MIR, LLVM IR), reducing binary size, or triaging a compilation error. |
-| Authority | Read-only. Chat output only. No remote mutation. |
-| Side effect | Emits a configuration recommendation or explanation to chat. |
-| Done | The report names the profile settings, flag set, inspection command, or error fix, each verified against the installed rustc. |
+## Naming the goal and the toolchain
 
-## Inputs
+Read `rustc --version`, the target triple, and any existing profile or rustflags configuration. The step is done when the goal and toolchain are named.
 
-1. **Goal** (required): build mode, profile tuning, output inspection, binary size, or error triage.
-2. **Toolchain** (required if not inferrable): `rustc --version` output and the target triple.
-3. **Existing configuration** (optional): the workspace Cargo.toml profiles and `.cargo/config.toml`.
+## Picking the build mode
 
-## Procedure
+Use `cargo build` for debug, `cargo build --release` for optimized, `cargo check` for the fastest type check pass, and `--target` for cross builds. The step is done when the mode matches the goal.
 
-1. **Identify the goal and the toolchain.** Read `rustc --version`, the target triple, and any existing profile or rustflags configuration. Done when: the goal and toolchain are named.
+## Tuning the profile
 
-2. **Recommend the build mode.** `cargo build` for debug, `cargo build --release` for optimized, `cargo check` for the fastest type-check pass, `--target` for cross builds. Done when: the mode matches the goal.
-
-3. **Recommend profile settings.** Profiles apply only in the workspace-root Cargo.toml.
+Profiles apply only in the workspace root Cargo.toml. Per-member profiles are ignored, so when a profile key seems to have no effect, check where it lives before anything else.
 
 ```toml
 [profile.release]
@@ -48,9 +39,11 @@ strip = "symbols"      # "none", "debuginfo", or "symbols"
 | `panic = "abort"` | Drops unwind tables; smaller binary, panics cannot be caught |
 | `opt-level = "z"` | Aggressive size reduction |
 
-Done when: the recommended profile block is complete.
+The step is done when the recommended profile block is complete.
 
-4. **Recommend RUSTFLAGS for invocation-level control.** `-C` flags apply per build; persist them in `.cargo/config.toml` when they should be permanent.
+## Setting RUSTFLAGS for one build
+
+`-C` flags apply per build. Persist them in `.cargo/config.toml` only when they should be permanent.
 
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release
@@ -62,24 +55,24 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 rustflags = ["-C", "target-cpu=native"]
 ```
 
-Warn that `target-cpu=native` ties the binary to the build machine; recommend a named microarchitecture level such as `x86-64-v3` for distributed binaries. Done when: flags are given with their persistence story.
+`target-cpu=native` ties the binary to the build machine. For a binary that ships elsewhere, recommend a named microarchitecture level such as `x86-64-v3` instead, and warn that a native-tuned binary may fault on older CPUs. The step is done when the flags come with their persistence story.
 
-5. **Give the inspection command for the requested output.**
+## Seeing what the compiler produced
 
-```bash
-cargo install cargo-show-asm
-cargo asm --release 'myapp::module::function'
+| Wanted output | Command |
+|---|---|
+| Annotated assembly for one function | `cargo install cargo-show-asm`, then `cargo asm --release 'myapp::module::function'` |
+| Whole-crate assembly | `rustc --emit=asm -C opt-level=3 src/lib.rs` (`.s` assembly) |
+| Mid-level IR | `rustc --emit=mir -C opt-level=3 src/lib.rs` (MIR text) |
+| Low-level IR | `rustc --emit=llvm-ir -C opt-level=3 src/lib.rs` (LLVM IR) |
 
-rustc --emit=asm -C opt-level=3 src/lib.rs      # .s assembly
-rustc --emit=mir -C opt-level=3 src/lib.rs      # MIR text
-rustc --emit=llvm-ir -C opt-level=3 src/lib.rs  # LLVM IR
-```
+The step is done when the command produces the requested representation. When rustc writes an `--emit` artifact somewhere unexpected, look next to the input or under `target/`; for locating a single function, `cargo-show-asm` is the easier path.
 
-Done when: the command produces the requested representation.
+## When generics bloat the binary or slow the build
 
-6. **Explain monomorphization when compile time or binary size is the complaint.** Each concrete instantiation of a generic produces separate code. Measure with `cargo llvm-lines --release`; mitigate with `dyn Trait` type erasure or a non-generic inner function that does the work behind a thin generic wrapper. Done when: the measurement command and one mitigation are given.
+Each concrete instantiation of a generic produces separate code (monomorphization). Measure with `cargo llvm-lines --release`, then mitigate with `dyn Trait` type erasure or a non-generic inner function that does the work behind a thin generic wrapper. The step is done when the measurement command and one mitigation are given.
 
-7. **Recommend the size profile when binary size is the goal.**
+## Slimming the binary for size
 
 ```toml
 [profile.release]
@@ -90,9 +83,9 @@ panic = "abort"
 strip = "symbols"
 ```
 
-Measure with `cargo bloat --release --crates` for per-crate size and `cargo bloat --release -n 20` for the largest functions. Done when: the profile and the measurement commands are given.
+Measure with `cargo bloat --release --crates` for per-crate size and `cargo bloat --release -n 20` for the largest functions. The step is done when the profile and the measurement commands are given.
 
-8. **Triage compilation errors by class.**
+## Reading a compilation error
 
 | Error | Cause | Fix |
 |---|---|---|
@@ -103,21 +96,12 @@ Measure with `cargo bloat --release --crates` for per-crate size and `cargo bloa
 | `use of moved value` | Value moved earlier | Borrow or clone |
 | `mismatched types` | `String` vs `&str` and similar | Convert at the boundary |
 
-Use `rustc --explain E0382` for the long form of any error code. Done when: each error maps to a row.
+Use `rustc --explain E0382` for the long form of any error code. The step is done when each error maps to a row. An error that matches no row gets reported verbatim with the closest class, never an invented fix.
 
-9. **Verify every flag against the installed toolchain** with `rustc -C help`, `rustc --print target-list`, `rustc --print target-features --target <triple>`, and `rustc --print cfg`. Done when: no recommended flag is unverified.
+## Verifying against the installed toolchain
 
-## Failure and recovery
+Check every recommended flag with `rustc -C help`, `rustc --print target-list`, `rustc --print target-features --target <triple>`, and `rustc --print cfg`. No recommended flag goes out unverified: a flag the toolchain rejects gets dropped with the rejection noted.
 
-| Failure class | Behavior |
-|---|---|
-| Flag rejected by the toolchain | Verify with `rustc -C help` or `rustc --print`; drop the flag and note the rejection. |
-| Profile key has no effect | Profiles apply only in the workspace-root manifest; per-member profiles are ignored. Say so. |
-| `target-cpu=native` requested for distribution | Warn that the binary may fault on older CPUs; recommend a named microarchitecture level instead. |
-| `--emit` artifact not found | rustc writes next to the input or under `target/`; recommend `cargo-show-asm` for locating one function. |
-| Error matches no row | Report the error text verbatim and the closest class; do not invent a fix. |
+## What you hand back
 
-## Output
-
-1. A recommendation report: profile block, RUSTFLAGS, or inspection commands, each verified against the installed rustc.
-2. The full `-C` flag table, profile inheritance, per-package overrides, and linker configuration are in `references/rustflags-profiles.md`.
+A recommendation report with the profile block, RUSTFLAGS, or inspection commands, each verified against the installed rustc. The full `-C` flag table, profile inheritance, per-package overrides, and linker configuration live in `references/rustflags-profiles.md`.

@@ -131,7 +131,7 @@ A surface should survive five distinct user archetypes. Each persona exposes fai
 - Is state preserved if the user leaves and returns?
 - Does it work on slow connections (3G)?
 - Can forms use autocomplete and smart defaults?
-- Are touch targets at least 44×44pt?
+- Are touch targets at least 44×44pt (Apple HIG iOS convention; WCAG 2.5.8 Target Size (Minimum) is 24 CSS px, with exceptions)?
 
 **Red flags (report specifically).**
 - Important actions positioned at the top of the screen (unreachable by thumb)

@@ -4,38 +4,48 @@ description: 'Use when a user asks to mine recent chats for workflow preferences
 disable-model-invocation: true
 ---
 
-# Workflow from chats
+# Learning workflow preferences from recent chats
 
-## Contract
+You write nothing and change no source or remote system. No file, VCS, credential, paid, published, deployed, or remote mutation. Your whole result is a report returned in chat.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | Mine recent chats for workflow preferences. |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat-output: proposes workflow artifacts only; writes nothing. |
-| Done | Report-returned: evidence-backed preference synthesis and proposed artifacts. |
+## Confirming what to read
 
-## Inputs
+Start with the chat history source and the scope around it. You need one required input:
 
-- Required: chat history or a path from which chat history can be read.
-- Optional: time window, topic filter, or named agent/session identifier to narrow the scope.
+- Chat history, or a path it can be read from.
 
-## Procedure
+These narrow the scope and are optional:
 
-1. Confirm the chat history source and time window. Done when: source and window are confirmed, or the step has stopped on no readable chat source.
-2. Enumerate chat sessions within the window, bounded by the supplied filter. Done when: sessions are enumerated within the filtered window.
-3. Extract recurring intent patterns, explicit preference statements, tool-use frequencies, and rejected suggestions from each session. Done when: signals are extracted from each session.
-4. Classify extracted signals into workflow categories: automation, prompting, tooling, routing, and escalation. Done when: every signal is classified into a workflow category.
-5. Synthesize a preference profile from the classified signals. Flag low-confidence signals; exclude uncorroborated single-instance claims. Done when: preference profile is synthesized with confidence ratings.
-6. Propose named workflow artifacts that satisfy high-confidence preferences. Each proposal names the trigger, inputs, steps, and done criterion. Done when: proposals are generated for high-confidence preferences, or the step returns the profile without proposals.
-7. Return the preference profile and proposed artifacts as a structured report. Done when: report is returned.
+- Time window.
+- Topic filter.
+- Named agent or session identifier.
 
-## Failure and recovery
+If no readable chat source exists, report the failure with a specific error and do not proceed.
 
-- No chat source: report failure with a specific error. Do not proceed.
-- No extractable signals: return a report stating zero preferences found. Do not fabricate patterns.
-- Partial synthesis: return the partial result with explicit gaps listed. Do not fill gaps.
-- Proposal failure: return the preference profile without proposed artifacts. Do not invent artifacts.
+## Reading sessions and extracting signals
 
-## Output
-A structured report with sections in order: extracted preference signals with source citations, synthesized preference profile with confidence ratings, and proposed workflow artifacts with trigger, inputs, steps, and done criterion.
+Enumerate the chat sessions inside the window, bounded by whatever filter was supplied. From each session, pull out recurring intent patterns, explicit preference statements, tool use frequencies, and rejected suggestions. If no extractable signals turn up, return a report saying zero preferences were found. Never fabricate patterns.
+
+## Sorting signals into a profile
+
+Classify every extracted signal into one of these workflow categories:
+
+- Automation.
+- Prompting.
+- Tooling.
+- Routing.
+- Escalation.
+
+Then synthesize a preference profile from the classified signals. Flag low confidence signals and exclude uncorroborated single instance claims. If synthesis only goes partway, return the partial result with explicit gaps listed. Never fill gaps by invention.
+
+## Proposing artifacts where evidence is strong
+
+For high confidence preferences, propose named workflow artifacts. Each proposal names its trigger, inputs, steps, and done criterion. If no proposal holds up, return the profile without proposed artifacts rather than inventing any.
+
+## What you hand back
+
+A structured report in this order:
+
+1. Extracted preference signals with source citations.
+2. Synthesized preference profile with confidence ratings.
+3. Proposed workflow artifacts with trigger, inputs, steps, and done criterion.

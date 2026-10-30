@@ -1,0 +1,3 @@
+interface:
+  display_name: "Proof"
+  short_description: "Use when asked to publish, read, comment on, suggest to, or pull a Proof collaborative markdown document."

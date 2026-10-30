@@ -29,7 +29,7 @@ System and licensable families to track:
 
 - PingFang SC / TC / HK: Apple / DynaComware. Six weights Ultralight → Semibold. iOS 18+ moved the system font to a private `PingFangUI.ttc` bundle (not user-installable, must use CoreText APIs). Targeting `-apple-system` resolves correctly on Apple OSes; webfont distribution is licensing-restricted.
 - **Source Han Sans 2.005** (2025-06-18): variable + 7-weight static; Latin component updated to Source Sans 3; SC / TC / HK / JP / KR sub-families. Open-source (SIL OFL), self-hostable, the safest webfont default for Chinese.
-- HarmonyOS Sans: Huawei × Hanyi. Free commercial license. Six weights, multilingual variable font, 105 languages incl. SC / TC / Latin / Cyrillic / Greek / Arabic. The most polished 2025 Chinese release outside Source Han.
+- HarmonyOS Sans: Huawei × Hanyi. Proprietary royalty-free under HarmonyOS Sans Fonts License Agreement (requires prominent attribution notice in software, modifications to fonts or components forbidden, stand-alone font redistribution/resale forbidden). Six weights, multilingual variable font, 105 languages. Distributed as unversioned ZIP via Huawei developer portal (non-SemVer; npm harmonyos-sans is an ISC-packaged wrapper by mobiledesres).
 - MiSans: Xiaomi. Proprietary license (NOT SIL-OFL, attribution required, redistribution forbidden, license file MUST ship with any bundled subset). 10 weights, variable, 600+ language coverage across 12 sub-families.
 - OPPO Sans 4.0: OPPO × Hanyi / Pentagram. Free commercial license. SC / TC / JP / KR.
 - Microsoft YaHei UI: Light / Regular / Bold. Windows 11 default. Restricted to Windows; reach via system stack only.
@@ -40,11 +40,11 @@ License caveats matter: MiSans reads as SIL-OFL-shaped from a distance, ships un
 
 The densest market for design systems in CJK. Five tracked in production:
 
-- **Ant Design 6.0** (2025-11-22): pure CSS-variables architecture by default, React 18 floor, removed IE compat, smooth v5 → v6 migration with no codemod, Masonry component, mask-blur defaults, `zeroRuntime` opt-in. Current stable line 6.6.x; 6.6.0 added `Listy`, deprecating the legacy `List`. The CSS-variables flip is the breaking-change story most teams notice, runtime theming, design-token interop, and theme-package authoring all change shape; `zeroRuntime` is the performance lever for SSR-heavy surfaces, removing the cssinjs runtime cost on first paint.
-- Ant Design X 2.9.x: AGI-oriented "RICH paradigm" component set: **R**ole / **I**ntention / **C**onversation / **H**ybrid-UI. Monorepo split into `@ant-design/x` + `x-markdown` + `x-sdk`. A2UI-protocol dynamic card rendering. The most distinctive 2026 Chinese-tech artifact, the only mainstream DS framing AGI-native primitives as first-class layout, not a chat sidecar bolted onto a CRUD shell.
-- TDesign Vue Next 1.20.x: Tencent's open DS. Added lunar calendar `cell` API for DatePicker (mainland UI is bicultural-calendar by default; Gregorian-only date pickers read as foreign), horizontal-menu auto-collapse, ChatEngine / ChatMarkdown chat primitives. Multi-framework (React / Vue / Mobile / Miniprogram).
-- **Arco Design** (@arco-design/web-react 2.66.x, @arco-design/web-vue 2.58.x): ByteDance enterprise system, jointly built by ByteDance GIP UED + Infra FE. React, Vue, Mobile. iF Design 2025 winner. Closer in register to Ant than to material, dense, neutral, blue-accent default; the surface defaults that ByteDance internal tools ship.
-- Element Plus 2.14.x: Vue 3 community workhorse for Chinese SaaS; dedicated `cn.element-plus.org` mirror. Less ambitious than Ant or TDesign on tokens and theming; more familiar to teams migrating from Element UI / Vue 2.
+- **Ant Design 6.0** (2025-11-22): pure CSS-variables architecture by default, React 18 floor, removed IE compat, smooth v5 → v6 migration with no codemod, Masonry component, mask-blur defaults, `zeroRuntime` opt-in. Current stable line 6.6.8; 6.6.0 added `Listy`, deprecating the legacy `List`. The CSS-variables flip is the breaking-change story most teams notice, runtime theming, design-token interop, and theme-package authoring all change shape; `zeroRuntime` is the performance lever for SSR-heavy surfaces, removing the cssinjs runtime cost on first paint.
+- Ant Design X 2.10.x: AGI-oriented "RICH paradigm" component set: **R**ole / **I**ntention / **C**onversation / **H**ybrid-UI. Monorepo split into `@ant-design/x` + `x-markdown` + `x-sdk`. A2UI-protocol dynamic card rendering. The most distinctive 2026 Chinese-tech artifact, the only mainstream DS framing AGI-native primitives as first-class layout, not a chat sidecar bolted onto a CRUD shell.
+- TDesign Vue Next 1.20.10: Tencent's open DS. Added lunar calendar `cell` API for DatePicker (mainland UI is bicultural-calendar by default; Gregorian-only date pickers read as foreign), horizontal-menu auto-collapse, ChatEngine / ChatMarkdown chat primitives. Multi-framework (React / Vue / Mobile / Miniprogram).
+- **Arco Design** (@arco-design/web-react 2.66.18, @arco-design/web-vue 2.59.0): ByteDance enterprise system, jointly built by ByteDance GIP UED + Infra FE. React, Vue, Mobile. iF Design 2025 winner. Closer in register to Ant than to material, dense, neutral, blue-accent default; the surface defaults that ByteDance internal tools ship.
+- Element Plus 2.14.7: Vue 3 community workhorse for Chinese SaaS; dedicated `cn.element-plus.org` mirror. Less ambitious than Ant or TDesign on tokens and theming; more familiar to teams migrating from Element UI / Vue 2.
 
 Ant Design X is the artifact to study before shipping AI surfaces in 2026, the RICH split anticipates the structural problem (intent capture + tool-call display + hybrid streaming) the rest of the field has not yet named. Pick by team and stack: Ant (React, enterprise breadth), TDesign (multi-framework, Tencent-platform integration), Arco (React / Vue, ByteDance lineage), Element Plus (Vue community baseline). (github.com/ant-design/ant-design/issues/55804; ant.design/docs/react/introduce; ant-design-x.antgroup.com/changelog; github.com/Tencent/tdesign-vue-next/releases; arco.design; element-plus.org).
 
@@ -142,8 +142,8 @@ Tier 1 (specifications and primary maintainers):
 Tier 2 (vendor and platform documentation):
 
 - `ant.design/docs/react/introduce`: Ant Design 6 docs.
-- `ant-design-x.antgroup.com/changelog`: Ant Design X 2.9.x changelog.
-- `github.com/Tencent/tdesign-vue-next/releases`: TDesign Vue Next 1.20.x.
+- `ant-design-x.antgroup.com/changelog`: Ant Design X 2.10.x changelog.
+- `github.com/Tencent/tdesign-vue-next/releases`: TDesign Vue Next 1.20.10.
 - `arco.design`: Arco Design (ByteDance).
 - `element-plus.org`: Element Plus mirror.
 - `hyperos.mi.com/font`: MiSans license terms.

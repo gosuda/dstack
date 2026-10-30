@@ -1,0 +1,3 @@
+interface:
+  display_name: "Offensive Driven"
+  short_description: "Use when the user explicitly asks for a replacement-first pass such as \"rebuild it clean\", \"replace-first\", or \"offensive pass on <target>\" spanning code, docs, plans, or research."

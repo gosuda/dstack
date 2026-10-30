@@ -5,47 +5,58 @@ description: 'Use when TypeScript needs shaping toward narrow types, unions, exh
 
 # TypeScript best practices
 
-## Contract
+You shape TypeScript source proactively so bad states cannot be written: narrow types, discriminated unions, readonly where mutation is forbidden, validated boundaries, and the strict flags actually turned on. This is a shaping pass, not a repair job. A concrete error report (a message, a broken inference, a generic that will not constrain) belongs to typescript-type-hardening, and language-agnostic domain modeling belongs to type-driven.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A proactive shaping pass on TypeScript source: narrow types, discriminated unions, readonly fields, exhaustive variants, typed trust boundaries, module resolution, TypeScript 7 strict flags. Not a concrete error report (routes to typescript-type-hardening) and not language-agnostic domain modeling (routes to type-driven). |
-| Authority | Reversible local: writes only named TypeScript source files and the named `tsconfig.json`; rollback is version control. No remote mutation. No invented strict flags, no universal branded-type or `as` bans, no unvalidated external shapes. |
-| Side effect | Shapes TypeScript source and tsconfig. |
-| Done | `tsc --noEmit` passes with no `any`, `!`, or double-assertion introduced: illegal states unrepresentable, variants exhaustive, boundaries validated. |
+This stays local and reversible: you touch only the in-scope TypeScript files and the named `tsconfig.json`, rolled back through version control. You never touch remote state.
 
-## Inputs
+What you need before starting: the in-scope TypeScript source files and the target `tsconfig.json`. The scope must name a proactive shaping pass. A concrete error report routes to typescript-type-hardening instead.
 
-The in-scope TypeScript source files and the target `tsconfig.json`. Scope must name a proactive shaping pass, not a concrete error report (which routes to typescript-type-hardening) nor language-agnostic domain modeling (which routes to type-driven).
+Limits that hold for the whole pass:
 
-## Refusals
+- No new `any`, `!` non-null assertions, or `as unknown as` double assertions.
+- No invented strict flags beyond the TypeScript 7 set named below.
+- No blanket ban on branded types or `as`. Use an opaque type where the domain identity invariant is real and enforced, and use `as` where TypeScript narrowing is insufficient, stating the reason each time.
+- No unvalidated external shape shipped or re-exported without a validating boundary.
 
-- Will not introduce `any`, `!` non-null assertions, or `as unknown as` double-assertions.
-- Will not invent strict flags beyond the named TypeScript 7 set.
-- Will not universally ban branded types or `as`; use them where the invariant is real or narrowing is insufficient.
-- Will not ship unvalidated external shapes without a validating boundary.
+## Read the scope first
 
-## Procedure
+Read every in-scope file before changing any of them. You are done with this step when all of them have been read.
 
-1. **Read in-scope files.** Read every TypeScript file named in the scope. Done when: all in-scope files are read.
+## Turn on the strict set
 
-2. **Verify or apply the TypeScript 7 strict-flag set in tsconfig.json.** Check the project `tsconfig.json` for the full strict set: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `noImplicitReturns`, `allowUnreachableCode: false`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `isolatedDeclarations`. Apply any that are missing. Use only these flags; do not invent additional strict flags. Done when: the strict-flag set is verified or applied in `tsconfig.json`.
+Check the project `tsconfig.json` for exactly this set and apply what is missing:
 
-3. **Shape types.** For each type: keep `unknown` only while it is genuinely opaque and narrow it at trust boundaries using narrowing, type predicates, or explicit casts where TypeScript narrowing is available. Do not universally ban branded types; use opaque types for domain identity where the invariant they model is real and enforced. Use `as` only where TypeScript narrowing is insufficient, and state the reason. Design discriminated unions for state machines and mutually exclusive variants. Add `readonly` to properties that must not be reassigned. Done when: every type is narrowed, discriminated where applicable, and readonly where required.
+- `noUncheckedIndexedAccess`
+- `exactOptionalPropertyTypes`
+- `noImplicitOverride`
+- `noFallthroughCasesInSwitch`
+- `noPropertyAccessFromIndexSignature`
+- `noImplicitReturns`
+- `allowUnreachableCode: false`
+- `verbatimModuleSyntax`
+- `erasableSyntaxOnly`
+- `isolatedDeclarations`
 
-4. **Put a validating parser on every trust boundary and set module resolution.** Validate untrusted external input at trust boundaries using Zod 4, Valibot, or ArkType through the Standard Schema interface. Do not widen or re-export unvalidated external shapes without a validating boundary. Set module resolution to `NodeNext` for Node.js targets and `ESNext` with a bundler for SPAs. Done when: every trust boundary has a validating parser and module resolution matches the target runtime.
+Use only these flags. If a check fails for a missing flag, the recovery is applying the named flag, with version control as the rollback.
 
-5. **Prove the result by running tsc --noEmit.** Run `tsc --noEmit` and confirm it passes. Verify that no `any`, `!`, or `as unknown as` double-assertion was introduced by the shaping pass. Verify exhaustiveness on discriminated unions using the compiler's exhaustive switch and match checks; if the language lacks built-in exhaustiveness, add a final otherwise-branch that narrows the unknown variant to `never`. Done when: `tsc --noEmit` passes with no `any`, `!`, or double-assertion introduced, and every discriminated union is exhaustively checked.
+## Shape the types toward narrow and explicit
 
-## Failure and recovery
+Keep `unknown` only while it is genuinely opaque, and narrow it at trust boundaries with guards, predicates, or an explicit cast where narrowing is available. Model state machines and mutually exclusive variants as discriminated unions. Mark properties `readonly` where reassignment is forbidden. Add an opaque type for domain identity only where the invariant it models is real and enforced.
 
-| Failure class | Recovery |
-|---|---|
-| Cannot narrow an unknown | Report the un-narrowable type and stop. Do not widen scope or add a placeholder cast. |
-| Domain lacks a discriminant | Propose a discriminant field or tag; stop if the domain does not support it. Do not force a discriminated union where the domain does not fit. |
-| Validation library unavailable | State the missing library constraint and stop. Do not ship unvalidated external shapes. |
-| Missing tsconfig strict flags | Apply only the named flags in step 2. VCS rollback. |
+## Validate every boundary and match the runtime
 
-## Output
+Put a validating parser (Zod 4, Valibot, or ArkType through the Standard Schema interface) on every trust boundary where untrusted external input enters. Never widen or re-export an unvalidated external shape past that boundary. Set module resolution to `NodeNext` for Node.js targets and `ESNext` with a bundler for SPAs.
 
-Modified source and `tsconfig.json` files with a clean `tsc --noEmit` run as the objective Done proof: illegal states unrepresentable, variants exhaustive, boundaries validated. No invented strict flags, no universal branded-type or `as` bans.
+## Prove it with the compiler
+
+Run `tsc --noEmit` and confirm it passes. Confirm the pass introduced no `any`, `!`, or `as unknown as`. Confirm every discriminated union is exhaustively checked through the compiler's switch and match checks, adding a final otherwise branch that narrows the unknown variant to `never` where the language lacks built-in exhaustiveness.
+
+When this step fails, the cause is one of a short list. Report it plainly and stop rather than working around it:
+
+- A type that cannot be narrowed: report it and stop. Do not widen scope or add a placeholder cast.
+- A domain with no natural discriminant: propose a tag field, and stop if the domain does not support one. Do not force a union that does not fit.
+- A validation library that is unavailable: state the missing constraint and stop. Do not ship the shape unvalidated.
+
+## What you hand back
+
+The shaped source and `tsconfig.json`, with a clean `tsc --noEmit` run as proof: illegal states unrepresentable, variants exhaustive, boundaries validated, and none of the refused constructs introduced.

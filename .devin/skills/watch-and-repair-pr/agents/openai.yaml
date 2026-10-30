@@ -1,5 +1,3 @@
 interface:
   display_name: "Watch And Repair PR"
-  short_description: "Use when a human explicitly invokes a watcher cycle for an open pull request that must be watched until mergeable or blocked."
-policy:
-  allow_implicit_invocation: false
+  short_description: "Use when a human explicitly invokes a watcher cycle for an open pull request or merge request that must move toward mergeable or blocked."

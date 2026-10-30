@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workflow Capacity Audit"
+  short_description: "Use for a read-only audit of CI workflow capacity, duplication, queue time, runner compatibility, and required-check safety."

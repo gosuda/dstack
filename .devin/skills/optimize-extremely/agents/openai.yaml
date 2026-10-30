@@ -1,0 +1,3 @@
+interface:
+  display_name: "Optimize Extremely"
+  short_description: "Use when a named subsystem must be made as fast as possible through a measured-floor campaign."

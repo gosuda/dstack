@@ -21,7 +21,7 @@ For each strong evidence item, identify:
 - reusable surface: CLI command, package/API, service, example, architecture, config, test pattern, data model, or operational workflow worth using;
 - solution pattern: patch, dependency upgrade/downgrade, config change, API usage, migration, retry/fallback, data model, or workflow;
 - applicability: exact conditions needed for the solution to match the user's local problem;
-- verification: tests, reproduction command, fixture, build, real request, browser check, or operational signal that proves the fix;
+- verification: a reproduction command, build, real request, browser check, or operational signal that proves the fix against an independently stated property (a fixture or example may supply the input, never the expected-output oracle);
 - risk: stale workaround, breaking change, hidden dependency, security/privacy issue, license obligation, deployment mismatch, or maintainer warning;
 - adaptation boundary: which parts can be reused directly, which local interfaces/config/data/auth/deployment details must change, and what must not be copied blindly.
 
@@ -32,7 +32,7 @@ The local recommendation should say:
 - reuse: the existing GitHub project's workflow, API, config, example, or operational pattern that should remain intact;
 - adapt: only the version, framework, runtime, deployment, data, auth, interface, or scale differences required by the user's local problem;
 - avoid: adjacent fixes, old workarounds, unsafe patches, large architecture copies, heavy rewrites of the upstream solution, or unverified suggestions;
-- verify: the exact command, request, test, or check required before claiming the problem is solved.
+- verify: the exact command, request, test, or check that confirms the fix against the stated property before the problem counts as solved.
 
 When a repository itself is a candidate solution, include a compact table in the answer with repo, Stars, forks, language, license, activity, basic content, fit, and local adaptation. When the strongest evidence is an issue/PR/code example rather than a reusable project, the project table is optional.
 

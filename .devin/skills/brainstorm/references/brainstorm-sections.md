@@ -13,18 +13,18 @@ A great brainstorm produces the first version of the same plan artifact that lat
 
 Sections earn their place by serving one of these audiences. Omit padding.
 
-## ODIN plan skeleton contract
+## DStack plan skeleton contract
 
-New `brainstorm` outputs live under `docs/plans/` and use the plan artifact contract:
+New `brainstorm` outputs live under `plans/` and follow the semantic brainstorm artifact naming convention:
 
-- **Path:** `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`.
+- **Path:** `plans/brainstorm-{descriptive-name}.md` (or `plans/brainstorm-{descriptive-name}.html` when HTML format is chosen), never `YYYY-MM-DD-NNN-<type>-<topic>` prefixed filenames.
 - **`source: brainstorm`**.
 - **`execution`** only when the brainstorm has enough signal to classify the eventual execution domain. For software features, use `execution: code`. For non-code deliverables, follow the universal-brainstorming route instead of pretending the artifact is executable code.
 
 A requirements-only plan is kept **light and standalone-readable**. It includes:
 
 - `## Goal Capsule` with objective, product authority, and open blockers.
-- `## ODIN spec outline` containing the brainstorm sections below (rendered as `###` subsections).
+- `## DStack spec outline` containing the brainstorm sections below (rendered as `###` subsections).
 
 Do **not** emit a `## Goal Launch Block` or `## Reader Index`. It also omits empty `Planning Outline`, `Implementation Units`, `Verification Contract`, and `Definition of Done` sections, empty placeholders make requirements-only docs look executable and waste downstream tokens. Downstream technical planning adds those sections when it enriches the same file in place. The next step is conveyed by the Phase 4 handoff menu, not by a section in the doc.
 
@@ -33,10 +33,10 @@ Do **not** emit a `## Goal Launch Block` or `## Reader Index`. It also omits emp
 Brainstorm dialogue does not always need a durable document.
 Skip document creation when **both** hold:
 
-- The user only needs brief alignment: no exploration produced novel scope, framing, or decisions worth preserving in IDed shape.
+- The user only needs brief alignment: no exploration produced novel scope, framing, or decisions worth preserving in structured, durable shape.
 - Any durable decisions can flow naturally to later artifacts (the commit message, `docs/solutions/`) without a brainstorm doc as an intermediary.
 
-The trigger for creating a doc is when the dialogue surfaced enough structural decisions, scope boundaries, or acceptance criteria that later work needs them in durable, IDed form.
+The trigger for creating a doc is when the dialogue surfaced enough structural decisions, scope boundaries, or acceptance criteria that later work needs them in durable, purpose-named form.
 
 **Stress test:** a brainstorm about a tiny bug fix where the user asks "fix this with a null check or with upstream validation?" and the agent confirms "upstream validation" does not need a brainstorm doc. The decision flows directly to the commit message.
 
@@ -56,18 +56,18 @@ Hold every kept section to these rules:
 - Cut hedges and intensifiers. "Critically", "deliberately", "explicitly", "genuinely", "actually", "simply" carry nothing a downstream agent acts on.
 - Prefer the verb to the nominalization. "Demote the grid", not "the demotion of the grid is the deliberate change."
 
-Precision is not padding: keep IDs, dates, actor names, domain terms, conditionals, and exact thresholds verbatim.
+Precision is not padding: keep exact dates, actor names, domain terms, conditionals, and exact thresholds verbatim.
 
 Resolve in place; do not stratify. When a later decision answers a parked question or supersedes earlier text, rewrite or remove the original entry: do not append a separate "resolutions" layer.
 
 Named test, run before the doc is declared written: could a reader find a contradiction in each section in one pass?
 
-## ODIN spec outline hard floor
+## DStack spec outline hard floor
 
-When a requirements-only plan is warranted, these are present inside `## ODIN spec outline` (as `###` subsections):
+When a requirements-only plan is warranted, these are present inside `## DStack spec outline` (as `###` subsections):
 
 - Summary: what is being proposed, in 1-3 lines. Forward-looking.
-- **Requirements** (with stable R-IDs): what must be true about the proposed thing. For very sparse brainstorms (≤3 simple items where the bullets ARE the summary), plain bullets without IDs are acceptable. When requirements span distinct concerns, group them under bold inline headers within the Requirements section, group by capability or concern, not by discussion order. R-IDs stay continuous across groups.
+- **Requirements**: what must be true about the proposed thing, identified by concise meaningful purpose names and semantic anchor slugs rather than opaque numbered codes (no visible `R1`, `R2`, `R<N>` prefixes). For very sparse brainstorms (≤3 simple items where the bullets ARE the summary), plain bullets without prefixes are acceptable. When requirements span distinct concerns, group them under bold inline headers within the Requirements section; group by capability or concern, not by discussion order.
 
 ## Include when material
 
@@ -75,10 +75,10 @@ The agent decides per brainstorm whether each section carries information not co
 
 - Problem Frame: include when motivation is not obvious from Summary alone (the *why* needs paragraphs, not a sentence). Backward-looking / situational. Does NOT restate the proposal.
 - Key Decisions: include when the brainstorm produced opinionated framing choices that constrain Requirements / Flows / Scope below.
-- Actors: include when the proposed thing has multi-party behavior.
-- Key Flows: include when the proposed thing has multi-step behavior. Expected by default for behavioral brainstorms unless the thing is genuinely non-flow-shaped.
+- Actors: include when the proposed thing has multi-party behavior. Identify actors by their concrete human or system roles (e.g. `Unauthenticated visitor`, `Billing admin`), never opaque codes (`A1`, `A2`).
+- Key Flows: include when the proposed thing has multi-step behavior. Identify flows by their descriptive action or goal (e.g. `Anonymous capture`, `Cart checkout recovery`), never opaque codes (`F1`, `F2`). Expected by default for behavioral brainstorms unless the thing is genuinely non-flow-shaped.
 - Visualizations: include when a concept has a **structure worth showing**, and that decision turns on whether the structure exists, not on whether prose reads clearly. Shapes that warrant one: data-shape transformation, source-of-truth fan-out, state-or-lifecycle logic, multi-step flow, entity/relationship structure, decision boundary, quantitative comparison, and for any requirement that changes a UI, screen layout, component placement, or screen flow, a **wireframe**. Match the visual to the shape. A point with nothing structural to show gets no visual.
-- Acceptance Examples: include when any requirement has a state-dependent or conditional shape where prose alone leaves ambiguity.
+- Acceptance Examples: include when any requirement has a state-dependent or conditional shape where prose alone leaves ambiguity. Name acceptance examples by their concrete scenario or condition, never opaque codes (`AE1`, `AE2`).
 - Success Criteria: include when there are quality / metric / handoff signals that Requirements do not already carry.
 - Scope Boundaries: include when scope is contested or there are tempting non-goals worth naming.
 - Dependencies / Assumptions: include when material upstream dependencies exist or load-bearing assumptions need surfacing.
@@ -102,8 +102,8 @@ Every requirements-only plan carries stable metadata fields. In markdown these f
 
 - `title`: descriptive name with a ` - Plan` suffix, matching the H1 (markdown) or document `<h1>` (HTML). No conventional-commit prefix in the title, the `type` field carries that.
 - `type`: conventional-commit-prefix-aligned classification (`feat`, `fix`, `refactor`, `docs`, etc.).
-- `date`: creation date in ISO 8601 (`YYYY-MM-DD`). Used in the filename.
-- `topic`: kebab-case slug identifying the brainstorm subject. Used in the filename and as the resume-detection key.
+- `date`: creation date in ISO 8601 (`YYYY-MM-DD`).
+- `topic`: kebab-case slug identifying the brainstorm subject. Used as the resume-detection key and in the semantic descriptive filename `plans/brainstorm-{descriptive-name}.<md|html>`.
 - `source`: always `brainstorm`.
 
 ### No status field
@@ -114,18 +114,18 @@ Plan artifacts have no `status` field and no `active → completed` lifecycle. W
 
 Field names are stable across brainstorm revisions, never rename or repurpose a field. Agents composing new brainstorms use these exact names so downstream tools can find them by heading scan.
 
-## ID and content rules
+## Semantic naming and content rules
 
-- Stable IDs. R-IDs (Requirements), A-IDs (Actors), F-IDs (Flows), AE-IDs (Acceptance Examples). No other ID namespaces.
-- Plain prefix. `R1.`, `A1.`, `F1.`, `AE1.` as bullet prefixes. Do not bold.
-- Bold leader labels inside Flows and Acceptance Examples (`**Trigger:**`, `**Covers R4, R8.**`).
+- Semantic purpose names and anchors. Requirements, Actors, Flows, and Acceptance Examples are identified by concise, meaningful names representing their actual purpose or role, never opaque prefix+counter codes (`R1`, `A1`, `F1`, `AE1`, `R<N>`) as visible labels.
+- Cross-references and anchors. Relationships and cross-references link to semantic purpose anchors (e.g., `[Session pagination](#session-pagination)`, `**Covers:** [Session pagination](#session-pagination), [Preflight cloak detection](#preflight-cloak-detection)`), preserving every output relationship and traceability link without display counters.
+- Bold leader labels inside Flows and Acceptance Examples (`**Trigger:**`, `**Actors:**`, `**Steps:**`, `**Outcome:**`, `**Covers:**`, `**Given:**`, `**When:**`, `**Then:**`).
 - Repo-relative paths. Always. Never absolute paths.
 - No process exhaust. No "captured at Phase X" notes, no `## Next Steps` pointing to downstream planning, no italic provenance lines.
 - No implementation details by default. Libraries, schemas, endpoints, file layouts, code structure stay out unless the brainstorm is itself inherently technical or architectural.
 
 ## Discipline: Summary vs Problem Frame
 
-Inside `## ODIN spec outline`, `### Summary` and `### Problem Frame` serve distinct purposes:
+Inside `## DStack spec outline`, `### Summary` and `### Problem Frame` serve distinct purposes:
 
 | Section | Question it answers | Time direction | Length |
 |---|---|---|---|

@@ -5,55 +5,53 @@ description: 'Use when TypeScript has type errors, failing inference, or needs t
 
 # TypeScript type hardening
 
-## Contract
+You repair a concrete TypeScript type problem: an error message, an `any` to eliminate, a generic that will not constrain, a branded type to design, an inference chain that breaks. A proactive shaping pass with no error report belongs to typescript-best-practices, and creating or fixing `tsconfig.json` strict flags belongs there too. This skill never creates or modifies `tsconfig.json`.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | TS type errors, eliminating `any`, designing complex generics, branded or opaque types, inference problems, utility-type design, overloads, builder-pattern typing. A concrete problem description is required, not a proactive shaping pass. |
-| Authority | Reversible local: write only named TypeScript source and type-test files; rollback via VCS. Does not create or modify `tsconfig.json`. |
-| Side effect | Edits TypeScript source and type tests; runs tsc. |
-| Done | Zero new errors versus the recorded baseline and zero new `any` by a defined detection rule (a compiler-level check such as `noImplicitAny` diagnostics or an AST scan, not a three-pattern textual grep), with all consuming call sites compiling. |
+This stays local and reversible: you edit only the named TypeScript source and type-test files, rolled back through version control. You run `tsc` as the proof. You never touch remote state.
 
-## Inputs
+What you need before starting:
 
-- Target TypeScript file or directory (required).
-- `tsconfig.json` path (required; must already exist).
-- Specific type problem description: error message, desired generic shape, or branded type contract (required).
-- Existing type tests if extending coverage (optional).
+- Target TypeScript file or directory. Required.
+- `tsconfig.json` path. Required, and it must already exist. If it is missing, stop and report it. Creating it is the job of typescript-best-practices or the project setup.
+- The specific type problem: the error message, the desired generic shape, or the branded type contract. Required.
+- Existing type tests, if you are extending coverage. Optional.
 
-## Procedure
+## Record the baseline before touching anything
 
-1. **Run tsc --noEmit and record the exact baseline error list.** Capture the full error output before any edit. If the baseline already has errors unrelated to the target, isolate the target file or files with a scoped `tsc --noEmit` run and record both the full baseline and the scoped baseline. Done when: the exact baseline error list is recorded.
+Run `tsc --noEmit` and capture the full error output before any edit. If the baseline already carries errors unrelated to your target, run a scoped `tsc --noEmit` over the target files as well, and keep both lists. You are done when the exact baseline is recorded, because every later claim of "no new errors" is measured against it. When the baseline is dirty with unrelated errors, Done is relative to the scoped baseline, and you report the pre-existing errors separately.
 
-2. **Classify each item into one named mechanism class and apply the narrowest matching mechanism.** Classify each error or requested improvement as: missing annotation, incorrect narrowing, `any` elimination, generic design, conditional or infer extraction, mapped or template-literal transform, branded or opaque type, utility-type derivation, function overload, builder-pattern typing, array or index access, or deep inference. For each class, apply the narrowest matching mechanism, never widening to suppress:
-   - Missing annotation or `any` elimination: add explicit type annotations. Replace `any` with `unknown` then narrow via type guards, discriminated unions, or assertion functions. Never widen to `object` or `{}` as a substitute.
-   - Incorrect narrowing: add or correct discriminated union tags, `typeof` or `in` or `instanceof` guards, assertion functions, or control-flow analysis. Ensure exhaustiveness with `never` checks in switch or default.
-   - Generic design: introduce type parameters with explicit constraints (`extends`). Use defaults only when the consumer should not need to supply them. Prefer `const` type parameters (TS 5.0+) for literal inference.
-   - Conditional or infer extraction: use `T extends U ? X : Y` for branching. Use `infer R` inside `extends` clauses to extract from arrays, promises, function return types, and tuple positions. Chain `infer` for nested extraction.
-   - Mapped or template-literal transform: use `{ [K in keyof T]: ... }` for structural transforms. Use template literal types with `Uppercase` or `Lowercase` or `Capitalize` or `Uncapitalize` intrinsic helpers for string-key remapping.
-   - Branded or opaque types: create brands via `declare const __brand: unique symbol; type Branded<T, B> = T & { readonly [__brand]: B }`. Provide constructor and type-guard helpers. Never expose the raw intersected type.
-   - Utility-type derivation: build from primitives (`Partial`, `Required`, `Pick`, `Omit`, `Record`, `Readonly`, `ReturnType`, `Parameters`, `InstanceType`, `Awaited`). Compose them. For recursive structures, use conditional types with `infer` and recursive references.
-   - Function overloads: define overload signatures for distinct call patterns. Place the implementation signature last with a union parameter type. Each overload must be assignable to the implementation.
-   - Builder-pattern typing: use chained generics (`Builder<Step>`) with branded step types or literal type parameters so each method returns a builder constrained to valid next steps.
-   - Array or index access: use `T[number]` for element types. Use `as const` assertions or `satisfies` for readonly tuple inference. Use variadic tuple types (`[...T, U]`) for push or prepend operations.
-   - Deep inference: for nested structures, use recursive conditional types. Limit recursion depth with a counter parameter to avoid TS instantiation-depth errors.
+## Apply the narrowest mechanism for each item
 
-   Done when: every classified item has its mechanism applied.
+Classify each error or requested improvement into one of these mechanism classes, then apply the narrowest fix in that class. Never widen a type to silence an error (never fall back to `object` or `{}` as a stand-in, never loosen a constraint to make the message go away).
 
-3. **After each edit, re-run tsc --noEmit on the changed files and revert any edit that adds errors outside the baseline.** Run `tsc --noEmit` scoped to the changed files after each individual edit. If the edit introduces errors outside the recorded baseline, revert it and apply a narrower fix. Done when: no new errors appear outside the baseline after every edit.
+- Missing annotation or `any` elimination: add explicit annotations. Replace `any` with `unknown`, then narrow with guards, discriminated unions, or assertion functions.
+- Incorrect narrowing: fix tags, `typeof` / `in` / `instanceof` guards, assertion functions, or control flow, with `never` checks for exhaustiveness in switch or default branches.
+- Generic design: add type parameters with explicit `extends` constraints. Use defaults only when the consumer should not supply them. Prefer `const` type parameters (TS 5.0+) for literal inference.
+- Conditional or infer extraction: branch with `T extends U ? X : Y`. Extract with `infer R` inside `extends` clauses (arrays, promises, return types, tuple positions), chaining `infer` for nested extraction.
+- Mapped or template-literal transform: reshape with `{ [K in keyof T]: ... }`. Remap string keys with template literals plus `Uppercase`, `Lowercase`, `Capitalize`, or `Uncapitalize`.
+- Branded or opaque types: build with `declare const __brand: unique symbol` and `type Branded<T, B> = T & { readonly [__brand]: B }`. Provide constructor and guard helpers, and never expose the raw intersection.
+- Utility-type derivation: compose from `Partial`, `Required`, `Pick`, `Omit`, `Record`, `Readonly`, `ReturnType`, `Parameters`, `InstanceType`, and `Awaited`. For recursive structures, use conditional types with `infer` and recursive references.
+- Function overloads: write one signature per call pattern with the implementation signature last on a union parameter type. Every overload must be assignable to the implementation.
+- Builder-pattern typing: chain generics (for example `Builder<Step>`) with branded step types or literal parameters so each method returns a builder limited to valid next steps.
+- Array or index access: take element types with `T[number]`. Use `as const` or `satisfies` for readonly tuple inference and variadic tuples (`[...T, U]`) for push or prepend.
+- Deep inference: recurse with conditional types for nested structures, bounding depth with a counter parameter so you do not hit instantiation-depth errors.
 
-4. **Write positive and negative type tests for every mechanism applied.** Write or update type-test files that demonstrate: the `any` that was eliminated (before and after), the generic that now constrains correctly, the branded type that rejects unbranded values, or the utility type that derives the expected shape. Use `// @ts-expect-error` for negative tests proving type rejection. Done when: positive and `// @ts-expect-error` negative tests exist for each mechanism applied.
+After each individual edit, re-run `tsc --noEmit` scoped to the changed files. If the edit adds errors outside the recorded baseline, revert it and try a narrower fix.
 
-5. **Run the full-project pass and prove Done.** Run `tsc --noEmit` on the full project. Confirm zero new errors compared to the recorded baseline. Confirm zero new `any` by a defined detection rule: a compiler-level check such as `noImplicitAny` diagnostics, or an AST scan for `: any`, `as any`, and `<any>` patterns. A three-pattern textual grep is not sufficient; use the compiler's own diagnostics or a tool that parses the AST. Verify all consuming call sites that consumed the changed types still compile; if a call site breaks, update it to match the new contract rather than weakening the type. Done when: the full-project pass shows zero new errors versus baseline, zero new `any` by the defined detection rule, and all consuming call sites compile.
+## Cover each mechanism with type tests
 
-## Failure and recovery
+For every mechanism you applied, write or update type-test files with a positive case (the accepted shape now compiles: the narrowed type, the constraining generic, the branded value admitted, the derived utility shape) and a negative case with `// @ts-expect-error` proving the rejected shape fails (the `any` source, the unbranded value, the wrong generic argument).
 
-- Mechanism fails: revert the failing edit. Report the exact error, the mechanism attempted, and why it did not resolve. Do not widen the type to suppress the error.
-- Call-site breakage beyond scope: revert the change. Report which call sites broke and what contract change they require. Await scope expansion approval.
-- Instantiation-depth exceeded: simplify the recursive type. Use a depth-limited recursion pattern with a counter generic. If the structure genuinely requires deep recursion, report the limit and propose a runtime fallback.
-- Dirty baseline: the baseline already has errors unrelated to the target. Scoped check is the defined mode; Done is relative to the scoped baseline, not the full project. Report pre-existing errors separately.
-- No tsconfig.json found: block. Report the missing prerequisite. Do not create a `tsconfig.json`; that is the job of typescript-best-practices or the project setup.
+## Run the full pass and report it
 
-## Output
+Run `tsc --noEmit` on the full project. Confirm zero new errors against the recorded baseline, confirm all consuming call sites of the changed types still compile (updating call sites to the new contract rather than weakening the type), and confirm zero new `any` by a defined detection rule: compiler-level diagnostics such as `noImplicitAny` output, or an AST scan for `: any`, `as any`, and `<any>`. A three-pattern textual grep is not sufficient; use the compiler or a real parser.
 
-Modified source files, type-test files (positive and `// @ts-expect-error` negative), and a terminal report with baseline count, final count, `any` eliminated, mechanisms applied, and both tsc run statuses (scoped per-edit and full-project final), in that order.
+Report in this order: baseline count, final count, `any` eliminated, mechanisms applied, scoped per-edit run status, full-project run status. When the work cannot proceed, say so directly:
+
+- A mechanism that fails: revert the edit and report the exact error, what was tried, and why it did not resolve.
+- Call-site breakage outside your scope: revert and report which sites broke and what contract change they need, then wait for scope approval.
+- Instantiation depth exceeded: simplify toward a depth-limited recursion with a counter generic. If the structure genuinely needs deep recursion, report the limit and propose a runtime fallback.
+
+## What you hand back
+
+Modified source files, type-test files with positive and `// @ts-expect-error` negative cases, and a terminal report ordered baseline count, final count, `any` eliminated, mechanisms applied, and both tsc statuses (scoped per edit, then full project).

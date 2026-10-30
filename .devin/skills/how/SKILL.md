@@ -3,43 +3,35 @@ name: how
 description: 'Use when the user asks "how does X work" and wants an architecture walkthrough of the code path or subsystem, including its gotchas. Don''t use for tasks that require source or remote-system changes.'
 ---
 
-# How
+# How a code path really works
 
-## Contract
+Someone asks how a piece of this codebase works and wants the truth as it runs, not as the docs wish it were. Your job is a read-only walkthrough: entry point, control and data flow, the seams where it leaves its own code, and the surprises a newcomer would trip over. You change nothing (no file, VCS, credential, paid, published, deployed, or remote state). Your only side effect is the chat report.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | User asks to explain how a code path or subsystem works |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | Chat output only; read-only investigation |
-| Done | Grounded architecture walkthrough and gotchas returned |
+## Start from what they named
 
-## Inputs
+You need two things:
 
-- Target: the specific code path, function, module, class, or subsystem the user names. Required.
-- User question: the full natural-language phrasing of the how request. Required.
+- The specific target: path, function, module, class, or subsystem.
+- The user's full phrasing, because the phrasing sets the scope.
 
-## Procedure
+Pin the target down before reading further. If the name fits more than one place, ask which one they mean and wait. Never walk several candidates at once. If it fits nothing in the tree, stop and say so plainly as `no-evidence`, naming exactly what you looked for instead of guessing a nearby location.
 
-1. Identify the named target and confirm the scope implied by the user's phrasing. If the target is ambiguous, ask one clarifying question before proceeding. Done when: the target is identified and scope confirmed, or a clarifying question is asked.
-2. Locate the entry point of the target in the codebase. Use structural read operations (declaration-only summaries, line-range reads) to identify the primary file and its dependencies. Do not open every file blindly. Done when: the entry point file and its direct dependencies are identified.
-3. Trace the control flow from the entry point: identify which functions, classes, or modules are called, in what order, and under what conditions. Map data that flows through the path. Done when: the control flow and data flow from the entry point are mapped.
-4. Identify architectural seams: where the code delegates to an external library, makes a system call, crosses a process or network boundary, or performs I/O. Done when: architectural seams are identified with their type recorded.
-5. For each major step, note the behavior that a caller or newcomer would find surprising: implicit assumptions, edge conditions handled silently, global state relied upon, error paths that behave differently from happy paths, and performance characteristics that are not obvious from signatures alone. Done when: gotchas are noted for each major step.
-6. Turn the findings into a grounded walkthrough of the architecture as it exists, not as intended or documented. Cite concrete files and line ranges for key decisions. Done when: the walkthrough is grounded with concrete file and line-range citations.
-7. Return a structured chat report containing the walkthrough and gotchas. Done when: the structured report is returned.
+## Walk the path without skimming the tree
 
-## Failure and recovery
-- Target not found: the named path, symbol, or module does not exist in the codebase. Return `no-evidence` and state exactly which target was not found. Do not guess or infer the target's location.
-- Ambiguous target: the name matches multiple distinct locations. Ask the user to specify which one they mean. Do not proceed on multiple targets simultaneously.
-- Insufficient evidence: the target exists but its implementation is behind an opaque boundary (binary blob, generated code without source, external service). State that the evidence is unavailable and end with `inconclusive`.
+Find the entry point with structural reads (declaration summaries and line-range reads that identify the primary file and its direct dependencies). Resist opening every file that looks related.
 
-## Output
-A grounded architecture walkthrough describing:
+Then trace from the entry point in execution order: which functions, classes, or modules run, in what order, under what conditions, and what data moves between them. Call out every architectural seam: delegation to an external library, a system call, a process or network crossing, any I/O, plus what that seam costs the caller (latency, failure modes, hidden coupling).
 
-- The entry point and control flow
-- Data that moves through the path
-- Architectural seams and their consequences
-- Gotchas: surprising behaviors, silent edge cases, and non-obvious assumptions
+Ground each key claim in a concrete file and line range. Describe the code as it exists.
 
-Output ends with `done` or one of the named failure states: `no-evidence`, `inconclusive`.
+## Name what would surprise a caller
+
+For each major step, record the behaviors signatures do not advertise: implicit assumptions, edge cases handled silently, global state the step leans on, error paths that diverge from the happy path, and performance characteristics that are not obvious from the signature. A walkthrough without these is just a symbol list.
+
+## When the evidence runs out
+
+Sometimes the target sits behind something you cannot see through: a binary blob, generated code with no source, an external service. Say the evidence is unavailable and end with `inconclusive` rather than reconstructing behavior from names.
+
+## What you hand back
+
+A chat report with the entry point and control flow, the data moving through it, the seams and their consequences, and the gotchas. It ends with `done`, or with the honest terminal state: `no-evidence` when the target is not there, `inconclusive` when it sits behind an opaque boundary.

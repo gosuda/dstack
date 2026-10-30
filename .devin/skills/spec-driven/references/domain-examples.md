@@ -1,6 +1,6 @@
 # Domain-specific examples for spec-driven
 
-Worked illustrations pulled out of `spec-driven/SKILL.md` Phase 1. Read the block for the stack or domain that matches the current project; the other block in each pair is not needed for that run.
+Worked illustrations pulled out of `spec-driven/SKILL.md` step 3. Read the block for the stack or domain that matches the current project; the other block in each pair is not needed for that run.
 
 ## Commands
 

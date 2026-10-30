@@ -1,0 +1,3 @@
+interface:
+  display_name: "Autoplan And Autopilot"
+  short_description: "Use when the user invokes /autoplan-and-autopilot on an idea or plan to review across four perspectives, derive a task ledger, present for approval, and execute under verified phase gates."

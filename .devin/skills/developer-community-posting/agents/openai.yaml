@@ -1,0 +1,3 @@
+interface:
+  display_name: "Developer Community Posting"
+  short_description: "Use when preparing a Hacker News or Reddit post package with eligibility, disclosure, and do-not-post conditions."

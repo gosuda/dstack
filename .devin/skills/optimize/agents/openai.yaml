@@ -1,3 +1,3 @@
 interface:
   display_name: "Optimize"
-  short_description: "Use when asked to optimize code, reduce allocations, profile a target, or investigate a performance regression or measured bottleneck."
+  short_description: "Use when one named path or performance symptom needs a single measured fix."

@@ -1,6 +1,6 @@
-# Sub-agent prompt template
+# Reviewer prompt template
 
-The orchestrator uses this template to spawn each reviewer sub-agent. It fills the variable substitution slots at spawn time.
+The orchestrator fills the slots in this template at spawn time and sends one copy to each reviewer subagent.
 
 ---
 
@@ -64,12 +64,12 @@ Diff:
 </review-context>
 ```
 
-## Variable reference
+## What each variable holds
 
 | Variable | Source | Description |
 |----------|--------|-------------|
 | `{persona_file}` | Persona markdown file content | The full persona definition |
-| `{diff_scope_rules}` | `references/diff-scope.md` content | Primary/secondary/pre-existing tier rules |
+| `{diff_scope_rules}` | `references/diff-scope.md` content | Primary, secondary, and pre-existing tier rules |
 | `{schema}` | `references/findings-schema.json` content | The JSON schema reviewers must conform to |
 | `{intent_summary}` | Orchestrator output | 2-3 line description of what the change is trying to accomplish |
 | `{file_list}` | Orchestrator output | Changed-file list |

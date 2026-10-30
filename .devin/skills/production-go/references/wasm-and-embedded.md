@@ -2,12 +2,12 @@
 
 Go has **two unrelated wasm ports**: `GOOS=js GOARCH=wasm` (browser/Node, `syscall/js`, since 1.11) and `GOOS=wasip1 GOARCH=wasm` (any WASI runtime, since 1.21). They share `GOARCH=wasm` (single-threaded, no parallelism, no cgo) but nothing else: `syscall/js` exists only on `js`; `//go:wasmimport`/`//go:wasmexport` are meaningful only on `wasip1`. Standard Go can **export functions and build reactor libraries** since 1.24: the "wasm is command-only / must use `js.Global().Set`" belief is stale. TinyGo is a *size/embedded/Component-Model* choice, not a WASI prerequisite. Embed wasm in a Go host with **wazero** (pure-Go, no cgo).
 
-> Verified against Go **1.26.x** (stable) + **1.27 RC** notes, TinyGo **0.41.x**, 2026-06. Version tags `[1.N]` mark the release a claim applies to. Deepened from deep-research + primary-source verification.
+> Verified against Go **1.27.3** (stable) and TinyGo **v0.44.0** (released 2026-10-28). Version tags `[1.N]` mark the release a claim applies to. Deepened from deep-research + primary-source verification.
 
 ## TL;DR: the modern deltas (read first)
 
 - `//go:wasmexport` [1.24] exports a Go func to the host: but **only on `GOOS=wasip1`** (compile error on `js/wasm`). With **`-buildmode=c-shared` [1.24]** a `wasip1` build becomes a **reactor/library** (exports `_initialize`, does *not* run `main`) the host calls repeatedly. This kills the old "expose via `js.FuncOf` + `select{}`" pattern for server-side wasm.
-- Standard Go supports only WASI Preview 1 through 1.26. **`GOOS=wasip2` is an open proposal (#65333), not shipped.** The Component Model (WIT, resources, cross-language linking) is **TinyGo-only** today (`-target=wasip2`).
+- Standard Go supports only WASI Preview 1 through 1.27. **`GOOS=wasip2` is an open proposal (#65333), not shipped.** The Component Model (WIT, resources, cross-language linking) is **TinyGo-only** today (`-target=wasip2`).
 - `GOWASM=signext,satconv` are ignored [1.26] (always emitted now), and **wasm memory got much better [1.26]**: the runtime grows the heap in small increments, "significantly reduced memory usage for ... heaps less than around 16 MiB." The old "~7× heap, never returns memory" behavior (#59061) is obsolete.
 - `string` is a parameter-only wasm type for both directives (lowers to `(i32, i32)`, **not** allowed as a result); `int`/`uint`/slices/maps/chans/interfaces are never allowed; **multiple results unsupported**.
 - Both ports are single-threaded: goroutines run concurrently, never in parallel; any host call blocks *all* goroutines; background goroutines **freeze** the instant a `wasmexport` returns. `GOWASM=threads` (#56305) never landed.
@@ -40,32 +40,33 @@ Go has **two unrelated wasm ports**: `GOOS=js GOARCH=wasm` (browser/Node, `sysca
 `GOOS=wasip1 GOARCH=wasm` [1.21] targets `wasi_snapshot_preview1`. The default **command** module runs `main` and exits via `proc_exit`. Provides filesystem, clock, env, stdio, random: **but no socket creation** (see the networking gap below).
 
 ```bash
-# [1.21] build & run a WASI command module
 GOOS=wasip1 GOARCH=wasm go build -o app.wasm ./cmd/app
-wasmtime app.wasm        # or: wazero run app.wasm  /  wasmedge app.wasm
-
-# [1.24] run the test suite under WASI — support files moved misc/wasm → lib/wasm
-export PATH="$PATH:$(go env GOROOT)/lib/wasm"
-GOOS=wasip1 GOARCH=wasm go test ./...        # uses go_wasip1_wasm_exec
-GOWASIRUNTIME=wazero GOOS=wasip1 GOARCH=wasm go test ./...   # pick the host
+wasmtime app.wasm
 ```
+
+The build [1.21] produces a WASI command module. Run it under any WASI runtime: `wasmtime`, `wazero run`, or `wasmedge`.
 
 ```bash
-# WRONG — stale pre-1.24 path; also wasip1 does NOT use wasm_exec.js at all
-cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .     # misc/wasm removed in 1.24
+export PATH="$PATH:$(go env GOROOT)/lib/wasm"
+GOOS=wasip1 GOARCH=wasm go test ./...
+GOWASIRUNTIME=wazero GOOS=wasip1 GOARCH=wasm go test ./...
 ```
 
-Networking gap (all versions through 1.26): wasip1 defines operations only on *already-open* sockets: there is no socket-creation syscall. `net.Listen`/`http.ListenAndServe` do **not** work out of the box. For a host with the socket extensions (WasmEdge / wasi-go), use `github.com/dispatchrun/net` (the renamed `github.com/stealthrocket/net`):
+The test runner [1.24] lives under `lib/wasm` (moved from `misc/wasm`) and uses `go_wasip1_wasm_exec`. `GOWASIRUNTIME` picks the host. Do not copy `wasm_exec.js` for wasip1: that glue belongs to the browser port, and the old `misc/wasm` path no longer exists.
+
+Networking gap (all versions through 1.27): wasip1 defines operations only on *already-open* sockets: there is no socket-creation syscall. `net.Listen`/`http.ListenAndServe` do **not** work out of the box. For a host with the socket extensions (WasmEdge / wasi-go), use `github.com/dispatchrun/net` (the renamed `github.com/stealthrocket/net`):
 
 ```go
 import ("net/http"; "github.com/dispatchrun/net/wasip1")
 
 func main() {
-    ln, err := wasip1.Listen("tcp", "127.0.0.1:3000")   // NOT http.ListenAndServe
+    ln, err := wasip1.Listen("tcp", "127.0.0.1:3000")
     if err != nil { log.Fatal(err) }
-    log.Fatal(http.Serve(ln, handler))                  // http.Serve over a host-provided listener
+    log.Fatal(http.Serve(ln, handler))
 }
 ```
+
+Listen through the host-provided listener, then serve HTTP over it. Plain `http.ListenAndServe` cannot work here because wasip1 has no socket-creation call.
 
 ---
 
@@ -75,8 +76,10 @@ func main() {
 
 ```bash
 GOOS=js GOARCH=wasm go build -o main.wasm ./cmd/web
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .   # [1.24] lib/wasm — MUST match the Go version
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 ```
+
+The glue moved to `lib/wasm` in [1.24] and must match the Go version. Serve `main.wasm` as `Content-Type: application/wasm`.
 
 ```html
 <script src="wasm_exec.js"></script>
@@ -94,7 +97,7 @@ import "syscall/js"
 
 func main() {
     js.Global().Set("greet", js.FuncOf(greet))
-    select {} // block forever — keep the Go runtime alive so the callback survives
+    select {}
 }
 
 func greet(this js.Value, args []js.Value) any {
@@ -104,11 +107,13 @@ func greet(this js.Value, args []js.Value) any {
 }
 ```
 
+Do not return from `main`: the instance dies and callbacks stop, so `select{}` blocks forever to keep the Go runtime alive.
+
 Interop / marshalling traps models miss:
 - Every boundary crossing is expensive: `syscall/js` DOM calls benchmark ~10× slower than native JS (golang/go #32591: 131 ms/op vs 11 ms/op). Do heavy compute in Go; batch DOM writes; touch the DOM once.
 - Crossing the boundary copies: `js.ValueOf(goSlice)` does **not** share memory. Move bulk bytes with `js.CopyBytesToJS`/`js.CopyBytesToGo` against a `Uint8Array`, never per-element `Get`/`Set`.
 - `js.FuncOf` leaks until `.Release()` (lifetime callbacks are fine; per-event ones must be released). `js.Value` isn't `==`-comparable (use `.Equal()`); a wrong-type access like `.Int()` on a string **panics**: guard with `.Type()`.
-- Don't return from `main`: the instance dies and callbacks stop. `select{}` keeps it alive. And never pull `net/http`'s server into a browser build (several MB: see [size](#size-optimization)); call `fetch` via `syscall/js`.
+- Never pull `net/http`'s server into a browser build (several MB: see [size](#size-optimization)); call `fetch` via `syscall/js`.
 
 ---
 
@@ -120,8 +125,10 @@ Interop / marshalling traps models miss:
 //go:wasmexport add
 func add(a, b int32) int32 { return a + b }
 
-func main() {}   // still required even for a reactor; an empty body is fine
+func main() {}
 ```
+
+`main` is still required even for a reactor; an empty body is enough.
 
 Argument/result types (verified against the `cmd/compile` doc, Go 1.26: same table for `wasmimport` and `wasmexport`):
 | Go type | Wasm | Notes |
@@ -138,7 +145,7 @@ A **pointer's element type** must be `bool`, a sized int/uint (`int8`..`uint64`)
 import "structs"
 
 type Rect struct {
-    _             structs.HostLayout // [1.23] guarantees host-compatible layout
+    _             structs.HostLayout
     Width, Height int32
 }
 
@@ -146,17 +153,24 @@ type Rect struct {
 func area(r *Rect) int32 { return r.Width * r.Height }
 ```
 
+The embedded `HostLayout` [1.23] guarantees a host-compatible layout for the struct.
+
 Hard restrictions: functions only (not methods); no `int`/`uint` (use sized variants); no slices, maps, channels, interfaces; multiple results are not supported (the wasm multi-value path is unimplemented in the Go backend); reserved names `_start`/`_initialize`; a panic reaching the top of a `wasmexport` call **crashes the module**: there is no host-propagation mechanism, so validate inputs and recover internally. These directives are **exempt from the Go 1 compatibility promise**.
 
+Two patterns that fail on a wasip1 reactor. The first is the stale browser pattern: assigning a `js.FuncOf` to a JS global is unnecessary on wasip1 and does not export anything to a WASI host.
+
 ```go
-// WRONG — stale js/wasm pattern emitted for server-side WASI; unnecessary on a wasip1 reactor
 func main() {
     js.Global().Set("add", js.FuncOf(func(_ js.Value, a []js.Value) any { return a[0].Int() + a[1].Int() }))
     select {}
 }
-// WRONG — int is not a permitted wasmexport type
+```
+
+The second uses a forbidden type: `int` and `uint` are never permitted in directive signatures. Use sized variants.
+
+```go
 //go:wasmexport add
-func add(a, b int) int { return a + b }   // use int32/int64
+func add(a, b int) int { return a + b }
 ```
 
 ---
@@ -190,24 +204,26 @@ func random_get(buf unsafe.Pointer, bufLen uint32) uint32
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o reactor.wasm ./cmd/plugin
 ```
 
+A wazero host calls a reactor by instantiating with `_initialize`, then calls the exports repeatedly. The instance stays alive for more calls.
+
 ```go
-// wazero host calling a reactor: instantiate with _initialize, then call exports repeatedly
 ctx := context.Background()
 r := wazero.NewRuntime(ctx)
 defer r.Close(ctx)
 wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
-cfg := wazero.NewModuleConfig().WithStartFunctions("_initialize") // NOT "_start"
+cfg := wazero.NewModuleConfig().WithStartFunctions("_initialize")
 mod, err := r.InstantiateWithConfig(ctx, wasmBytes, cfg)
 if err != nil { log.Fatal(err) }
 
 res, err := mod.ExportedFunction("add").Call(ctx, api.EncodeI32(3), api.EncodeI32(4))
 if err != nil { log.Fatal(err) }
-fmt.Println(api.DecodeI32(res[0])) // 7 — instance stays alive for more calls
+fmt.Println(api.DecodeI32(res[0]))
 ```
 
+A c-shared reactor has no `_start`, so instantiating with it fails:
+
 ```go
-// WRONG — a c-shared reactor has no _start; this fails to instantiate
 cfg := wazero.NewModuleConfig().WithStartFunctions("_start")
 ```
 
@@ -230,12 +246,13 @@ Mixing the two is the classic error: `syscall/js` cannot run under wasip1, and `
 
 ## WASI Preview 1 vs Preview 2 / Component Model {#wasi-p2}
 
-- Standard Go = Preview 1 only through 1.26. `GOOS=wasip2` is **proposal #65333 (open, unmerged)**; a `wasip3` effort (#77141) targets async `wasi:http` and needs a patched runtime. Don't claim std Go "supports WASI P2."
-- TinyGo compiles to P2 components: `tinygo build -target=wasip2` (native support since v0.33.0; current as of **TinyGo 0.41.x**). Toolchain: `wit-bindgen-go` (go.bytecodealliance.org), `wkg` (WIT deps), `wasm-tools`. As of 0.41 the wasip2 target is **hardwired to the `wasi:cli/command` world** (worlds beyond it are tracked in tinygo #4843), so a custom world must currently be expressed against that.
+- Standard Go's Go 1.27.3 toolchain remains Preview 1 only. `GOOS=wasip2` is tracked by the still-open issue #65333, not a shipped standard-Go port; a `wasip3` effort (#77141) targets async `wasi:http` and needs a patched runtime. Don't claim std Go "supports WASI P2."
+- TinyGo v0.44.0 compiles to P2 components: `tinygo build -target=wasip2`. WASI Preview 2 support was added historically in v0.33.0. Toolchain: `wit-bindgen-go` (go.bytecodealliance.org), `wkg` (WIT deps), and `wasm-tools`. In the v0.44.0 tagged source, `targets/wasip2.json` sets the default WIT world to `wasi:cli/command`; do not date that current source setting as "As of 0.41."
 - Preview 1 vs Preview 2: P1 exposes only ints/floats + linear memory; P2's **Component Model** adds WIT interfaces and lifting/lowering of high-level types (strings, records, resources) and cross-language linking.
 
+Generate the WIT bindings first, then build the component:
+
 ```bash
-# TinyGo component (P2): generate WIT bindings, then build
 go tool wit-bindgen-go generate --world plugin-api --out internal ./pkg.wasm
 tinygo build -target=wasip2 --wit-package ./pkg.wasm --wit-world plugin-api -o plugin.wasm ./main.go
 ```
@@ -244,7 +261,7 @@ tinygo build -target=wasip2 --wit-package ./pkg.wasm --wit-world plugin-api -o p
 
 ## Threads & goroutines under wasm {#threads}
 
-- Single-threaded, no parallelism in both ports (through 1.26). The scheduler runs goroutines concurrently and stdio is non-blocking, but **any host call blocks all goroutines** until it returns, and **`GOMAXPROCS>1` buys nothing**.
+- Single-threaded, no parallelism in both ports (through 1.27). The scheduler runs goroutines concurrently and stdio is non-blocking, but **any host call blocks all goroutines** until it returns, and **`GOMAXPROCS>1` buys nothing**.
 - A `wasmexport` call may spawn goroutines, but **background goroutines are paused the instant the exported function returns**; they resume only when the host calls back in. Don't rely on a fire-and-forget goroutine outliving the call.
 - `GOWASM=threads` (#56305) was never accepted. Browser parallelism = multiple **Web Workers**, each hosting a *separate* module instance: not OS threads inside one instance.
 
@@ -254,8 +271,9 @@ tinygo build -target=wasip2 --wit-package ./pkg.wasm --wit-world plugin-api -o p
 
 To run untrusted wasm *inside* a Go program (plugins, sandboxed user code), the runtime choice dominates deployability.
 
+Run a wasip1 module under wazero with stdio plus a capability-scoped filesystem mount:
+
 ```go
-// wazero: pure Go, no cgo. Run a wasip1 module with stdio + filesystem.
 ctx := context.Background()
 r := wazero.NewRuntime(ctx)
 defer r.Close(ctx)
@@ -263,48 +281,50 @@ wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 cfg := wazero.NewModuleConfig().
     WithStdout(os.Stdout).WithStderr(os.Stderr).
-    WithFSConfig(wazero.NewFSConfig().WithDirMount("/data", "/")) // capability-scoped FS
+    WithFSConfig(wazero.NewFSConfig().WithDirMount("/data", "/"))
 if _, err := r.InstantiateWithConfig(ctx, wasmBytes, cfg); err != nil {
     log.Fatal(err)
 }
 ```
 
-- wazero (`github.com/tetratelabs/wazero`): **pure Go, zero deps, no cgo**; Core 1.0 + 2.0 compliant. Keeps `CGO_ENABLED=0` cross-compilation and static binaries working; its **interpreter** mode runs on *any* `GOARCH` (e.g. riscv64), **compiler** mode is default elsewhere. Capabilities (FS, env, clocks) are opt-in per module: good sandbox posture. The default host runtime.
+- wazero (`github.com/tetratelabs/wazero`, v1.12.0): **pure Go, zero deps, no cgo**; Core 1.0 + 2.0 compliant. Repository transferred to `github.com/wazero/wazero` while Go module path remains `github.com/tetratelabs/wazero` for backward compatibility. Keeps `CGO_ENABLED=0` cross-compilation and static binaries working; its **interpreter** mode runs on *any* `GOARCH` (e.g. riscv64), **compiler** mode is default elsewhere. Capabilities (FS, env, clocks) are opt-in per module: good sandbox posture. The default host runtime.
 - wasmtime-go / wasmer-go: bindings over the Rust runtimes via **cgo**. Fuller WASI P2 / Component Model support and often faster raw execution, but cgo forfeits the single-static-binary / cross-compile story (usually why a team picked Go). Adopt only for a concrete P2/component need wazero lacks.
 
 ---
 
 ## TinyGo for WASM {#tinygo-wasm}
 
-TinyGo's LLVM backend omits most of the Go runtime, producing far smaller wasm. Current: **0.41.x** (adds Go 1.26 support). TinyGo's Go-version compatibility is **strict and lags upstream**: pin a TinyGo release that matches your Go toolchain (e.g. an older TinyGo will reject a newer Go).
+TinyGo's LLVM backend omits most of the Go runtime, producing far smaller wasm. Current: **v0.44.0** (documented compatibility with Go 1.25–1.27). Go 1.26 support was a historical v0.41.0 milestone, and Go 1.27 support was a historical v0.42.0 milestone. TinyGo's Go-version compatibility is **strict and lags upstream**: pin a TinyGo release that matches your Go toolchain (e.g. an older TinyGo will reject a newer Go).
 
 ```bash
-# Browser wasm — TinyGo uses the GOOS=js GOARCH=wasm form (its own wasm_exec.js)
 GOOS=js GOARCH=wasm tinygo build -o out.wasm --no-debug ./main.go
-cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" .   # TinyGo's glue — must match TinyGo version
+cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" .
 
-# WASI Preview 1 / Preview 2
 tinygo build -target=wasip1 --no-debug -o out.wasm ./main.go
-tinygo build -target=wasip2 --no-debug -o out.wasm ./main.go   # Component Model
+tinygo build -target=wasip2 --no-debug -o out.wasm ./main.go
 ```
 
-**TinyGo exports use `//export`** (and host imports too): **not** `//go:wasmexport`:
+The first pair targets browsers through the `GOOS=js GOARCH=wasm` form with TinyGo's own `wasm_exec.js`, which must match the TinyGo version. The second pair targets WASI Preview 1 and Preview 2 (the Component Model).
+
+**For TinyGo's current WASI examples, exports use `//go:wasmexport`; the browser/JS `//export` example below is target-specific, not a statement that `//go:wasmexport` is unsupported.**
 
 ```go
 //export multiply
-func multiply(x, y int) int { return x * y }   // callable as wasm.exports.multiply in JS
+func multiply(x, y int) int { return x * y }
 
 //export add
-func add(x, y int) int   // body-less = imported from the JS `env` module
+func add(x, y int) int
 ```
 
-Deltas vs standard Go: partial `reflect` (can panic), `recover()` is effectively a no-op in TinyGo wasm, and parts of stdlib are incomplete (historically `fmt`/`encoding/json` rough edges): validate inputs instead of relying on recovery, and test the exact stdlib paths you use.
+`multiply` is callable as `wasm.exports.multiply` in JS. The body-less `add` is imported from the JS `env` module.
+
+Deltas vs standard Go: partial `reflect` (can panic), TinyGo v0.42+ release notes document recoverable runtime panics, with v0.43 specifically covering WebAssembly without exceptions (the old no-op statement is historical), and parts of stdlib are incomplete (historically `fmt`/`encoding/json` rough edges): test the exact stdlib paths you use.
 
 ---
 
 ## TinyGo for Embedded / IoT {#tinygo-embedded}
 
-TinyGo supports **100+ boards** (Arduino, RP2040/RP2350 Pico & Pico 2, Nordic nRF52, STM32, Adafruit SAMD, BBC micro:bit, ESP32) with **130+ drivers** in `tinygo.org/x/drivers`. For microcontrollers it is the **only** option: standard Go has no MCU backend. Peripherals are reached through the `machine` package (`machine.LED.Configure`, `machine.I2C0.Configure`, `machine.SPI0.Configure`, etc.); pin/bus names are board-specific. `tinygo flash -target=arduino-nano33 ./main.go` compiles and flashes in one step.
+TinyGo supports **100+ boards** (Arduino, RP2040/RP2350 Pico & Pico 2, Nordic nRF52, STM32, Adafruit SAMD, BBC micro:bit, ESP32) with **over 155 different hardware drivers** in `tinygo.org/x/drivers`. For microcontrollers it is the **only** option: standard Go has no MCU backend. Peripherals are reached through the `machine` package (`machine.LED.Configure`, `machine.I2C0.Configure`, `machine.SPI0.Configure`, etc.); pin/bus names are board-specific. `tinygo flash -target=arduino-nano33 ./main.go` compiles and flashes in one step.
 
 | Family | Examples | Notes |
 |---|---|---|
@@ -335,10 +355,11 @@ Standard Go statically links the whole runtime + GC + reflect (+ often `fmt`), s
 Import-size reality (std Go wasm), approximate: empty ≈ 1.3 MB, `+fmt` ≈ 2 MB, `+encoding/json` ≈ 2.2 MB, `+net/http` jumps multiple MB. Figures are from sample programs, not guarantees: profile with **twiggy** to see which symbols dominate.
 
 ```bash
-# Aggressive TinyGo pipeline (short-lived modules)
 tinygo build -target=wasip1 --no-debug -scheduler=none -panic=trap -gc=leaking -o out.wasm ./main.go
 wasm-opt -Oz out.wasm -o out.wasm
 ```
+
+An aggressive TinyGo pipeline for short-lived modules: no debug info, no scheduler, traps instead of panic unwinding, no GC, then Binaryen.
 
 Two stale beliefs: `wasm-opt -Oz` is a silver bullet (it's big for Rust/C, only modest on Go: Binaryen can't undo runtime bloat); and "Go wasm never returns memory" (#59061): **[1.26]** materially fixes this for heaps under ~16 MiB.
 
@@ -373,14 +394,14 @@ Rule of thumb: Standard Go for full language/stdlib fidelity and server/edge WAS
 |---|---|---|
 | stdlib `wasip1` (`go:wasmexport`/reactor) | **Default** [1.24] | server/edge WASI, plugins; no P2 |
 | stdlib `js/wasm` + `syscall/js` | Maintained, legacy | in-browser DOM/JS interop |
-| **wazero** (`tetratelabs/wazero`) | **Default host runtime**, pure-Go/no-cgo | embedding wasm in Go without cgo |
+| **wazero** (`tetratelabs/wazero`) | **Default host runtime** (v1.12.0), pure-Go/no-cgo | embedding wasm in Go without cgo; repo at `wazero/wazero` with module path retained |
 | wasmtime-go | Active, cgo | need P2 / Component Model on the host |
 | wasmer-go | Active, cgo | alternative cgo host |
-| TinyGo | Active; **0.41.x** (Go 1.26) | size, microcontrollers, WASI P2 |
-| `tinygo.org/x/drivers` | Active | 130+ sensor/peripheral drivers |
+| TinyGo | Active; **v0.44.0** (Go 1.25–1.27) | size, microcontrollers, WASI P2 |
+| `tinygo.org/x/drivers` | Active | over 155 different hardware drivers |
 | `dispatchrun/net` | Active (was `stealthrocket/net`) | wasip1 sockets on extended hosts |
 | `wit-bindgen-go` (go.bytecodealliance.org) | Active | WIT→Go bindings for components |
-| `GOOS=wasip2` (#65333) | **Proposal, not shipped** | watch the tracker; use TinyGo today |
+| `GOOS=wasip2` (#65333) | **Proposal, not shipped** (through Go 1.27) | watch the tracker; use TinyGo today |
 | `GOWASM=threads` (#56305) | **Never landed** | use Web Workers instead |
 | `GOWASM=signext,satconv` | **Ignored [1.26]** | omit: always on now |
 
@@ -395,8 +416,8 @@ Rule of thumb: Standard Go for full language/stdlib fidelity and server/edge WAS
 | **1.23** | `structs.HostLayout` (used by wasm pointer-to-struct rules); minor wasm fixes |
 | **1.24** | **`//go:wasmexport`; reactor via `-buildmode=c-shared`; expanded directive types (`bool`/`string`/`uintptr`/pointers-to-`HostLayout`); `misc/wasm`→`lib/wasm`; reduced initial memory** |
 | **1.25** | **no WebAssembly changes** (release notes have no wasm section) |
-| **1.26** | `GOWASM=signext,satconv` ignored (always on); runtime grows heap in small increments → much lower memory for heaps < ~16 MiB; Green Tea GC default (opt-out `GOEXPERIMENT=nogreenteagc`, slated for removal in 1.27) |
-| **1.27 (RC)** | generic methods; `asynctimerchan` GODEBUG removed; Green Tea opt-out removal expected. No `wasipN` port merged yet: treat P2 as TinyGo-only until GA (~Aug 2026). |
+| **1.26** | `GOWASM=signext,satconv` ignored (always on); runtime grows heap in small increments → much lower memory for heaps < ~16 MiB; Green Tea GC default (opt-out `GOEXPERIMENT=nogreenteagc`) |
+| **1.27** | generic methods shipped (interface methods still cannot declare type parameters or be implemented by generic methods); `asynctimerchan` GODEBUG removed permanently (go.mod/`//go:debug` still accepted at the final pre-removal default); experimental `simd`/`simd/archsimd` under `GOEXPERIMENT=simd` (128-bit vectors on wasm, amd64, arm64). No `wasipN` port merged: P2 remains TinyGo-only. Green Tea opt-out (`GOEXPERIMENT=nogreenteagc`) observed accepted by go1.27.3 (linux/amd64). |
 
 ---
 
@@ -424,7 +445,7 @@ Rule of thumb: Standard Go for full language/stdlib fidelity and server/edge WAS
 
 1. "You can't export Go funcs to wasm / must use `js.Global().Set`": **false since [1.24]**: `//go:wasmexport` on `wasip1`. The `js.FuncOf`+`select{}` pattern is browser-only, and it's a **compile error** to put `wasmexport` on a `js/wasm` build.
 2. "TinyGo is required for WASI": **false since [1.21]**; std Go has native `wasip1`. TinyGo is now a size/embedded/Component-Model choice.
-3. "Std Go supports WASI Preview 2 / the Component Model": **it doesn't** (through 1.26); only TinyGo (`-target=wasip2`) does.
+3. "Std Go supports WASI Preview 2 / the Component Model": **it doesn't** (through 1.27); only TinyGo (`-target=wasip2`) does.
 4. `misc/wasm/wasm_exec.js`: **moved to `lib/wasm/` [1.24]**; and wasip1 doesn't use `wasm_exec.js` at all.
 5. `http.ListenAndServe` under wasip1: no socket creation in P1; need `dispatchrun/net` (renamed from `stealthrocket/net`) + an extended host.
 6. Mixing the ports: `syscall/js` is js-only; `go:wasmimport`/`export` are wasip1-only.
@@ -444,10 +465,10 @@ Rule of thumb: Standard Go for full language/stdlib fidelity and server/edge WAS
 - [modern-go.md](modern-go.md#quick-ref): version feature matrix (1.21-1.26)
 
 ## Sources {#sources}
-- go.dev/doc/go1.24, go1.26 release notes (WebAssembly sections); go.dev/doc/go1.25 (no wasm changes)
+- go.dev/dl/?mode=json (go1.27.3 stable); go.dev/doc/go1.24, go1.26 release notes (WebAssembly sections); go.dev/doc/go1.25 (no wasm changes); go.dev/doc/go1.27 final (experimental `simd` supports 128-bit vectors on wasm)
 - pkg.go.dev/cmd/compile (WebAssembly Directives: type table, pointer rules, `string` parameter-only); `go help buildmode` (c-shared on wasip1)
 - go.dev/blog/wasi; go.dev/blog/wasmexport; go.dev/wiki/WebAssembly
-- wazero.io and github.com/tetratelabs/wazero (pure-Go, no-cgo, Core 1.0+2.0, interpreter on any GOARCH)
-- tinygo.org/docs/guides/webassembly/{wasm,wasi}; tinygo.org/blog (0.41 release: Go 1.26 + wasip1/wasip2); tinygo-org/tinygo #4843 (wasip2 world)
+- wazero.io, github.com/wazero/wazero, and pkg.go.dev/github.com/tetratelabs/wazero (v1.12.0; repo transferred to wazero org with tetratelabs module path retained; pure-Go, no-cgo, Core 1.0+2.0, interpreter on any GOARCH)
+- tinygo.org/docs/guides/webassembly/{wasm,wasi}; github.com/tinygo-org/tinygo/releases/tag/v0.44.0 (current release); tinygo.org/blog/2026/tinygo-0-41-the-big-release/ (historical Go 1.26); tinygo.org/blog/2026/tinygo-0.42-recover-is-real/ (historical Go 1.27); tinygo-org/tinygo #4843 (wasip2 world)
 - Proposals/issues: #65333 (`GOOS=wasip2`, open), #56305 (`GOWASM=threads`, not landed), #59061 (wasm memory), #32591 (`syscall/js` ~10× slower), #59149 (wasmimport package restriction lifted)
 - github.com/dispatchrun/net (formerly stealthrocket/net); go.bytecodealliance.org (wit-bindgen-go)

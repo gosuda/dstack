@@ -1,3 +1,0 @@
-interface:
-  display_name: "Mpi"
-  short_description: "Use when writing or debugging MPI programs: sends and receives, collectives, non-blocking requests, communicators, MPI-IO, hybrids with OpenMP, or mpirun launches."

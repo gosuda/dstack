@@ -1,3 +1,0 @@
-interface:
-  display_name: "Setup Ts Deep Modules"
-  short_description: "Use when asked to enforce boundaries, set up deep modules, stop deep imports, mutation-prove rules, or make entry-point packages."

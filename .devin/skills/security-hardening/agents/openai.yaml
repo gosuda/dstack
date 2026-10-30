@@ -1,3 +1,0 @@
-interface:
-  display_name: "Security Hardening"
-  short_description: "Use when adding security controls for untrusted input, auth/authz, data storage, or external integrations."

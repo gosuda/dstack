@@ -1,32 +1,32 @@
-# Go Style & Idiom Synthesis
+# Go style and idiom synthesis
 
 Idiomatic Go is no longer a timeless checklist: since 1.22 it is **version-sensitive**, and "idiomatic" now means *current stdlib surface + toolchain-assisted modernization* (`gofmt` → `go vet` → `go fix` modernizers → `golangci-lint`). Mechanical style is enforced by tools; spend reasoning only on the judgment calls (when to wrap, interface-or-concrete, whether an interface should exist, named returns).
 
-> Verified against Go **1.26.4** (stable) + **1.27 RC** notes, 2026-06. Style sources fetched 2026-06-26. Version tags `[1.N]` mark the release a claim applies to. Synthesized from multi-source research + primary docs.
+> Verified against Go **1.27.3** (current stable, GA 2026-08-19, patch 2026-10-19; final 1.27 release notes per SKILL.md) + historical Go 1.26 research (1.26.4 still supported), re-checked 2026-10 after 2026-06 RC research. Style sources fetched 2026-06-26. Version tags `[1.N]` mark the release a claim applies to. Synthesized from multi-source research + primary docs.
 
-## TL;DR: the modern deltas (read first)
+## Start here: what is new
 
 - Source precedence: `gofmt` (mechanical law) > spec / release notes (version truth) > `pkg.go.dev` (current APIs) > **Google Style Guide** (most actively maintained; prefer on conflict) > Effective Go / Code Review Comments (philosophy, *dated* on APIs) > Uber (operational heuristics).
 - The Google guide is three tiers (verified at source): **Style Guide** (normative **+ canonical**, enduring rules) > **Style Decisions** (normative, *not* canonical, changes with language features) > **Best Practices** (neither, patterns, not law).
 - Code Review Comments is frozen/legacy ("a supplement to Effective Go… not a comprehensive style guide"); `staticcheck` + `go vet` + the Google guide are its living equivalents.
 - The #1 source of stale model output is pre-1.22 idiom: `interface{}` not `any`, loop-var copies (`x := x`), hand-rolled `Contains`/`min`/`max`, `sort.Slice` over `slices.Sort`, `for i:=0;i<n;i++`, `tools.go`, third-party loggers over `slog`, capitalized error strings. `go fix` [1.26] auto-rewrites most via the **modernize** analyzers.
-- Tooling consolidated: `golint` is archived (→ `revive` + `staticcheck`); `golangci-lint v2` split formatters from linters and changed the schema; `gofumpt` is the de-facto stricter formatter (policy choice, not baseline).
+- Tooling consolidated: `golint` is archived (→ `revive` + `staticcheck`); `golangci-lint v2.15.0` split formatters from linters and changed the schema; `gofumpt` is the de-facto stricter formatter (policy choice, not baseline).
 
-## Table of Contents
+## Contents
 1. [Naming](#naming)
-2. [Error Style](#error-style)
-3. [Declarations & zero values](#declarations)
-4. [Interfaces & receivers](#interfaces)
-5. [Function Design](#function-design)
-6. [Imports and Packages](#imports-packages)
+2. [Error style](#error-style)
+3. [Declarations and zero values](#declarations)
+4. [Interfaces and receivers](#interfaces)
+5. [Function design](#function-design)
+6. [Imports and packages](#imports-packages)
 7. [Doc comments](#doc-comments)
-8. [Formatting & tooling](#formatting)
+8. [Formatting and tooling](#formatting)
 9. [Version-driven idiom shifts](#idiom-shifts)
 10. [Where the guides disagree](#disagreements)
-11. [Linter / tooling status](#tooling-status)
-12. [Version map 1.18→1.27](#versions)
-13. [What models get wrong](#stale)
-14. [Agent addendum](#agent-addendum)
+11. [Linter and tooling status](#tooling-status)
+12. [When each change landed (1.18 to 1.27)](#versions)
+13. [Mistakes to avoid](#stale)
+14. [Defaults for new code](#agent-addendum)
 
 ---
 
@@ -60,7 +60,7 @@ userId, rawUrl := getId(), parseUrl()
 
 ---
 
-## Error Style {#error-style}
+## Error style {#error-style}
 
 For error *patterns* (wrapping mechanics, hierarchies, retry, `errors.AsType`), see [errors-and-resilience.md](errors-and-resilience.md). This section is style only.
 
@@ -102,7 +102,7 @@ In-band errors: return `(value, bool)` or `(value, error)`, never magic sentinel
 
 ---
 
-## Declarations & zero values {#declarations}
+## Declarations and zero values {#declarations}
 
 ```go
 i := 42              // non-zero scalar → :=
@@ -125,7 +125,7 @@ p := &T{Name: "bar"} // pointer → &T{}, never new(T)
 
 ---
 
-## Interfaces & receivers {#interfaces}
+## Interfaces and receivers {#interfaces}
 
 **Accept interfaces, return concrete types**, and define the interface on the **consumer** side, not the implementor's. This is the single most-misunderstood rule; models overproduce implementor-side "interfaces for mocking," which Google explicitly warns against.
 
@@ -165,7 +165,7 @@ func NewStore(db *sql.DB) StoreAPI { return &store{db: db} }
 
 ---
 
-## Function Design {#function-design}
+## Function design {#function-design}
 
 - `context.Context` is always the first parameter, named `ctx`. Never store it in a struct (`containedctx`/`fatcontext` linters) or pass it inside an options struct. A function taking `ctx` should usually return `error`.
 - Named returns: use when 2+ returns share a type (documents which is which in godoc) or for `defer`-based mutation of the return. Avoid **naked** returns in non-trivial bodies: they hurt readability and cause bugs. `nonamedreturns`/`nakedret` enforce.
@@ -192,7 +192,7 @@ go-mastery recommends: options struct for ≤5 stable fields; functional options
 
 ---
 
-## Imports and Packages {#imports-packages}
+## Imports and packages {#imports-packages}
 
 ```go
 import (
@@ -242,7 +242,7 @@ func (s *Store) Get(id string) *Item
 
 ---
 
-## Formatting & tooling {#formatting}
+## Formatting and tooling {#formatting}
 
 `gofmt` is **non-negotiable law**: Effective Go's rule is "rearrange your code to agree with `gofmt`, not the reverse." It owns indentation, alignment, and spacing; never fight it.
 
@@ -334,25 +334,25 @@ The high-value section: these are judgment calls tools can't settle.
 
 ---
 
-## Linter / tooling status {#tooling-status}
+## Linter and tooling status {#tooling-status}
 
 | Tool | State [2026] | Use for | Notes |
 |---|---|---|---|
 | `gofmt` | bundled, **law** | canonical formatting | never overridden |
-| `gofumpt` | active, v0.8.x | stricter format | superset of `gofmt`; policy choice |
+| `gofumpt` | active, v0.12.0 | stricter format | superset of `gofmt`; policy choice |
 | `goimports` / `gci` | active | import grouping + add/remove | run as *formatters* in golangci-lint v2 |
 | `go vet` | bundled | suspicious constructs | bundles `printf`, `nilness`, `loopclosure`, `composites`, `shadow` (opt-in), `fieldalignment` (opt-in), `stdversion` [1.23], `waitgroup`+`hostport` [1.25] |
 | `go fix` | **rewritten [1.26]** | safe modernization | hosts the `modernize` analyzers; review the diff (comments/perf can shift) |
-| `gopls` | active, v0.22.x | LSP, modernize hints, vuln prompts | same modernize suite as code actions |
-| `staticcheck` | active (2026.x / v0.8.x) | ~150 SA bug + ST style checks | absorbed `gosimple`+`stylecheck` in golangci-lint v2 |
+| `gopls` | active, **v0.24.0** | LSP, modernize hints, vuln prompts | same modernize suite as code actions |
+| `staticcheck` | active (2026.x / v0.8.2) | ~150 SA bug + ST style checks | absorbed `gosimple`+`stylecheck` in golangci-lint v2 |
 | `golangci-lint` | active, **v2.x** | CI lint orchestration | v2 (2025-03-23) split formatters from linters; `version: "2"`, `linters.default: standard\|all\|none\|fast` |
-| `revive` | active, v1.15.x | configurable golint-style rules | drop-in `golint` replacement, ~6× faster |
+| `revive` | active, v1.17.1 | configurable golint-style rules | drop-in `golint` replacement, ~6× faster |
 | `errorlint` | active | 1.13 wrap mistakes (`==` on wrapped, `%v` where `%w` meant) | |
 | `sloglint` | active | slog key/value misuse | |
 | `golint` | **archived** | n/a | → `revive` + `staticcheck`; do not recommend |
 | `maligned`/`scopelint`/`structcheck`/`deadcode`/`varcheck`/`interfacer` | **removed** | n/a | folded into vet/staticcheck/unused |
 
-golangci-lint v2 default ("standard") set (verified): `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`. Recommended adds: `revive`, `errorlint`, `sloglint`, `copyloopvar`, `nonamedreturns`, `bodyclose`, `modernize` (added v2.6.0). v2 has **no exclusions by default**: opt into presets (`comments`, `std-error-handling`, `common-false-positives`). `golangci-lint migrate` converts v1 configs.
+golangci-lint v2.15.0 default ("standard") set (verified): `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`. Recommended adds: `revive`, `errorlint`, `sloglint`, `copyloopvar`, `nonamedreturns`, `bodyclose`, `modernize` (added v2.6.0). v2 has **no exclusions by default**: opt into presets (`comments`, `std-error-handling`, `common-false-positives`). `golangci-lint migrate` converts v1 configs.
 
 `modernize` analyzers (canonical: `golang.org/x/tools/.../passes/modernize`; power `go fix` + gopls + golangci-lint). "Fixes may be safely applied en masse without changing behavior." Key ones (analyzer → rewrite, target version):
 
@@ -374,11 +374,11 @@ golangci-lint v2 default ("standard") set (verified): `errcheck`, `govet`, `inef
 | `bloop` | `for i<b.N` → `for b.Loop()` | 1.24 |
 | `newexpr` | `newInt(x)` helper → `new(x)` | 1.26 |
 
-`bloop`, `appendclipped`, `slicesdelete`, `fmtappendf` are **off by default in `go fix`** (nilness/zeroing/nanosecond-perf differences; see golang/go#74967) but active in gopls/golangci-lint. Don't conflate the `waitgroupgo` *modernizer* with the `waitgroup` *vet analyzer* (the latter catches the `Add`-in-goroutine bug, doesn't rewrite).
+`bloop`, `appendclipped`, `slicesdelete` are **off by default in `go fix`** (nilness/zeroing/nanosecond-perf differences; see golang/go#74967) but active in gopls/golangci-lint; `fmtappendf` was **removed from `go fix` [1.27]** (stylistic concerns). Don't conflate the `waitgroupgo` *modernizer* with the `waitgroup` *vet analyzer* (the latter catches the `Add`-in-goroutine bug, doesn't rewrite).
 
 ---
 
-## Version map 1.18→1.27 {#versions}
+## When each change landed (1.18 to 1.27) {#versions}
 
 | Ver | Style/idiom-relevant |
 |---|---|
@@ -391,11 +391,11 @@ golangci-lint v2 default ("standard") set (verified): `errcheck`, `govet`, `inef
 | **1.24** | `tool` directive (kills `tools.go`); `t.Context()`/`b.Context()`; `b.Loop()`; `t.Chdir`; `testing/synctest` (experiment); `omitzero` JSON tag; generic type aliases |
 | **1.25** | `sync.WaitGroup.Go` (f must not panic); `go vet` `waitgroup`+`hostport`; `synctest` GA (`synctest.Test`); `T.Attr`/`T.Output` |
 | **1.26** | `errors.AsType[E]`; **`go fix` rewritten** (modernize suite); `fmt.Errorf` alloc-parity with `errors.New`; `slog.NewMultiHandler`; `new(expr)` |
-| **1.27 (RC)** | **generic methods**, *but* interface methods still can't be generic and generic concrete methods **don't satisfy interface methods**; struct-literal keys may be any field selector; generalized inference. Treat as draft until GA (~Aug 2026). |
+| **1.27** | **generic methods**, *but* interface methods can't declare type parameters and can't be implemented by generic methods; struct-literal keys may be any field selector; generalized function-type inference. GA 2026-08-19, confirmed against the final release notes. |
 
 ---
 
-## What models get wrong {#stale}
+## Mistakes to avoid {#stale}
 
 1. Emitting `interface{}` instead of `any` [1.18].
 2. Loop-var copies `x := x` / "capture the loop var": **redundant** in `go 1.22+`.
@@ -412,13 +412,13 @@ golangci-lint v2 default ("standard") set (verified): `errcheck`, `govet`, `inef
 13. Recommending `go.uber.org/atomic` as the universal modern answer: stdlib typed atomics are the default now [1.19].
 14. Storing `context.Context` in a struct.
 15. "Always `Stop` timers/tickers to avoid leaks" is stale: unreferenced timers are GC-eligible [1.23] (still stop for *semantics*).
-16. "Go will never have generic methods" is stale for **1.27 RC**, but also misses the limit (interface methods stay non-generic).
+16. "Go will never have generic methods" is stale as of **1.27**, but also misses the limit: interface methods can't declare type parameters and can't be implemented by generic methods.
 17. `new(T)` instead of `&T{}`; positional struct literals; returning a concrete `*MyError` as `error` (typed-nil trap).
 18. Recommending `golint`: archived; → `revive` + `staticcheck`.
 
 ---
 
-## Agent addendum {#agent-addendum}
+## Defaults for new code {#agent-addendum}
 
 Defaults to **emit** in new 1.26-targeted code: `any`; `for i := range n`; `slices.*`/`maps.*`/`min`/`max`/`clear`; iterator helpers where the API exposes them; `log/slog`; lowercase un-punctuated error strings; `%w` only when the wrapped error is intended API surface; no loop-var copies; `t.Context()`/`b.Loop()`; named `mu` fields; typed `sync/atomic`; `Owner()`/`SetOwner()`; `ID`/`URL`/`HTTP` casing; `tool` directives; `ctx context.Context` first.
 
@@ -428,7 +428,7 @@ Defaults to **never emit:** `interface{}`, `tools.go`, `sort.Slice` for simple s
 
 ---
 
-## See Also {#see-also}
+## Where to look next {#see-also}
 - [errors-and-resilience.md](errors-and-resilience.md): error wrapping mechanics, `errors.AsType`, retry, circuit breaker
 - [modern-go.md](modern-go.md): full version matrix, `go fix` modernizers, range-over-func
 - [concurrency.md](concurrency.md): goroutine lifecycle, `WaitGroup.Go`, errgroup, `synctest`

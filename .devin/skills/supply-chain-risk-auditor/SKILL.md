@@ -6,53 +6,54 @@ disable-model-invocation: true
 
 # Supply chain risk auditor
 
-## Contract
+A team wants to know whether the third-party packages they depend on carry known vulnerabilities. You read their manifest, resolve the versions they actually use, ask each ecosystem's advisory source, and write two artifacts outside the audited repository: a `findings.json` file machines can check and a `report.md` file humans can act on. Every dependency ends in exactly one of three states (assessed-clean, assessed-flagged, unassessable), and remediation advice stays clearly separated from measured findings. Unavailable data is never treated as risk, and absence of data is never treated as safety.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | The user asks to assess third-party package or dependency supply-chain risk for a project using npm, PyPI, or Go manifests, with lockfile-wide advisory coverage where supported. |
-| Authority | Reversible local: writes only the named local artifacts (`findings.json`, `report.md`) outside the audited repository; rollback is deleting both files. No remote mutation. |
-| Side effect | Never installs, builds, imports, or executes the audited project or dependencies and never reads dependency source. Performs network metadata queries and writes deterministic findings.json plus report.md outside the audited repository. |
-| Done | The report contains direct-dependency risk findings, supported lockfile-wide version-matched advisories, three-state assessed-clean/assessed-flagged/unassessable coverage, exact measured data, and clearly separated remediation judgment without treating unavailable data as risk or absence as safety. |
+You never install, build, import, or execute the audited project or its dependencies, and you never read dependency source. You only query advisory metadata over the network and write the two named artifacts. If either file must go away, deleting both from the output directory is the full rollback.
 
-## Inputs
+## What you hand it
 
-1. **Project path** (required): directory containing a manifest file (`package.json`, `requirements.txt` / `pyproject.toml`, or `go.mod`).
-2. **Lockfile** (optional): if present (`package-lock.json`, `poetry.lock`, `Pipfile.lock`, `go.sum`), the auditor resolves transitive dependencies and matches advisories to exact resolved versions. If absent, direct dependencies are assessed against declared version constraints and all transitive dependencies are marked unassessable.
-3. **Output directory** (required): directory where `findings.json` and `report.md` are written. Defaults to a directory adjacent to the audited project.
+- `Project path` (required): a directory holding a manifest file (`package.json`, `requirements.txt` or `pyproject.toml`, or `go.mod`).
+- `Lockfile` (optional): when present (`package-lock.json`, `poetry.lock`, `Pipfile.lock`, `go.sum`), you resolve transitive dependencies and match advisories against exact resolved versions. When absent, direct dependencies are judged against declared version constraints and every transitive dependency is marked unassessable.
+- `severity_floor` (optional, default `medium`): the lowest advisory severity shown as an actionable finding. This is the only severity floor in the skill. It applies after the three-state classification and never changes a dependency's state.
+- `Output directory` (required): where `findings.json` and `report.md` go. Defaults to a directory adjacent to the audited project.
 
-## Refusal
+## How the audit runs
 
-- Missing manifest: return `findings.json` with an empty dependencies array and all counts zero; `report.md` states no recognized manifest was found.
-- Network failure or rate limit: mark affected queries as unassessable; return partial results for completed queries. Never retry with widened scope.
-- Malformed advisory response: mark the affected dependency as unassessable; do not guess vulnerability status.
-- Any step would require execution: stop and mark the dependency as unassessable. The procedure never installs, builds, imports, or executes the audited project or its dependencies. It never reads dependency source code.
+### Name the ecosystem
 
-## Procedure
+Identify the ecosystem from the manifest file type. With no recognized manifest, mark all dependencies unassessable and skip to writing the artifacts, where `findings.json` carries an empty dependencies array with all counts zero and `report.md` states that no recognized manifest was found.
 
-1. **Identify the ecosystem** from the manifest file type. If no recognized manifest exists, mark all dependencies as unassessable and proceed to step 5. Done when: the ecosystem is identified or all dependencies are marked unassessable.
+### List the direct dependencies
 
-2. **Parse the manifest** to extract direct dependencies with their declared version constraints. For npm: parse `package.json` `dependencies` and `devDependencies`. For PyPI: parse `requirements.txt` lines or `pyproject.toml` `[project.dependencies]` and `[tool.poetry.dependencies]`. For Go: parse `go.mod` `require` blocks, distinguishing direct (`// indirect` absent) from indirect. Done when: direct dependencies are enumerated with version constraints.
+Parse the manifest for direct dependencies with declared version constraints. For npm, read `dependencies` and `devDependencies` in `package.json`. For PyPI, read the `requirements.txt` lines or the `[project.dependencies]` and `[tool.poetry.dependencies]` sections of `pyproject.toml`. For Go, read the `require` blocks of `go.mod`, treating entries with `// indirect` as indirect and the rest as direct.
 
-3. **Resolve exact versions.** If a lockfile is present, parse it to resolve exact versions and enumerate transitive dependencies. For npm: parse `package-lock.json` `packages` for resolved versions. For PyPI: parse `poetry.lock` or `Pipfile.lock` for pinned versions. For Go: parse `go.sum` for module hashes and `go.mod` for versions; `go.sum` confirms module integrity but `go.mod` carries the version. If no lockfile is present, use declared version constraints from the manifest for direct dependencies and mark all transitive dependencies as unassessable with reason `no-lockfile`. Done when: exact versions are resolved for direct dependencies, and transitive dependencies are enumerated or marked unassessable.
+### Pin the exact versions
 
-4. **Query the ecosystem advisory source** for each dependency. Load `references/ecosystem-queries.md` and apply the query method for the detected ecosystem. Record advisory ID, severity, affected version ranges, and fixed version for each match. Classify each direct dependency into one of three states:
-   - assessed-clean: advisory query succeeded and returned no matching vulnerabilities for the resolved version.
-   - assessed-flagged: advisory query returned one or more matching vulnerabilities.
-   - unassessable: advisory source was unreachable, rate-limited, returned malformed data, the dependency has no resolved version, or the dependency is transitive with no lockfile.
-   Done when: every direct dependency has a state and every query is attempted.
+When a lockfile is present, parse it for exact versions and enumerate the transitive dependencies. For npm, read resolved versions from the `packages` section of `package-lock.json`. For PyPI, read pinned versions from `poetry.lock` or `Pipfile.lock`. For Go, confirm module integrity from `go.sum` while taking the version from `go.mod`. Without a lockfile, judge direct dependencies against their declared constraints and mark every transitive dependency unassessable with reason `no-lockfile`, since resolved versions cannot be confirmed (for Go, entries carrying `// indirect` fall in this group).
 
-5. **Compile `findings.json`** with the structure: `{ dependencies: [{ name, version, ecosystem, direct, state, advisories }], summary: { total, assessed_clean, assessed_flagged, unassessable } }`. Done when: `findings.json` is written.
+### Ask the advisory source
 
-6. **Generate `report.md`** containing: direct-dependency risk findings with per-dependency state and advisory detail, lockfile-wide version-matched advisories for transitive dependencies (if the lockfile was available), coverage summary with counts for each of the three states, unassessable dependencies with their reason, and remediation recommendations prioritized by severity and clearly separated from measured findings. Done when: `report.md` is written.
+Load `references/ecosystem-queries.md` and use its query method for the detected ecosystem. The method named there owns the ecosystem: `npm audit --json` for npm, the OSV query path for PyPI, the `vuln.go.dev` path for Go. Never run a second scanner for an ecosystem that file already covers. A Go module path returning `404` means no known vulnerabilities, so that dependency is assessed-clean.
 
-## Failure modes
+For each match, record the advisory ID, severity, affected version ranges, and fixed version. Each recorded advisory carries `advisory_id`, `affected_range`, `severity` (when the source supplies it or it follows from the advisory), `fixed_versions` (when supplied), and `patchable`. Then classify each direct dependency:
 
-- Rollback: delete `findings.json` and `report.md` from the output directory.
-- Unrecognized manifest: write `findings.json` with empty dependencies and zero counts; `report.md` states no recognized manifest was found.
-- Network failure: mark affected dependencies unassessable with reason `network-failure`; continue with completed queries.
-- Malformed advisory response: mark the affected dependency unassessable with reason `malformed-response`; do not guess vulnerability status.
+- `assessed-clean`: the advisory query succeeded and returned no matching vulnerability for the resolved version.
+- `assessed-flagged`: the query returned one or more matching vulnerabilities.
+- `unassessable`: the source was unreachable, rate-limited, or returned malformed data; the dependency has no resolved version; or it is a transitive dependency with no lockfile.
 
-## Output
+Apply `severity_floor` only after this classification. Below-floor advisories stay assessed-flagged and are counted as suppressed-by-floor rather than relabeled clean. Advisories with missing severity are never suppressed and never treated as safe. Attempt the query for every direct dependency, so each one ends with a state and none passes through silently.
 
-`findings.json` (structured JSON with per-dependency risk assessment, advisory matches, coverage summary, and unassessable reasons) and `report.md` (human-readable report with direct-dependency findings, lockfile-wide advisories, three-state coverage, unassessable dependencies with reasons, and separated remediation guidance).
+### Write findings.json
+
+Write the structure `{ dependencies: [{ name, version, ecosystem, direct, state, reason, advisories: [{ advisory_id, affected_range, severity, fixed_versions, patchable }] }], summary: { total, assessed_clean, assessed_flagged, unassessable, severity_floor, suppressed_by_floor, patchable, unpatchable } }`. The `reason` field appears when `state` is unassessable. The `patchable` and `unpatchable` counts tally advisories with and without a supplied fix, derived from the per-advisory `patchable` flags.
+
+### Write report.md
+
+Cover the direct-dependency findings with per-dependency state and advisory detail (advisory IDs, affected ranges, fixed versions when the source supplies them, patchable versus unpatchable status), the lockfile-wide version-matched advisories for transitive dependencies when a lockfile was available, the applied severity floor with its suppressed-by-floor count shown separately, the patchable versus unpatchable counts derived from the per-advisory flags, a coverage summary with all three state counts computed before severity filtering, every unassessable dependency with its reason, and remediation recommendations prioritized by severity and kept distinct from measured findings. A clean conclusion is permitted only for the portion whose advisory queries completed and whose exact-version coverage is assessed-clean; unassessable dependencies stay visible in the coverage section.
+
+## When something gives
+
+- Missing manifest: write `findings.json` with empty dependencies and zero counts, and state the absence in `report.md`.
+- Network failure or rate limit: mark the affected queries unassessable with reason `network-failure`, return partial results for completed queries, and never retry with a widened scope.
+- Malformed advisory response: mark the affected dependency unassessable with reason `malformed-response`, and never guess its vulnerability status.
+- A step that would require execution: stop and mark the dependency unassessable. Installing, building, importing, or executing the project or its dependencies, and reading dependency source, are outside this skill entirely.

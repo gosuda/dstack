@@ -1,0 +1,3 @@
+interface:
+  display_name: "Triage"
+  short_description: "Use when issues or external pull requests must move through a category and state machine with verification, grilling, and agent-ready briefs."

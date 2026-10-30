@@ -1,0 +1,3 @@
+interface:
+  display_name: "Docs Practices"
+  short_description: "Use when deciding whether a durable document, ADR, plan, or spec is needed, or when checking its invariant quality, scope, and naming."

@@ -5,39 +5,33 @@ description: 'Use when a configured loop misbehaves, produces unexpected results
 
 # Diagnose loop health
 
-## Contract
+A configured loop is misbehaving, or someone asks whether its setup is sound. Your job is to look, not to fix: inspect the loop's directory read-only, decide how bad things are, and name the most impactful next actions. You never change source code, touch version control, use credentials, spend money, publish, deploy, or reach a remote system, and you never redesign the loop itself.
 
-| Field | Bound contract |
-|---|---|
-| Trigger | A configured loop misbehaves, or the user asks whether the loop setup is sound |
-| Authority | Read-only. No file, VCS, credential, paid, published, deployed, or remote mutation. |
-| Side effect | A severity report with at most three prioritized actions and a nonzero exit on blocked; no file mutation |
-| Done | Severity is healthy, warning, or blocked with exit 0, 1, or 2, and each finding names the exact missing or stale charter, state, gate, or budget file |
+## What you need from the caller
 
-## Inputs
+Ask for the loop directory to inspect. If it is not named, stop and ask; do not infer one, guess one, or create one. Nothing in this skill creates or writes a file.
 
-The user must supply the loop directory to inspect. No file is created or written. The skill reads four file classes from that directory: the charter file, the state file, the gate file, and the budget file. If the directory is not named, ask for it and stop until it is supplied.
+## Reading the four files
 
-## Procedure
+Bound yourself to read-only inspection of that directory: no writing, creating, renaming, deleting, or moving anything. Locate and read the four files that define a loop's health:
 
-1. Obtain the loop directory from the user. If absent, stop and ask; do not infer or create one. **Done when:** the loop directory is supplied or the skill stops to ask.
+- the charter file, stating what the loop is for and its cadence;
+- the state file, recording where the loop stands;
+- the gate file, carrying the gate thresholds;
+- the budget file, carrying the budget limits.
 
-2. Bound scope to read-only inspection of that directory. Do not write, create, rename, delete, or move any file. **Done when:** scope is bounded to read-only inspection.
+For each file record presence and freshness. A file that is absent is missing. A file whose content no longer matches the loop's declared cadence, gate thresholds, or budget limits is stale. If any required file cannot be read at all, permission denied or parse error alike, you are already done classifying (see below): never skip it silently, never mutate it, never swallow the error, and never claim the loop is fine while a file sits unread.
 
-3. Locate and read the loop's charter file, state file, gate file, and budget file. For each, record presence and freshness: missing if absent; stale if its content does not match the loop's declared cadence, gate thresholds, or budget limits. **Done when:** all four files are read with presence and freshness recorded.
+## Calling the severity
 
-4. Classify severity on the ladder: healthy if all four files are present and current; warning if any file is missing or stale but the loop can still run; blocked if a required charter or state file is absent or unreadable. **Done when:** severity is classified healthy, warning, or blocked.
+Place the loop on one rung of the ladder:
 
-5. For warning or blocked, emit at most three prioritized actions ordered by impact, each naming the exact missing or stale file by path and class. **Done when:** zero to three prioritized actions are emitted, each naming the file by path and class.
+- **healthy** when all four files are present and current;
+- **warning** when a file is missing or stale but the loop can still run;
+- **blocked** when a required charter or state file is absent or unreadable.
 
-6. Exit 0 for healthy, 1 for warning, 2 for blocked. **Done when:** the exit code matches the severity.
+Where both warning and blocked conditions hold, take the higher rung. No partial verdicts: one unreadable required file escalates the whole report to blocked. A missing loop directory is itself blocked: name the absent directory and stop.
 
-## Failure and recovery
-- Missing loop directory: report blocked naming the absent directory, exit 2; do not create it.
-- Unreadable file (permission denied or parse error): report blocked naming the file and the error, exit 2; do not mutate or skip it silently.
-- Ambiguous severity where both warning and blocked conditions hold: classify as the higher severity, blocked, and exit 2.
-- Partial result is forbidden: if any required file cannot be read, escalate to blocked rather than emit a warning or healthy verdict.
-- Never swallow an error or assert the done predicate when a file is unreadable.
+## What you hand back
 
-## Output
-A severity report carrying one of healthy, warning, or blocked, the matching exit code 0, 1, or 2, and zero to three prioritized actions, each naming the exact missing or stale charter, state, gate, or budget file by path and class, ordered obtain-dir → bound-scope → read-files → classify → emit-actions → exit.
+A severity report with the matching exit code: 0 for healthy, 1 for warning, 2 for blocked. For warning or blocked, add at most three prioritized actions ordered by impact, each naming the exact missing or stale file by path and by class (charter, state, gate, or budget). Healthy carries no actions. The report reads in the order you worked: directory obtained, scope bounded, files read, severity classified, actions emitted, exit code.
