@@ -1,12 +1,3 @@
 [submodule "dalcom-skills"]
 	path = dalcom-skills
 	url = https://github.com/gosuda/dalcom-skills.git
-[submodule "odin-reflector"]
-	path = odin-reflector
-	url = https://github.com/OutlineDriven/odin-reflector
-[submodule "odin-codex-plugin"]
-	path = odin-codex-plugin
-	url = https://github.com/OutlineDriven/odin-codex-plugin
-[submodule "odin-gemini-cli-extension"]
-	path = odin-gemini-cli-extension
-	url = https://github.com/OutlineDriven/odin-gemini-cli-extension
