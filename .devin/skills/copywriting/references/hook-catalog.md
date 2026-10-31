@@ -1,6 +1,6 @@
 # Hook catalog
 
-Reference for `Mode hook` in the copywriting skill: the five levers, the type-fit table, the 18-hook catalog, the anti-pattern cull, and language handling.
+Read this in hook mode before generating. It holds the five levers, the type-fit table, the 18 hooks, the anti-pattern cull, language handling, and the output format.
 
 ## The five levers
 
@@ -27,15 +27,15 @@ A hook's only job is to make the reader want sentence 2. It does that through on
 
 ## The 18-hook catalog
 
-Each entry explains what the hook does, gives one example (EN or FR), and states when to use or avoid it.
+Each entry says what the hook does, gives one example (EN or FR), and says when to use or avoid it. The lever each hook pulls is listed under "The five levers".
 
 1. **Curiosity Gap**: open an information gap the reader wants closed. EN: "How does Shen Yun make any money? Short answer: they don't." Use when the gap can honestly be closed in 2-3 sentences and the reader cares about it. Avoid vague gaps ("You won't believe what happened next") the reader cannot even guess at.
 2. **Contrarian**: knock down a consensus belief the reader holds. EN: "Prevailing wisdom claims the best way to achieve what we want in life is to set specific, actionable goals." Use when a defensible non-consensus view exists and 200-400 words are available to defend it. Avoid strawmen and contrarianism for its own sake.
 3. **Bold Claim / Promise**: state the outcome upfront, before the proof. EN: "At 60 miles an hour the loudest noise in this new Rolls-Royce comes from the electric clock." Use when the promise can be delivered concretely. Avoid promises larger than the payoff; they destroy trust permanently.
 4. **Scene Opener / In Medias Res**: drop the reader inside a specific moment, no setup. EN: "Frank Sinatra, holding a glass of bourbon in one hand and a cigarette in the other, stood in a dark corner of the bar between two attractive but fading blondes who sat waiting for him to say something." Use for longform, profile, reported piece, essay. Avoid short technical pieces where the reader has not earned the scene.
 5. **Surprising Statistic**: lead with a number that violates the prior. EN: "You have five seconds to get people's attention." Use when the number is genuinely surprising and citable accurately. Avoid vague stats ("studies show 90%...") and stats that confirm the reader's prior.
-6. **Question**: pose a question the reader actually wants answered. EN: "If you collected lists of techniques for doing great work in a lot of different fields, what would the intersection look like?" Use when the reader was implicitly carrying the question. Avoid "Have you ever wondered...?", "Did you know...?", "What if I told you...?", they presuppose curiosity not yet formed.
-7. **Quote + Disagreement**: borrow weight, then twist. EN: "Steve Jobs said people don't know what they want until you show it to them. For SaaS, this is exactly backwards." Use when a real quote exists that supports or genuinely contrasts the point. Avoid misattributed Einstein/Seneca/Confucius/Bouddha platitudes.
+6. **Question**: pose a question the reader actually wants answered. EN: "If you collected lists of techniques for doing great work in a lot of different fields, what would the intersection look like?" Use when the reader was implicitly carrying the question. Avoid "Have you ever wondered...?", "Did you know...?", and "What if I told you...?"; they presuppose curiosity the reader does not have yet.
+7. **Quote + Disagreement**: borrow weight, then twist. EN: "Steve Jobs said people don't know what they want until you show it to them. For SaaS, this is exactly backwards." Use when a real quote exists that supports or genuinely contrasts the point. Avoid misattributed Einstein, Seneca, Confucius, or Buddha platitudes.
 8. **Personal Confession**: admit something vulnerable, then universalize. EN: "I cheated on my husband." Use for personal byline, essay, newsletter. Avoid corporate byline, technical articles, and performative vulnerability ("I almost didn't write this...").
 9. **Concrete Specific Detail**: replace abstraction with a single vivid detail. EN: "John Laroche is a tall guy, skinny as a stick, pale-eyed, slouch-shouldered, and sharply handsome, despite the fact that he is missing all his front teeth." Use for profile, reported piece, contrarian biographical setup. Avoid specificity that does not advance the thesis (clutter).
 10. **Pattern Interrupt**: break expected rhythm with a fragment. EN: "This is not an article about productivity. It's an article about identity." Use for rhythm-driven content and opinion pieces. Avoid using it every article; it becomes its own pattern fast.
@@ -50,14 +50,14 @@ Each entry explains what the hook does, gives one example (EN or FR), and states
 
 ## Anti-pattern cull
 
-Never propose any of these. Run every candidate through this list before presenting; if a candidate matches, rewrite.
+Run every candidate through this list before presenting. A candidate that matches is rewritten, never shown.
 
 - "In today's fast-paced world..." / "À l'heure du tout-numérique" / "À l'ère de l'IA" / "Dans un monde où..."
 - "Have you ever wondered...?" / "Vous êtes-vous déjà demandé...?"
 - Dictionary opener played straight ("Productivity, defined as...")
 - "In this article, I'll discuss..." / "Dans cet article, nous allons voir..."
 - Generic stats without source ("90% of people...", "Les études montrent...")
-- Misattributed Einstein / Seneca / Confucius / Bouddha quotes
+- Misattributed Einstein / Seneca / Confucius / Buddha (Bouddha) quotes
 - "I'm not an expert, but..." / "Je ne suis pas spécialiste mais..."
 - Three rhetorical questions in a row
 - "Imagine waking up..." without a specific scene
@@ -65,8 +65,36 @@ Never propose any of these. Run every candidate through this list before present
 - "At [Company], we believe..." / "Chez [Entreprise], nous pensons..."
 - "Recently,..." / "Récemment,..." without a specific date
 - "You're not alone."
-- Current AI tells: "It's not just X, it's Y", "Picture this:", "Imagine a world where...", "What if I told you...", "Whether you're a seasoned X or a curious newcomer...", "In the realm of...", "Navigating the landscape of...", "Unlock the power of...", "Dive into...", "Buckle up,", "Let's dive in", "Crucially,/Notably,/Importantly,/Essentially," as sentence openers. French AI tells: "Dans un monde en constante évolution", "Plongez dans...", "Découvrez comment...", "Par ailleurs,...", "Notamment,...", "Il est crucial de...".
+- AI tells in English: "It's not just X, it's Y", "Picture this:", "Imagine a world where...", "What if I told you...", "Whether you're a seasoned X or a curious newcomer...", "In the realm of...", "Navigating the landscape of...", "Unlock the power of...", "Dive into...", "Buckle up,", "Let's dive in", "Crucially,/Notably,/Importantly,/Essentially," as sentence openers.
+- AI tells in French: "Dans un monde en constante évolution", "Plongez dans...", "Découvrez comment...", "Par ailleurs,...", "Notamment,...", "Il est crucial de...".
 
 ## Language handling
 
-If the audience is French, write in French and apply the _attaque journalistique_ register: concrete scene-setting, restrained tone, dated anchors, formal "vous" or restrained tutoiement. Do not translate American hype tropes literally ("You'll never believe..." becomes "Vous n'allez pas en croire vos yeux", which reads as scam in French); French marketing-skepticism is higher and high promises trigger _réactance_ faster. If English, default to direct-response register for marketing or tutorial content and longform register for essays and reported pieces. If bilingual, produce hooks in both languages and label clearly.
+Write in the target language from the brief.
+
+If the audience is French, write in French and apply the _attaque journalistique_ register: concrete scene-setting, restrained tone, dated anchors, formal "vous" or restrained tutoiement. Do not translate American hype tropes literally ("You'll never believe..." becomes "Vous n'allez pas en croire vos yeux", which reads as scam in French); French marketing-skepticism is higher and high promises trigger _réactance_ faster. If English, default to direct-response register for marketing or tutorial content and longform register for essays and reported pieces. If bilingual, produce hooks in both languages and label each one with its language.
+
+## Output format
+
+Present the options in this shape, then ask the user to pick through the question tool.
+
+```markdown
+Working title: [title]
+
+0. Your draft (only if one was supplied)
+   > [the user's opening, unchanged]
+
+1. [Hook name] ([lever or levers])
+   A. > [candidate]
+   B. > [candidate, different angle]
+
+2. [Hook name] ([lever or levers])
+   A. > [candidate]
+   B. > [candidate, different angle]
+
+3. [Hook name] ([lever or levers])
+   A. > [candidate]
+   B. > [candidate, different angle]
+
+Which one? Pick a candidate (for example 2B), ask to blend two (for example "blend 1A and 2B"), or say "more" for different hooks.
+```

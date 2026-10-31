@@ -26,7 +26,7 @@ Source: https://github.com/EveryInc/compound-engineering-plugin/tree/fbd794f329f
 License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2025 Every
 Local adaptations: compound, autolearn, plan
-Scope: `plugins/dstack-core/skills/compound/SKILL.md` (ce-compound + keep-why rationale folds), `plugins/dstack-core/skills/autolearn/SKILL.md` (ce-compound-refresh merge), `plugins/dstack-core/skills/plan/SKILL.md` (selective ce-plan insertions). No new skill. keep-why MIT attribution + nine adaptation names preserved; keep-why-setup-wizard body unavailable, not ported.
+Scope: `plugins/dstack-core/skills/compound/SKILL.md` (ce-compound + keep-why rationale folds), `plugins/dstack-core/skills/autolearn/SKILL.md` (ce-compound-refresh merge), `plugins/dstack-core/skills/plans/SKILL.md` (selective ce-plan insertions). No new skill. keep-why MIT attribution + nine adaptation names preserved; keep-why-setup-wizard body unavailable, not ported.
 
 Jia-Ethan/github-solution-research
 Source: https://github.com/Jia-Ethan/github-solution-research
@@ -138,8 +138,8 @@ garrytan/gstack (reviewed upstream-port additions)
 Source: https://github.com/garrytan/gstack/tree/4729f4752ba6aa6524f52fa49f51c28779a3ea24
 License: MIT (https://opensource.org/licenses/MIT)
 Copyright: Copyright (c) 2026 Garry Tan
-Local adaptations: modernize, plan-complete, grill-core
-Scope: `plugins/dstack-git/skills/modernize/SKILL.md`, `plugins/dstack-core/skills/plan-complete/SKILL.md`, insertion into surviving `plugins/dstack-core/skills/grill-core/SKILL.md` (prior `odin-planning/plan-complete` and `odin-code/strike-the-root` paths superseded; strike-the-root folds, no shadow copy)
+Local adaptations: modernize, plans-complete, grill-core
+Scope: `plugins/dstack-git/skills/modernize/SKILL.md`, `plugins/dstack-core/skills/plans-complete/SKILL.md`, insertion into surviving `plugins/dstack-core/skills/grill-core/SKILL.md` (prior `odin-planning/plan-complete` and `odin-code/strike-the-root` paths superseded; strike-the-root folds, no shadow copy)
 The MODERNIZE / REWORK / CLOSE verdict names are credited as ideas-not-text from tstack at https://github.com/t3dotgg/tstack, `skills/modernize`, revision `7de017b3`. No tstack sentence copied, no tstack file distributed, so tstack MIT text not bundled.
 
 humanlayer/skills
@@ -180,7 +180,7 @@ Reviewed source paths:
   skills/engineering/improve-codebase-architecture/HTML-REPORT.md
 Local adaptation:
   architect — current-source incorporation of portable deepening and YAGNI-scoped survey behavior (`plugins/dstack-core/skills/architect/SKILL.md`)
-ODIN-authored (not Pocock): plan-complete — new completion/readiness owner grounded in settled ODIN plan + four PlanCompletion reviews; current Matt source has no plan-complete path. resolve-merge-conflicts retained as historical provenance only; current revision removed it.
+ODIN-authored (not Pocock): plans-complete — new completion/readiness owner grounded in settled ODIN plan + four PlanCompletion reviews; current Matt source has no plan-complete path. resolve-merge-conflicts retained as historical provenance only; current revision removed it.
 
 mblode/agent-skills
 Source: https://github.com/mblode/agent-skills/tree/e97a3b383f5944f90d41eb92b24b4fb3b917a7f9
@@ -498,3 +498,102 @@ coleam00/excalidraw-diagram-skill
 Source: https://github.com/coleam00/excalidraw-diagram-skill/tree/8646fcc9f74f38539c6cdb4c969723336a96ddcd
 License: NOASSERTION
 Local adaptations: visual-argument-diagram
+
+Referenced standards and design notes
+
+The following works informed skills in this repository as reference material only. No text,
+example, word list, or dictionary entry from them is reproduced in the skills. The rules in the
+named skills are independently written for Korean. Each entry records what was consulted and why
+the skill's rules take their present form.
+
+ASD-STE100 Simplified Technical English, Issue 9 (2025-01-15)
+Source: https://www.asd-ste100.org/ (home page, About STE, FAQ; checked 2026-10-30)
+Summary consulted: https://en.wikipedia.org/wiki/Simplified_Technical_English (revision 1380767431,
+  CC-BY-SA-4.0)
+Rights: ASD-STE100 and its dictionary are owned by ASD. No ASD logo, dictionary, or standard text
+  is included.
+Informed: humanizer-korean-ste, humanizer-simple-english-asd-ste100
+Design notes for humanizer-korean-ste:
+- The skill is an unofficial Korean profile. STE is defined for English and ships an English
+  dictionary of approved words, so no Korean output can claim STE conformance; the skill forbids
+  that claim.
+- One word, one part of speech, one meaning is kept as a per-document glossary rule. Korean has no
+  approved dictionary, so the glossary records the term, part of speech, definition, example, and
+  rejected alternatives instead.
+- Technical nouns and technical verbs are allowed through the glossary, mirroring the STE
+  allowance for terms outside the dictionary.
+- The STE verb-form limits (imperative, simple present, past, future, past participle as adjective)
+  are mapped to Korean endings: -sipsio for instructions, -ji masipsio for prohibitions, and the
+  simple present, past, and future of the formal declarative for descriptions. Stacked auxiliary
+  verbs stand in for complex English verb constructions. Nominal -gi and -eum are limited the way
+  STE limits the -ing form to technical nouns.
+- STE caps sentences at 20 words in procedures and 25 in descriptions. A Korean eojeol carries a
+  particle or ending and usually more content than an English word, so the profile sets 15 and 20
+  eojeol as recommended caps, with an exception when splitting would change the scope of a
+  condition.
+- The noun-cluster limit of three words, one instruction per sentence, one topic per paragraph,
+  the six-sentence paragraph limit, vertical lists for complex text, and safety instructions that
+  start with a clear command or condition are carried over directly.
+- STE forbids omitting words to shorten text. The Korean equivalent is the gaejosik note style
+  (-ham, -hal geot, -yomang) and dropped particles, which the profile bans in body text.
+- The Wikipedia summary reports that STE is often misapplied as a substitute for a style guide and
+  that it produces ungrammatical text when approved words are forced into sentences. The profile
+  therefore runs alongside the project style guide and glossary, which take precedence, and
+  forbids ungrammatical sentences written for the sake of term consistency.
+
+Plain English and plain language
+Sources consulted: https://en.wikipedia.org/wiki/Plain_English (revision 1379560714,
+  CC-BY-SA-4.0); Plain English Campaign, How to write in plain English
+  (https://www.plainenglish.co.uk/free-guides); Digital.gov, Writing for understanding and Test
+  for understanding (https://digital.gov/guides/plain-language/); Australian Government Style
+  Manual, Plain language and word choice; checked 2026-10-30
+Informed: humanizer-korean-plain, humanizer-plain-english
+Design notes for humanizer-korean-plain:
+- The reader test (a reader unfamiliar with the topic understands on first reading) follows the
+  plain English definition of language that is easy to understand regardless of familiarity with
+  the topic, and Gowers' standard that the reader should apprehend the meaning readily and
+  precisely.
+- The everyday-word rule follows the plain English avoidance of rare words. In Korean the
+  equivalent targets are Sino-Korean administrative words (geumil, sanggi, suryeonghada,
+  sangihada) and request forms such as hyeopjo yomang.
+- The euphemism rule follows the plain English avoidance of uncommon euphemisms and Orwell's
+  example of a euphemism that hides what is done.
+- The legal-register rule follows Gowers' treatment of legal drafting as a separate craft: quoted
+  legal text stays verbatim, and its register (danghae, -han ja, -e uigeohayeo) is kept out of
+  ordinary explanation.
+- The rule on terms unfavorable to the reader follows the plain and intelligible language
+  requirement for consumer contract terms and the principle that a reader should not need a lawyer
+  to understand a term.
+- The emergency and safety rule follows the inquiry finding that verbose emergency communication
+  can cause dangerous misunderstanding.
+- The obligation rule follows the redrafted jury instruction example, which states who must do
+  what in short direct sentences.
+- The precision rule follows the debate over whether plainer wording loses legal precision: the
+  skill keeps the original term and adds an explanation whenever plainer wording would change a
+  legal or technical meaning.
+- No fixed sentence-length cap is set for plain Korean, because plain language is judged by reader
+  comprehension, unlike the controlled-language profile.
+
+Signs of AI writing
+Source: https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing (revision 1382688615,
+  CC-BY-SA-4.0; checked 2026-10-30)
+Informed: humanizer-korean-plain, humanizer-korean-ste, unslop
+Design notes:
+- The Korean machine-style catalog groups patterns by the structures that recur in Korean model
+  output and machine translation (translationese particles, nominalization with light verbs,
+  promotional vocabulary, chatbot phrases, honorific errors). It is not a translation of the
+  English list.
+- The stock contrast frame, slash pairing, and both-sides hedging are banned outright in the
+  Korean skills at the maintainer's direction, because each one avoids committing to a claim and
+  each recurs in Korean model output. They are exempt from the density rule that governs the rest
+  of the catalog.
+- The Korean skills write their own instructions in the formal polite register and keep skill
+  descriptions in English, so routing metadata carries no Korean text into other contexts. The
+  register of the skills' output still follows the source text and the user's instruction.
+
+Korean orthography and honorifics
+Source: National Institute of Korean Language, Korean language norms
+  (https://www.korean.go.kr/kornorms/main/main.do; checked 2026-10-30)
+Informed: humanizer-korean-plain, humanizer-korean-ste
+Design notes: spacing, spelling, and honorific judgments (including honorifics applied to objects
+  and doubled honorifics) follow the published norms.

@@ -156,29 +156,26 @@ function isFullDocument(html) {
   return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")
 }
 
+// The version holds only numeric file identity, so the newest screen's file
+// name, which may hold markup, never reaches the served HTML.
 function screenVersion(options) {
   const screen = newestScreen(options)
-  if (!screen) return { screen: null, mtimeMs: 0 }
-  return {
-    screen: path.basename(screen),
-    mtimeMs: fs.statSync(screen).mtimeMs,
-  }
+  if (!screen) return { version: "none" }
+  const { dev, ino, mtimeMs } = fs.statSync(screen)
+  return { version: `${dev}-${ino}-${mtimeMs}` }
 }
 
 function refreshScript(options) {
-  const initialVersion = JSON.stringify(screenVersion(options))
+  const currentVersion = screenVersion(options).version
   return `<script>
 (function(){
-  var currentVersion = ${initialVersion};
-  function key(version) {
-    return String(version && version.screen) + ":" + String(version && version.mtimeMs);
-  }
+  var currentVersion = "${currentVersion}";
   async function checkForVisualProbeUpdate() {
     try {
       var response = await fetch("/version", { cache: "no-store" });
       if (!response.ok) return;
       var nextVersion = await response.json();
-      if (key(nextVersion) !== key(currentVersion)) {
+      if (nextVersion.version !== currentVersion) {
         window.location.reload();
       }
     } catch (error) {

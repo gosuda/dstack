@@ -5,22 +5,46 @@ description: 'Use when asked to write or fix product/marketing copy, landing pag
 
 # Copywriting
 
-Write or fix product and marketing copy in one of three modes. The skill infers the mode from the ask and never asks which one: a bottom-of-article call-to-action routes to `cta`; a hook, lede, or accroche for long-form content routes to `hook`; everything else routes to `page`. An explicit mode argument overrides auto-detection. Page mode is reversible local work: it creates or edits copy and brand voice files in the working tree with version control as the rollback, and never mutates anything remote. Cta and hook modes write nothing outside the conversation.
+Write or fix product and marketing copy in one of three modes. Infer the mode from the ask and never ask which one. An explicit mode argument overrides the inference.
 
-## Inputs to settle first
+| Mode | Route here when the ask is | Writes |
+|---|---|---|
+| `page` | Anything not listed below: homepages, landing, pricing, feature and about pages, product descriptions, UI and product-state strings, brand voice, AI-tell removal | Copy and voice files in the working tree |
+| `cta` | A call to action at the bottom of an article, essay, or newsletter issue | Nothing outside the conversation |
+| `hook` | A hook, lede, or accroche for long-form content | Nothing outside the conversation |
 
-- Mode page: the copy to fix, or a page type and goal. Copy that exists (or was pasted) takes the editing branch; nothing written yet takes the writing branch. For a genuinely ambiguous request ("improve this" with no copy in scope), ask one question, then commit.
-- Mode cta: article context, primary objective, audience and relationship, funnel stage, and mechanism preference, collected in the interview below.
-- Mode hook: topic, audience, target language (EN, FR, or both), approximate length, and publication venue; plus an optional existing draft opening, treated as Option 0 and never silently discarded.
-- Optional inputs, settled before writing: page purpose, audience, product, traffic source, and any voice file (`VOICE.md`, `BRAND.md`, `docs/voice.md`). When an input is missing, infer it and name the inference so the user can correct it against real copy.
+Page mode is reversible local work. It creates or edits files in the working tree, version control is the rollback, and it never mutates anything remote. In cta and hook modes, recovery means re-running the interview or regenerating in the conversation.
 
-## Writing new copy
+## Page mode
 
-Gather context before writing. Settle four fields from the user or from files, and infer and name any field the files do not settle: (1) page purpose, the one action this page drives; (2) audience, the specific reader, their job title, pain, and what they have already tried; (3) product, what it does and the concrete user outcome; (4) traffic source, where the reader comes from. Traffic source sets temperature: cold needs more Why, warm can lead with How or What.
+### Choose the branch
 
-State the brief, then keep going. Mark every inferred field so the user corrects it against copy, not against a question. Stop and ask before writing only when a wrong guess makes the work useless or unsafe: the copy ships in this turn with no review, or the goal is genuinely unknown and each candidate goal produces different copy.
+If copy exists in scope, in files or pasted into the chat, take the fixing branch. If nothing is written yet, take the writing branch. If the request is ambiguous ("improve this" with no copy in scope), ask one question, then commit to a branch.
 
-Discover brand voice from the first matching source, then stop: (1) a voice file in the repo (`VOICE.md`, `BRAND.md`, `docs/voice.md`), which is authoritative when it exists; (2) existing copy such as README headers, copy files, or shipped marketing pages; (3) inference (B2B SaaS direct and confident, consumer apps warmer, developer tools terse and honest). A discovered voice outranks the word lists: if the voice file or shipped copy uses a listed word as a signature, keep it. Locale and spelling convention come from the voice. When no voice file exists and the product will need one, offer to write `VOICE.md` alongside the copy using the voice chart structure below. Voice is constant (the brand personality) while tone adapts to the reader's state:
+### Settle the brief
+
+Both branches start from a four-field brief. Settle each field from the user or from files.
+
+| Field | What it settles |
+|---|---|
+| Page purpose | The one action this page drives |
+| Audience | The specific reader: job title, pain, and what they have already tried |
+| Product | What it does and the concrete outcome for the user |
+| Traffic source | Where the reader comes from. Cold traffic needs more Why; warm traffic can lead with How or What |
+
+When a field is not settled, infer it and mark it as inferred. State the brief, then keep working, so the user corrects the inference against real copy instead of answering a question first. Never present an inference as a fact. Stop and ask before writing only when a wrong guess makes the work useless or unsafe: the copy ships this turn with no review, or the goal is unknown and each candidate goal produces different copy.
+
+### Find the voice
+
+Take the voice from the first source that exists, then stop looking:
+
+1. A voice file in the repo (`VOICE.md`, `BRAND.md`, `docs/voice.md`). It is authoritative.
+2. Existing copy: README headers, copy files, shipped marketing pages.
+3. Inference from the product category. B2B SaaS reads direct and confident, consumer apps warmer, developer tools terse and honest.
+
+A discovered voice outranks every word list in this skill. If the voice file or shipped copy uses a listed word as a signature, keep it. Locale and spelling convention come from the voice too; check them before changing spelling or tone, because a US-spelling rewrite on an en-AU product is a regression in every string it touches. When no voice file exists and the product will need one, offer to write `VOICE.md` alongside the copy (see "Voice chart for VOICE.md").
+
+Voice is the constant brand personality. Tone adapts to the reader's state:
 
 | Reader state | Tone | Example |
 |---|---|---|
@@ -30,109 +54,148 @@ Discover brand voice from the first matching source, then stop: (1) a voice file
 | Cautious (high stakes, data loss) | Serious, transparent, no nudging | "Delete account? You'll lose all data and this can't be undone." |
 | Successful (completion) | Positive, proportional, brief | "Your changes are live." |
 
-A tone shift is not voice drift. Drift is when the copy reads as a different brand, not the same brand in a different moment.
+A tone shift is not voice drift. Drift is copy that reads as a different brand, not the same brand at a different moment.
 
-Choose a framework and load page norms. Route on what the copy is. Product-state copy (an error, empty, success, loading, or permission string) or an action label takes the UI state copy rules below and stops there; persuasion frameworks do not apply to a button that deletes something. Marketing copy picks its lead framework from the brief and layers freely:
+### Route the copy
+
+Product-state copy (error, empty, success, loading, and permission strings) and action labels follow `references/product-state-strings.md` and nothing else. Persuasion frameworks do not apply to a button that deletes something. Read that file whenever you write, audit, or flag such a string.
+
+Marketing copy picks a lead framework from the brief and may layer others on top:
 
 | Situation | Lead framework |
 |---|---|
-| Cold traffic, unfamiliar product | Why/How/What (Simon Sinek) |
-| Feature-heavy product | Benefit Not Feature |
-| High-trust audience, low awareness | Show Don't Tell |
-| Transactional page, known intent | CTA Clarity |
-| Long-form sales page | Problem → Agitate → Solution (PAS) |
+| Cold traffic, unfamiliar product | Why/How/What |
+| Feature-heavy product | Benefit not feature |
+| High-trust audience, low awareness | Show don't tell |
+| Transactional page, known intent | CTA clarity |
+| Long-form sales page | Problem, agitate, solution (PAS) |
 
-The nine frameworks: **Why/How/What** (lead with Why, not What; order Why, How, What), **PAS** (name the pain, amplify the cost, present the solution), **AIDA** (Attention, Interest, Desire, Action for cold traffic), **StoryBrand** (customer is hero, product is guide; never make the product the hero), **BAB** (Before, After, Bridge; warmer and aspirational where PAS is confrontational), **Show Don't Tell** (replace adjectives with a specific fact, number, or scenario), **Benefit Not Feature** (lead with the outcome for the user; mention the mechanism only after the benefit is clear), **Sentence Economy** (every sentence earns its space; cut openers like "In order to" or "It is important to note that"), **CTA Clarity** (action verb plus what they get plus qualifier; never two CTAs with the same verb on one screen). For a known page type, apply its norms:
+Read `references/frameworks-and-pages.md` before writing or auditing marketing copy. It defines the nine frameworks and the norms for homepage, landing, pricing, feature, and about pages.
 
-- Homepage: establish what the product is and who it is for; pick the highest-value segment and write for them. Sections in order: hero (lead with Why), social proof above fold, problem/pain, solution/benefits (one benefit per point), how it works, testimonials, final CTA. Do not add a secondary CTA that dilutes the primary action.
-- Landing page: drive one action; message must match what brought the reader. Headline mirrors the ad or email promise. PAS for problem-aware traffic, AIDA for cold. One CTA only; strip navigation and footer links.
-- Pricing page: help visitors choose. Name plans by buyer type, not tier ("Solo / Team / Company" beats "Basic / Pro / Enterprise"). Sections: value restatement, plan comparison (2 to 4 plans), feature differentiators, FAQ, social proof by tier, risk reversal near the CTA.
-- Feature page: connect a feature to an outcome for visitors already evaluating. Feature, Benefit, Outcome chain. Skip broad setup; go straight to the specific outcome with a number or example.
-- About page: build trust; every element passes the "so what does this mean for me?" test. Mission as a customer benefit, origin story tied to the customer's frustration, human team, 3 to 5 customer-relevant values, a CTA pointing to the product.
+### Write new copy
 
-Write 2 to 3 alternatives labeled Option A, B, C. Three for a page, hero, or campaign; two for a single string like a CTA or subject line. Each applies the chosen framework visibly, leads with Why, uses no banned word, includes a headline, subhead, and at least one CTA, and is structurally different, not the same idea with new adjectives. Then recommend: pick one, state which and why in one sentence, and give one specific edit note per unpicked option.
+1. Write labeled alternatives: Option A, B, and C for a page, hero, or campaign; Option A and B for a single string such as a CTA or subject line.
+2. Make each option structurally different, not the same idea with new adjectives. Each one applies the chosen framework visibly. A page, hero, or campaign option includes a headline, a subhead, and at least one CTA; a single-string option is just the string.
+3. Run the checks in "Checks before handing back". An option that fails is rewritten before it is shown, never presented with a caveat.
+4. Recommend one option in one sentence that says which and why, and give one specific edit note for each option not picked.
 
-Verify every line before handing back. Each line of every option: leads with Why, names a concrete outcome, no banned word, no em dash or stand-in. Each option whole: it does not hand the brief's wording back (prompt echo), and every specific the user supplied appears rather than a stock default. New copy containing a banned word is not an option to present; rewrite it first.
+### Fix existing copy
 
-## Fixing existing copy
+First set the edit posture. It limits everything that follows.
 
-Set the edit posture first. **Point edit:** the user named one line, word, or section; change only the target plus minimum connective tissue; never turn a point edit into a page audit. **Restoration:** the copy has a clear voice, angle, or opinion; preserve its vocabulary level, emphasis, omissions, sentence shape, and positioning; fix specific failures without rebalancing the argument. **Rebuild:** the copy is generic, contradictory, or has no perspective; reconstruct from the brief, but never invent proof.
+| Posture | When | What you may change |
+|---|---|---|
+| Point edit | The user named one line, word, or section | Only the target plus the minimum connective tissue. Run the steps below on the target alone; never widen a point edit into a page audit |
+| Restoration | The copy has a clear voice, angle, or opinion | Fix named failures only. Preserve vocabulary level, emphasis, omissions, sentence shape, and positioning. Do not rebalance the argument or swap a clear lead for a cleverer one |
+| Rebuild | The copy is generic, contradictory, or has no perspective | Reconstruct from the brief, but never invent proof |
 
-Read all copy-bearing files. Scan every reader-facing surface: README headers, landing components, hero, CTAs, product descriptions, feature lists, onboarding strings, meta descriptions, email subjects. Read the voice file too if one exists; it settles register and locale and overrides the word lists for any word it names as a signature. Ask which files if unclear; never audit copy not read in context.
+Then work through these steps:
 
-Set the value proposition in one sentence before auditing: "[User] can now [do X] without [old pain]." Every flag and rewrite serves it. If the sentence cannot be written confidently, ask; the copy is unfixable until the value proposition is clear.
+1. Read every copy-bearing file in scope: README headers, landing components, hero, CTAs, product descriptions, feature lists, onboarding strings, meta descriptions, email subjects, and the voice file if one exists. If it is unclear which files are in scope, ask. Never audit copy you have not read.
+2. Write the value proposition in one sentence: "[User] can now [do X] without [old pain]." Every flag and rewrite serves it. If you cannot write it confidently, ask; the copy cannot be fixed until the value proposition is clear.
+3. If the user asked for AI-tell removal, run the AI-pattern pass in `references/ai-patterns.md` before anything else.
+4. Run the seven sweeps in `references/sweeps.md` in order, and check each major copy block against the nine frameworks. Collect every finding before fixing any.
+5. Flag the weakest elements with the labels below.
+6. Rewrite the flagged sections. Cut hard, to the same meaning in half the words. Lead with Why where the framework calls for it. Name the concrete outcome, not the capability. Replace adjectives with proof, or with `[PLACEHOLDER: add proof: stat / testimonial / example]` when the proof is unknown. Make CTAs outcome-specific and short. Every sentence adds new information or goes. When replacing an AI-ism, rewrite the sentence instead of swapping in a synonym.
+7. Apply the hyphenation rule from `references/sweeps.md` silently. It needs no flag.
+8. Output the before/after diff described under "What you get back", then run the checks.
 
-Audit against the persuasion frameworks. Check every major copy block against the nine frameworks and carry forward only the highest-impact problems; the flag budget is set below.
+### Flag labels
 
-Remove AI writing patterns (run this first, before the sweeps, when the user asked for AI pattern removal). Flag each AI-ism with `[AI-ISM]` plus its type. **Tier 1 words** (always replace): delve, landscape (metaphor), tapestry, realm, paradigm, embark, beacon, testament to, robust, comprehensive, cutting-edge, leverage (verb), pivotal, underscores, meticulous, seamless, game-changer, utilise, nestled, vibrant, deep dive, unpack, showcase, unlock, intricate, holistic, actionable, impactful, learnings, thought leadership, best practices, synergy, in order to, due to the fact that, serve as, commence, keen (as intensifier). **Tier 2 clusters** (flag when 2 or more appear in one paragraph): harness, navigate, foster, elevate, unleash, streamline, empower, bolster, spearhead, resonate, revolutionise, facilitate, underpin, nuanced, crucial, ecosystem (metaphor), myriad, plethora, catalyse, transformative, cornerstone, paramount, burgeoning, nascent, overarching. **Tier 3** (flag only at high density, around 3 percent or more): significant, innovative, effective, dynamic, compelling, unprecedented, exceptional, remarkable, sophisticated, world-class, state-of-the-art. **Structural patterns:** formulaic openings ("In the rapidly evolving world of..."), rhetorical-question openers, engagement hooks ("Here's the thing", "Plot twist:"), copula avoidance ("serves as", "features", "boasts"), synonym cycling, vague attributions ("Experts believe"), significance inflation, false ranges, em dashes and `--`/spaced-hyphen stand-ins (zero, in headings and body alike; a single occurrence is a failure). **Chatbot artefacts** (remove entirely): "I hope this helps", "Great question", "Let's dive in", any "let's plus verb" transition, chain-of-thought leaking ("Let me think step by step", "Step 1:"), acknowledgement loops. **Drafting tells** (these survive a word-level pass, so check separately): prompt echo (the draft reuses the brief's own phrasing), generic default over the supplied specific (a real number or name replaced by a category placeholder), uniform confidence (every line lands at the same pitch). **Severity triage:** P0 (credibility killers: cutoff disclaimers, chatbot artefacts, vague attributions, significance inflation, a supplied specific replaced by a generic default) fix immediately; P1 (prompt echo, Tier 1 words, template phrases, "let's" openers, formulaic openings, engagement hooks, bold overuse, any em dash) fix before publishing; P2 (generic conclusions, compulsive rule of three, uniform paragraph length, announced honesty, copula avoidance, overused transitions, Tier 2 clusters) fix when time allows. A clean P0 plus P1 pass is publishable.
+Use exactly these labels. Flag the 3 to 7 weakest elements, ordered by impact; more than that becomes a list nobody acts on. One occurrence gets one flag, so never stack `[TELL-NOT-SHOW]` and `[AI-ISM]` on the same word.
 
-Run seven sweeps in order, each targeting a distinct failure mode, flagging everything before fixing. (1) **Clarity:** confusing structure, unclear pronouns, undefined jargon, claims readable two ways. Flags `[JARGON]`, `[VAGUE]`. (2) **Voice and tone:** formal/casual shifts, register mismatch; identify the dominant voice and standardise to it. Flag `[VOICE-DRIFT]` on the line that reads as a different brand, not where the same brand meets a different moment. (3) **So what:** every claim answers "why should the reader care?". Flags `[DEAD-WEIGHT]`, `[FEATURE-NOT-BENEFIT]`. (4) **Prove it:** back every claim with a named testimonial, case study, stat, or third-party validation. Flag `[NO-PROOF]`; use `[PLACEHOLDER: add proof: stat / testimonial / example]` when the proof is unknown. (5) **Specificity:** replace vague time, quantity, and outcome with concrete detail. Flag `[VAGUE]`. (6) **Emotion:** name the pain the reader already feels before selling the outcome; mirror the reader's actual state at this point in the page. Flag `[PAIN-NOT-NAMED]`. (7) **Zero risk:** remove friction at and near CTAs; address objections, add trust signals, clarify the next step, add risk reversal. Flag `[WEAK-CTA]` on any CTA standing alone without a qualifier or trust signal. Finish with the compound adjective hyphenation pass: hyphenate a multi-word modifier before the noun it describes ("a 7-day free trial", "real-time updates", "`{{days}}-day free trial`"); leave it open when it stands alone as a noun phrase ("The trial lasts 7 days"); never hyphenate an `-ly` adverb ("a fully managed service"). Fix hyphenation silently rather than flagging it.
+| Label | Meaning |
+|---|---|
+| `[WHAT-NOT-WHY]` | Leads with the product instead of the reader's motivation |
+| `[FEATURE-NOT-BENEFIT]` | Names a capability without the user outcome |
+| `[TELL-NOT-SHOW]` | Adjective claim without a fact, number, or scenario |
+| `[VAGUE]` | Unspecific time, quantity, outcome, or a claim readable two ways |
+| `[PASSIVE]` | Passive construction that hides who does what |
+| `[VOICE-DRIFT]` | The line reads as a different brand |
+| `[PAIN-NOT-NAMED]` | Sells the outcome before naming the pain the reader feels |
+| `[DEAD-WEIGHT]` | The sentence adds nothing the reader needs |
+| `[JARGON]` | Term the reader may not know, left undefined |
+| `[NO-PROOF]` | Claim with no testimonial, case study, stat, or third-party validation |
+| `[WEAK-CTA]` | CTA with no qualifier or trust signal, or a generic verb |
+| `[STATE-COPY]` | Product-state string that breaks a rule in `references/product-state-strings.md`. Name the rule id |
+| `[AI-ISM]` | AI writing pattern. Follow the label with its type, for example `[AI-ISM] chatbot artefact` |
 
-Flag the weakest elements with inline labels, using exactly these labels: `[WHAT-NOT-WHY]` (leads with product, not motivation), `[FEATURE-NOT-BENEFIT]`, `[TELL-NOT-SHOW]` (adjective claim without proof), `[VAGUE]`, `[PASSIVE]`, `[VOICE-DRIFT]`, `[PAIN-NOT-NAMED]`, `[DEAD-WEIGHT]`, `[JARGON]`, `[NO-PROOF]`, `[WEAK-CTA]`, `[STATE-COPY]` (vague, leaky, or dead-end state string, or a destructive CTA labeled Confirm/OK/bare verb; apply the UI state copy rules below before using this label), `[AI-ISM]`. Flag the 3 to 7 weakest elements, prioritised by impact; over-flagging dilutes into a list nobody acts on. One occurrence is one flag; do not stack `[TELL-NOT-SHOW]` and `[AI-ISM]` on the same word.
+When the user asked for AI-tell removal, every P0 and P1 hit from `references/ai-patterns.md` gets fixed. Those fixes do not count against the 3 to 7 budget, and repeated hits of one pattern may share one diff entry.
 
-Rewrite the flagged sections. Cut hard (same meaning in half the words). Lead with Why, not What. Name the concrete outcome, not the capability. Replace adjectives with proof. Make CTAs outcome-specific. Every sentence adds new information or gets cut. A CTA stays short. When replacing AI-isms, rewrite the sentence; do not swap the flagged word for a synonym.
+### Checks before handing back
 
-Output a before/after diff. For each flagged section, show the original, the labels, the rewritten text, and one sentence explaining the change. End with a summary: issue count, top pattern, and confidence (note if copy context was limited). Verify each "After" line: leads with Why, names a concrete outcome, no banned word, no em dash or stand-in, and every fact, number, and link from the "Before" still present. Then apply the leave-it-alone test: every change must fix a named failure from the audit; if it is merely different, restore the original.
+Run these on every line you wrote or changed, in both branches:
 
-## End-of-article call-to-action
+- Options for cold traffic, or built on Why/How/What, lead with Why. Warm and transactional copy may lead with How or What.
+- Each marketing line names a concrete outcome. Each product-state string passes its rule.
+- No banned word (see "Banned words in your own copy") and no em dash. The en dash, `--`, and the spaced hyphen used as a dash count as em dashes. Zero is the limit, in headings and body alike.
+- No prompt echo: the copy does not hand the brief's own phrasing back. Every specific the user supplied (number, name, example) appears instead of a stock default.
+- Fixing branch only: every fact, number, and link in the "Before" survives in the "After", and no AI tell came back in. A rewrite that drops a specific or reintroduces a tell is a regression; restore it and rewrite again.
+- Fixing branch only, the leave-it-alone test: every change fixes a named flag or the hyphenation rule. A change that is merely different gets reverted to the original.
 
-The archetype decision tree, the exact recommendation structure, and the operating principles live in `references/cta-playbook.md`.
+The done predicate for page mode is that every line handed back is free of AI tells, matches the voice, and fits the page type. A line that fails is rewritten or withheld, never presented as done.
 
-Interview first. Ask the five inputs in order, one at a time with 2 to 4 tappable options, skipping any already supplied; fall back to free text only when the answer cannot be enumerated. (1) Article context: personal or independent blog or essay, newsletter or paid publication, brand or company content-marketing blog, other. (2) Primary objective: newsletter or email subscription, social follow, lead generation (gated asset), product or service signup or free trial, demo or sales call booking, direct purchase, community join, engagement (reply, comment, share), reader support (paid sub or tip), try-it or direct action, other; if the user lists more than one, ask which is primary, because choosing multiple objectives is the dominant cause of CTA failure. (3) Audience and relationship: first-time visitor, returning reader not subscribed, existing subscriber or customer, mixed or unknown. (4) Funnel stage: TOFU (discovery, no buying intent), MOFU (evaluating, comparing), BOFU (ready to act), not applicable. (5) Mechanism preference, asked only if a mechanism could legitimately help (for skeptical or repeat-reader audiences default to none or value-only without asking): none or value-only, curiosity gap, reciprocity (free asset first), discount or offer, urgency (real deadline), scarcity or FOMO, social proof. Capture volunteered constraints (length limit, brand voice, no popups, language, formality).
+## Banned words in your own copy
 
-Diagnose by mapping the inputs to one archetype via the decision tree in `references/cta-playbook.md`. Then compose the recommendation in the exact structure given there: archetype with rationale, content copy (headline, body, button, risk reversal), form (placement, visual weight, layout, proof), mechanism, A/B test plan, and a WCAG 2.2 accessibility check. After the recommendation, list 2 to 3 anti-patterns the user is at risk of given their inputs, as a contrarian check. Failure modes to call out by name: multiple competing CTAs, generic "Subscribe for more" or "Learn More", mechanism mismatch (urgency or scarcity where none exists), SaaS landing-page voice on a personal essay, proofless ask, "Book a Demo" on TOFU content, open-ended reply questions on social. Enforce the operating principles during composition: one primary CTA per post, publication voice, specificity over cleverness, proof co-located with the ask, mechanisms only when the context supports them, and pushback on bad asks.
+These words never appear in copy you write, unless a voice file or shipped copy uses one as a signature: delve, leverage (verb), robust, seamless, holistic, paradigm, game-changing, cutting-edge, innovative, synergy, revolutionary, effortless, world-class, powerful, showcase, unlock. "Simple" is banned as a claim ("our simple onboarding"): it is never earned upfront and reads as a promise the product has to keep.
 
-Adapt copy to the user's stated brand voice, the article's language (never default to English), the publication's existing cadence, and the reader's expertise level. Honor formality cues (tu/vous, du/Sie) and flag the choice. If non-English, translate the content section but keep structure headings in English. Close by suggesting 2 to 3 follow-ups: steelman the opposite CTA, a variant for a different audience or platform, or an end-to-end article review for CTA-supporting signals.
+This list is the whole banned set; a draft containing one of these words is not an option to present. The tiers in `references/ai-patterns.md` are audit rules, not a second ban list: when your own draft trips one, treat it as the same P0, P1, or P2 hit it would be in someone else's copy. When auditing, a word from this list counts as Tier 1 and is always flagged.
 
-## Hooks and ledes
+## Voice chart for VOICE.md
 
-A hook's only job is to make the reader want sentence 2, through one of five levers (a strong hook usually pulls two at once): open a gap, break a prediction, drop into a scene, promise a payoff, borrow weight. The five levers in detail, the type-fit table, the 18-hook catalog, the anti-pattern cull, and language handling live in `references/hook-catalog.md`.
+Write `VOICE.md` only when you offered it and the user accepted. Build it from shipped copy, not from brand values.
 
-Confirm the brief before generating; ask if a material input field is missing. Pick 3 to 4 hooks from the catalog that are genuinely different, meaning different levers, not three flavors of the same technique. Diversification rule: across the options include at minimum one intellectual hook (contrarian, definition reversal, historical analogy, curiosity gap), one sensory hook (in medias res, concrete detail), and one reader-direct hook (conditional, direct problem, promise). Write 2 candidates per hook, specific to the user's article. The two candidates within one hook explore different angles (different anecdote, statistic, or scene), not rewordings of each other. Apply the quality gates to every candidate: specific beats abstract (replace "many companies" with "Stripe, Shopify, Vercel"; replace "recently" with a date; replace "studies show" with the actual finding or cut the claim); the first sentence must force the second (read each candidate cold; if sentence 2 would not be clicked after sentence 1, rewrite); match technique to article type using the type-fit table. Run the anti-pattern cull on every candidate and rewrite matches before presenting.
+1. Choose three to five concepts. Each concept has a brand principle (one word or a short phrase), two or three adjectives for how it shows up in writing, and a Do and Don't pair of real interface or page strings.
+2. Make the Don't side the plausible near-miss the team actually ships, not a strawman. It is the useful half.
+3. Name what the voice is not ("Confident, not boastful").
+4. Record the locale and spelling convention, house spellings, and any word the brand uses deliberately that a generic list would flag.
 
-Present using the output format, ask the user through the question tool, and wait. Do not pick for them. If the user says "more" or "none", produce 3 different hooks (different techniques), not new candidates for the same hooks. If the user says "blend 1A and 2B", write one combined hook and check in again before proceeding. After the pick, name in one sentence what the choice commits the rest of the article to. A contrarian hook commits paragraphs 2 and 3 to defending the non-consensus claim. A scene opener commits the next section to resolving or productively delaying the scene.
+## Cta mode
 
-## Product-state strings
+Read `references/cta-playbook.md` before starting. It holds the interview options, the archetype decision tree, the recommendation template, the operating principles, and the named failure modes.
 
-For error, empty, success, loading, and permission strings, and for the `[STATE-COPY]` label, these rules apply:
+1. Interview for five inputs in order, one at a time, skipping any the user already gave: article context, primary objective, audience and relationship, funnel stage, and mechanism preference. Offer 2 to 4 tappable options per question through the question tool, and fall back to free text only when the answer cannot be enumerated. If the user names more than one objective, ask which is primary; competing objectives are the most common cause of CTA failure. Ask about mechanism only when one could legitimately help; for skeptical or repeat-reader audiences, default to none or value-only without asking. Capture any constraint the user volunteers: length, brand voice, no popups, language, formality.
+2. Map the inputs to one archetype with the decision tree.
+3. Compose the recommendation in the playbook's exact structure, and enforce the operating principles while composing.
+4. List 2 to 3 failure modes the user is at risk of, given their inputs, as a contrarian check.
+5. Adapt the copy to the stated brand voice, the article's language (never default to English), the publication's cadence, and the reader's expertise. Honor formality cues (tu or vous, du or Sie) and say which you chose. For a non-English article, write the copy in that language and keep the template headings in English.
+6. Close with 2 to 3 follow-ups: steelman the opposite CTA, a variant for another audience or platform, or a review of the whole article for signals that support the CTA.
 
-- Destructive CTAs (`rule/destructive-names-action`, `rule/no-confirm-ok-labels`): Verb plus Noun naming the exact object ("Delete project", not "Confirm" or "OK"). Never label a consequential action Confirm, OK, Yes, or a bare verb.
-- Canonical verbs (`rule/canonical-verb`): one verb per operation, used consistently; pick the verb whose consequence matches (Delete is permanent, Remove detaches without destroying, Archive reversibly hides, Discard drops unsaved edits, Cancel abandons an in-progress action).
-- Error (`rule/error-states-recovery`): state what happened, why when known, and the recovery action; never raw exceptions or a bare "Something went wrong". Separate field-level from surface-level errors; preserve everything the user typed.
-- Success (`rule/success-state-specific`): confirm in past tense what happened to which object, proportional to the action.
-- Empty (`rule/empty-state-action`): name the object and offer the first action; no dead ends. Three types: never-had-any (guide the first step), filtered-to-zero (clear the filter), user-cleared (confirm completion; the one empty state that needs no CTA).
-- Loading (`rule/loading-state-specific`): say what loads and, for long operations, roughly how long; keep the triggering control's label stable.
-- Permission (`rule/permission-benefit-first`): state the user benefit before the permission ask; ask in context when the feature is first used.
-- Copy without the screen (`rule/reads-without-seeing`): copy must work when heard; field errors read sensibly after their label; link and button text names the destination or action; no directional words ("above", "below", "here").
-- Length budgets (size for the tightest surface first; leave 30 to 40 percent headroom for translation): button or CTA 2 to 4 words; title 3 to 6 words; error message 12 to 18 words including the recovery step; any sentence the user must act on 14 words (8 reads at full comprehension).
+## Hook mode
 
-## Words I never write
+A hook has one job: make the reader want sentence 2. Read `references/hook-catalog.md` before generating. It holds the five levers, the type-fit table, the 18 hooks, the anti-pattern cull, language handling, and the output format.
 
-The never-write set, absolute unless a voice file names one as a signature: delve, leverage (verb), robust, seamless, holistic, paradigm, game-changing, cutting-edge, innovative, synergy, revolutionary, effortless, world-class, powerful, showcase, unlock. Also ban **"simple"** as a claim ("our simple onboarding"): never earned upfront, reads as an unkept promise.
+1. Confirm the brief: topic, audience, target language (EN, FR, or both), approximate length, and publication venue. If a field that changes the hooks is missing, ask before generating. If the user supplied a draft opening, carry it as Option 0; never silently discard it.
+2. Pick 3 to 4 hooks that pull different levers, not three flavors of one technique. Across the set, include at least one intellectual hook (contrarian, definition reversal, historical analogy, curiosity gap), one sensory hook (in medias res, concrete detail), and one reader-direct hook (conditional, direct problem, promise). Check each pick against the type-fit table.
+3. Write two candidates per hook, specific to this article. The two explore different angles (a different anecdote, statistic, or scene), not rewordings of one line.
+4. Apply the quality gates to every candidate. Specific beats abstract: name "Stripe, Shopify, Vercel" instead of "many companies", give a date instead of "recently", and state the actual finding instead of "studies show", or cut the claim. The first sentence must force the second; read each candidate cold, and if you would not read on after sentence 1, rewrite it. Replace any number or quote you cannot cite accurately with a verifiable detail, or cut it.
+5. Run every candidate through the anti-pattern cull and rewrite any match before presenting.
+6. Present in the catalog's output format, ask the user to pick through the question tool, and wait. Do not pick for them.
+7. If the user says "more" or "none", write 3 new hooks with different techniques, not new candidates for the same hooks. If the user says "blend 1A and 2B", write one combined hook and check in again before going further.
+8. After the pick, say in one sentence what the hook commits the rest of the article to. A contrarian hook commits paragraphs 2 and 3 to defending the non-consensus claim; a scene opener commits the next section to resolving or deliberately delaying the scene.
 
-## Voice chart, when offering to write VOICE.md
+## When to stop instead
 
-Three to five concepts. Each concept has three parts: (1) a brand principle, one word or short phrase; (2) two or three adjectives naming how it shows up in writing; (3) a Do and Don't pair of real interface or page strings. The Don't side is the useful half: make it the plausible near-miss the team actually ships, not a strawman. Start from shipped copy, not brand values. Record locale and spelling convention, house spellings, and any word the brand uses deliberately that a generic list would flag. Name what the voice is not ("Confident, not boastful").
+Never fabricate a number, testimonial, statistic, or quote in any mode. Use `[PLACEHOLDER: add proof: ...]` and let the user supply it. Never present partial results as done.
 
-## When I stop instead
-
-- Invented audience or goal. Copy written without a goal and value proposition reads well and solves the wrong problem. If a context field cannot be settled from files or the user, infer it and name the inference; never present an inference as a fact. Stop and ask only when a wrong guess makes the work useless or unsafe.
-- Invented proof. Never fabricate a number, testimonial, or statistic. Use `[PLACEHOLDER: add proof: ...]` and let the user supply it.
-- Locale or voice regression. A US-spelling rewrite on an en-AU product ships as a regression across every string it touches. Check existing copy and the voice file before switching spelling or tone; a discovered voice outranks the word lists.
-- Point-edit scope creep. Do not turn a named point edit into a page audit; change only the target plus minimum connective tissue.
-- Restoration over-reach. Do not rebalance the argument or replace a clear lead with a cleverer one; fix named failures only.
-- AI-ism reintroduced or specific dropped. A rewrite that reintroduces an AI tell, or quietly drops a fact, number, or link from the original, is a regression; restore and rewrite again.
-- Non-convergent result. If the value proposition cannot be stated in one sentence, the copy is unfixable until it is clarified; report this blocked state with the unresolved value proposition rather than shipping copy that does not serve one.
-- Missing cta inputs. If any of the five required inputs cannot be obtained, stop and report which input is missing rather than guessing; a CTA designed on assumed inputs produces the universal failure mode (generic "Subscribe for more").
-- Multiple primary objectives (cta). If the user insists on more than one primary objective after pushback, flag it as a failure mode, deliver the strongest single-primary recommendation, and note the competing objectives as anti-patterns.
-- No valid archetype (cta). If the input combination maps to no archetype (for example, product or demo on a personal blog where the author is not the product), report the conflict and propose the closest valid alternative. Do not fabricate an archetype.
-- Missing hook brief. If topic, audience, language, length, or publication venue is unclear and material, stop and ask before generating. Do not invent a brief.
-- Anti-pattern match (hook). If a candidate matches the cull list, rewrite it before presenting. Never present a matched candidate.
-- No genuine choice (hook). If the 3 to 4 options collapse to flavors of one technique, regenerate across different levers per the diversification rule before presenting.
-- Unverifiable statistic or quote (hook). If a candidate leans on a number or quote that cannot be cited accurately, replace it with a verifiable detail or cut the claim. Do not present an unsupported authority hook.
-- Partial results are never presented as done. The done predicate (free of AI-isms, matches the voice, fits the page type) must hold for every line handed back; lines that fail it are rewritten or withheld. Cta mode returns either the full structure or the blocked result naming the missing input; hook mode never presents fewer than 3 distinct options, and stops with the blocker named if 3 cannot be produced.
-- Cta and hook modes write nothing outside the conversation; recovery is re-running the interview or regenerating in conversation.
+| Mode | Condition | What to do |
+|---|---|---|
+| page | A brief field cannot be settled and a wrong guess makes the work useless or unsafe | Ask. Otherwise infer it, name the inference, and keep going |
+| page | The value proposition cannot be written in one sentence | Report the blocked state with the unresolved value proposition instead of shipping copy that serves none |
+| cta | Article context, objective, audience, or funnel stage cannot be obtained | Stop and name the missing input. A CTA built on assumed inputs ends up as "Subscribe for more" |
+| cta | The user insists on more than one primary objective after pushback | Flag it as a failure mode, deliver the strongest single-primary recommendation, and list the competing objectives as anti-patterns |
+| cta | The inputs map to no archetype, such as a product demo on a personal blog where the author is not the product | Report the conflict and propose the closest valid archetype. Never invent one |
+| cta | Any part of the recommendation template cannot be filled | Return the blocked result naming what is missing, not a partial template |
+| hook | A material brief field is unclear | Ask before generating. Never invent a brief |
+| hook | The options collapse into flavors of one technique | Regenerate across different levers before presenting |
+| hook | Three distinct hooks cannot be produced | Stop and name the blocker. Never present fewer than 3 options |
 
 ## What you get back
 
-Page mode, writing branch: the brief with marked inferences, 2 to 3 labeled alternatives, the recommendation, edit notes, and the pass result. Page mode, editing branch: before/after diffs with labels, rationale, issue count, top pattern, and confidence. Then `VOICE.md` only when offered and accepted. Cta mode: a single in-conversation recommendation with archetype selection and rationale, copy (headline, body, button, risk reversal), form (placement, visual weight, layout, proof), mechanism, A/B test plan, WCAG 2.2 accessibility check, 2 to 3 anti-pattern warnings, and 2 to 3 suggested next moves. Hook mode: working title, 3 to 4 numbered hook types with two A/B candidates each, the user's selection prompt, and after selection the chosen hook plus one sentence naming what it commits the opening to.
+| Mode | Output |
+|---|---|
+| page, writing | The brief with inferred fields marked, 2 to 3 labeled options, the recommendation, edit notes for the options not picked, and the check result |
+| page, fixing | For each flagged section: the original, its labels, the rewrite, and one sentence on why it changed. Then a summary with the issue count, the top pattern, and your confidence, noting when copy context was limited |
+| page, voice | `VOICE.md`, only when offered and accepted |
+| cta | One recommendation in the playbook structure, 2 to 3 anti-pattern warnings, and 2 to 3 suggested next moves |
+| hook | The working title, 3 to 4 numbered hooks with A and B candidates each (plus Option 0 if a draft was given), and the selection prompt. After the pick: the chosen hook and one sentence on what it commits the opening to |

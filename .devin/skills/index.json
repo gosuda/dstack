@@ -1,7 +1,7 @@
 {
   "schema": "odin-devin-skill-mirror/v1",
   "sourceRepository": "https://github.com/gosuda/dalcom-skills",
-  "releaseVersion": "2.1.9",
+  "releaseVersion": "2.1.13",
   "generator": "scripts/sync-outline-skills.mjs",
   "skills": [
     {
@@ -282,7 +282,7 @@
     {
       "slug": "copywriting",
       "plugin": "dstack-writing",
-      "files": 4
+      "files": 8
     },
     {
       "slug": "council",
@@ -712,7 +712,7 @@
     {
       "slug": "humanizer-korean-ste",
       "plugin": "dstack-writing",
-      "files": 5
+      "files": 4
     },
     {
       "slug": "humanizer-plain-english",
@@ -960,12 +960,12 @@
       "files": 2
     },
     {
-      "slug": "plan",
+      "slug": "plans",
       "plugin": "dstack-core",
       "files": 2
     },
     {
-      "slug": "plan-complete",
+      "slug": "plans-complete",
       "plugin": "dstack-core",
       "files": 2
     },
