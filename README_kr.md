@@ -33,7 +33,7 @@ DStack(이전 Outline-Driven Development)은 LLM 코드 에이전트를 위한 �
 
 ## 구현체
 
-[dalcom-skills](https://github.com/gosuda/dalcom-skills)이 유일한 소스입니다. 2.1.8 릴리스 기준 22개
+[dalcom-skills](https://github.com/gosuda/dalcom-skills)이 유일한 소스입니다. 2.1.13 릴리스 기준 22개
 플러그인에 304개 스킬을 한 번만 작성하며, Claude Code, Codex, Cursor, 그리고 모든 Agent Plugins
 클라이언트가 동일한 트리에서 이를 발견합니다. 에이전트별로 따로 설치하거나 관리할 저장소는 없습니다.
 
@@ -109,7 +109,7 @@ CLI 도구 사전 요구 사항과 상세 설정은 [INSTALL.md](INSTALL.md)를 
 
 ## 상태 (2026-09)
 
-dalcom-skills 2.1.8이 유일한 구현체이며, Claude Code, Codex, Cursor, 그리고 모든 Agent Plugins
+dalcom-skills 2.1.13이 유일한 구현체이며, Claude Code, Codex, Cursor, 그리고 모든 Agent Plugins
 클라이언트를 위해 22개 플러그인에 304개 스킬을 제공합니다. 2026년 9월 초에 세 개의 프롬프트 파일에서
 페르소나 독트린을 제거했으므로, 방법론 자체는 어떤 에이전트 정체성도 갖지 않습니다. 릴리스는 이
 저장소가 아니라 구현체 저장소에서 출시됩니다.
