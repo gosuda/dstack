@@ -6,50 +6,48 @@ disable-model-invocation: true
 
 # Rhythmic taste
 
-You keep a reader moving by varying how a document's sections are built. Rhythm here means the pattern of length, density, pacing, and nesting across sections, and the deliberate breaks in that pattern that keep attention awake. Sections that all come out the same length, the same shape, the same cadence flatten a document no matter how good each section is on its own.
+Rhythm is the pattern of length, density, pacing, and nesting across a document's sections, plus the deliberate breaks that keep attention awake. Sections that all share one length, shape, and cadence flatten a document however good each one is alone. This skill diagnoses that pattern and returns a rhythm constraint: per-section instructions for varying it.
 
-Use this when the user says give this rhythm, vary the structure, the sections all read the same, or asks for section or layer rhythm variation. Document mode is the default and needs no external inputs beyond the document itself; seeded constraint mode is optional and runs only when the user supplies a seed and asks for random variation.
+Use it when the user asks to give a document rhythm, vary its structure, or vary section or layer rhythm. It does not judge an artifact's overall taste; use `taste` for that.
 
-This skill never judges an artifact's overall taste (for that use taste). It is read-only: no file, VCS, credential, paid, published, deployed, or remote change, only a rhythm constraint returned in chat. That constraint is a creative scaffold for shaping sections, never a factual authority on anything it names.
+The skill is read-only: no file, VCS, credential, paid, published, deployed, or remote change. The constraint is returned in chat and is a creative scaffold for shaping sections, never a factual authority on anything it names.
 
-What you need before starting: the document or section list, which is required in document mode: the sections, layers, or structural units to vary, supplied directly or read from the artifact in scope. Seeded constraint mode needs two more things: a random seed the user discloses openly, any number, word, or phrase, plus the user's chosen random inputs, any titles, words, or items in any count from any random source the user picks.
+## Inputs
 
-## Read the current rhythm (document mode)
+Document mode, the default, needs only the sections, layers, or structural units to vary, supplied directly or read from the artifact in scope.
 
-Receive the document or section list. Where sections were not supplied outright, derive them from the artifact's headings, layers, or structural breaks.
+Seeded mode is optional and runs only when the user supplies a seed and asks for random variation. It needs two more inputs:
 
-Measure each section as it stands: its relative length, its sentence or paragraph density, its pacing from tight to expansive, and its nesting depth.
+- A seed the user discloses openly: any number, word, or phrase.
+- The user's random inputs: titles, words, or items in any count, from any source the user picks.
 
-Name the pattern those measurements add up to (steady pulse, monotone, crescendo, decrescendo, syncopated) and say where variation is missing, which sections collapse to the same shape.
+## Document mode
 
-## Set a new rhythm (document mode)
+1. Collect the sections. When they were not supplied, derive them from the artifact's headings, layers, or structural breaks.
+2. Measure each section: relative length, sentence or paragraph density, pacing from tight to expansive, and nesting depth.
+3. Name the current pattern (steady pulse, monotone, crescendo, decrescendo, or syncopated) and point out which sections collapse to the same shape.
+4. Choose a target pattern that serves the document's purpose, not the one nearest the current state: alternating long-short, crescendo from short to long, decrescendo from long to short, syncopated with irregular gaps, or steady pulse.
+5. Assign each section a relative length or density, a pacing drawn from the target pattern, and nesting wherever the content calls for sub-sections. No two adjacent sections may end up with identical structure.
 
-Pick a target pattern that serves the document's purpose, not the one closest to what is already there: alternating long-short, crescendo from short to long, decrescendo from long to short, syncopated with irregular gaps, or steady pulse.
+## Seeded mode
 
-Turn that pattern into per-section assignments: relative length or density for each section, pacing drawn from the chosen pattern, and nesting wherever the content calls for sub-sections. Shape the assignments so no two adjacent sections collapse to identical structure.
+Run document mode through step 2 first, so the document's own sections are measured. Then:
 
-Present the result as a structured list of section assignments with pacing, density, and nesting instructions, preceded by the diagnosed current rhythm and the chosen target pattern.
+1. Convert the seed to a deterministic number, such as a hash or ASCII sum.
+2. Use that number to permute the random inputs and to choose the primary pattern from the same set as document mode.
+3. Measure each input in permuted order: its syllable or word count, whether it carries a parenthetical or disambiguation suffix, and whether it names a person, place, concept, or event.
+4. Map each input to a section. Its count sets relative length or density, and the chosen pattern sets pacing. A parenthetical suffix creates a nested or parenthetical sub-section. A person or event takes higher narrative density; a concept or place takes wider spacing.
 
-## Vary it from a seed (seeded constraint mode)
+## Failure handling
 
-This is seeded constraint mode, optional. Enter it only when the user supplies a seed and asks for random variation. Run the read above first, through measuring the document's own sections, then work the seed.
+- No sections supplied or derivable: stop and ask for the document or section list. Never invent sections.
+- No usable constraint, because every section collapses to identical structure and no variation is possible: say so, show the raw measurements, and ask for replacement sections or a different target pattern.
+- Seeded mode is missing the seed or the random inputs: ask for whichever is missing. Never substitute or generate defaults.
 
-Convert the seed to a deterministic numeric value, a hash or ASCII sum. Use that value to permute the user's random inputs and to choose the primary rhythm pattern from the same set above.
+## Output
 
-Measure each random input in the permuted order: its syllable or word count, whether it carries a parenthetical or disambiguation suffix, and whether it names a person, place, concept, or event.
+An ordered list of section or layer assignments, each with its pacing direction, relative density, and nesting rule, preceded by the diagnosed current rhythm and the chosen target pattern.
 
-Map those measurements to section or layer instructions: assign each input to a section, set relative length or density from its count, and set pacing from the chosen pattern. Inputs with parenthetical suffixes create nested or parenthetical sub-sections; inputs naming persons or events take higher narrative density; inputs naming concepts or places take wider spacing.
+In seeded mode, the disclosed seed also comes first, and a one-line disclaimer follows the list: the constraint is a creative tool derived from random inputs, not factual authority on those inputs.
 
-Present the result as a structured list of section assignments with pacing, density, and nesting instructions, stating plainly that the constraint is a creative scaffold derived from random inputs, not a factual or authoritative source about those inputs.
-
-## When the rhythm will not come
-
-No document or sections supplied and none derivable from the artifact means stop and ask for the document or section list; never invent sections.
-
-A derivation that yields no usable constraint (every section collapses to identical structure and no variation is possible) means say so, present the raw measurements, and ask for replacement sections or a different target pattern.
-
-Seeded variation missing its seed or its random inputs means ask for whichever is missing; never substitute or generate defaults.
-
-## What you hand back
-
-An ordered list of section or layer assignments, each with its pacing direction, relative density, and nesting rule, preceded by the diagnosed current rhythm and the chosen target pattern. In seeded variation, preceded additionally by the disclosed seed and followed by a one-line disclaimer that the constraint is a creative tool derived from random inputs, not factual authority on those inputs. A complete constraint is the minimum deliverable; there are no partial results.
+A complete constraint is the minimum deliverable; there are no partial results.

@@ -5,99 +5,139 @@ description: 'Use when asked to write, restructure, or audit documentation with 
 
 # Docs writing
 
-Good documentation lets a reader find the right page, follow it unaided, and trust what it says. This skill produces docs that each serve one purpose (learning, doing, looking up, or understanding) and that survive a strict audit before they reach the reader.
+Good documentation lets a reader find the right page, follow it unaided, and trust what it says. This skill produces docs where each page does one job (learning, doing, looking up, or understanding), drafts them from evidence, audits them, and writes nothing until a human approves the draft.
 
-Use it when someone asks for new docs, a restructure, an audit, a feature docs page, or a diagram source. Anything that argues why a decision was made belongs elsewhere, not here.
+Use it for new docs, a restructure, an audit, a feature docs page, or a diagram source. Content that argues why a decision was made belongs in an ADR or design record, not here. To resync existing docs after code changes, use `docs-update`.
 
-## What you are allowed to touch
+## Scope and safety
 
-You work only inside the named documentation directory or file set in the working repository. You never write outside that set, never touch protected files, and never mutate anything remote. Every write is a local file write, reversible through version control. If the target path sits outside the repo or on a protected file, stop and name the rejected path before writing anything.
+- Writes go only to the named documentation directory or file set inside the working repository, as local file writes that version control can revert.
+- Never write outside that set, touch protected files, or mutate anything remote.
+- Builds, installs, network writes, commits, manifest bumps, and configuration changes are outside this skill's authority unless the assignment grants them explicitly.
+- If a target path sits outside the repo or on a protected file, stop and name the rejected path before writing anything.
 
-## What you need before you start
+## Inputs
 
-Ask for anything missing and write nothing until you have it:
+Ask for anything missing and write nothing until you have it.
 
-- The target directory or file set, the intent (new docs, audit, restructure, or feature draft), the subject, the intended audience, and the output format (markdown, plain text, or a diagram source).
-- For feature docs, additionally the feature specification or PRD and the codebase path where the feature is implemented.
-- Helpful when available: an existing Diataxis map, a scope limit naming which files are in bounds, existing docs to update, a diagram type, and a length limit.
-
-## Bound the work first
-
-Record the target set, subject, audience, and format. Refuse anything outside the named set. If subject, audience, or format is missing, stop and ask, because guessing any of them produces docs for the wrong reader.
+| Input | Required | Notes |
+|-------|----------|-------|
+| Target directory or file set | Yes | Defines the write boundary |
+| Intent | Yes | New docs, audit, restructure, or feature draft |
+| Subject and audience | Yes | Guessing either produces docs for the wrong reader |
+| Output format | Yes | Markdown, plain text, or a diagram source |
+| Feature spec or PRD, and the implementing code path | For feature docs | The only allowed sources for feature content |
+| Diataxis map, scope limit, existing docs, diagram type, length limit, project style guide | Optional | Use when available |
 
 ## Give every doc one job
 
-Classify each doc into exactly one Diataxis type and split or retitle anything that straddles two:
+Classify each doc as exactly one Diataxis type:
 
-- Tutorial: learning-oriented, a guided path a beginner completes with a visible result at each step.
-- How-to guide: goal-oriented, steps an experienced user follows without backtracking.
-- Reference: information-oriented, facts findable in under 30 seconds, each entry shaped as name, then type, then default, then description, then example.
-- Explanation: understanding-oriented, context a reader can restate in their own words.
+| Type | Serves | Passes when |
+|------|--------|-------------|
+| Tutorial | Learning | A beginner completes a guided path with a visible result at each step |
+| How-to guide | A goal | An experienced user follows the steps without backtracking |
+| Reference | Lookup | A fact is findable in under 30 seconds; each entry gives name, type, default, description, and example |
+| Explanation | Understanding | A reader can restate the idea in their own words |
 
-A doc that mixes types gets split, never relabeled to dodge its check. Link the types to each other when you finish: tutorials point forward to the how-to and reference they prepare for; how-tos point to the reference and the explanation behind them; references and explanations point back to the practical pages.
+A doc that straddles two types gets split or retitled, never relabeled to dodge a check. If a doc cannot be split cleanly, report it as blocked.
 
-## Draft from evidence, not memory
+Link the types when you finish. Tutorials point forward to the how-to and reference they prepare for. How-tos point to the reference and the explanation behind them. References and explanations point back to the practical pages.
 
-Write the prose or diagram source for the named subject and audience in the requested format, deriving the wording fresh rather than copying upstream expression. For feature docs use the section shape Overview, Prerequisites, Usage, API Reference, Configuration, Troubleshooting, and fill every section only from the spec and the code, with real code examples drawn from source or tests. Never invent APIs, flags, defaults, or behaviors. Where spec and code disagree, note the mismatch in the draft and flag it for review instead of silently picking a side.
+## Draft from evidence
 
-When a diagram needs rendering, write its source and state the render command without running it unless asked.
+Write fresh prose or diagram source for the named subject, audience, and format; do not copy upstream wording.
 
-## Audit the draft until it passes everything
+Never invent APIs, flags, defaults, behaviors, or values. Each claim traces to a source you read. If no source exists yet, you may scaffold the section structure from the doc type, but mark every missing value as a gap.
 
-Work through each lens below and fix what fails inside your scope. Anything you cannot fix stops the job: leave the docs in their last consistent state and report the unmet criterion with the file it blocks. Never claim success while any check is unmet or unverified.
+For feature docs, use the sections Overview, Prerequisites, Usage, API reference, Configuration, and Troubleshooting. Fill each one only from the spec and the code, with examples taken from source or tests. Where spec and code disagree, note the mismatch in the draft and flag it for review instead of picking a side. Capture or request a screenshot of the feature with descriptive alt text and a caption naming the UI state shown; if the runtime cannot produce one, leave `<!-- screenshot: pending -->` and report the gap.
+
+For a diagram that needs rendering, write its source and state the render command. Run it only when asked.
+
+## Audit the draft
+
+Work through every lens and fix failures inside your scope. A check that cannot run counts as unmet, not passed. If a criterion stays unmet, stop: leave the docs in their last consistent state and report the criterion and the file it blocks. Never claim success while any check is unmet or unverified.
+
+The project's own style guide wins over every default below. Where it says nothing, apply the defaults.
 
 ### Structure
 
-Lead with the bottom line. Put conditions before the action they gate. One idea per section, no filler sections. Tutorials carry a quick start and a procedures section. Every doc ends with next steps, and the first heading gives an overview of the doc.
+- [ ] The first heading or paragraph gives an overview, and the bottom line comes first.
+- [ ] Conditions come before the action they gate.
+- [ ] One idea per section, with no filler sections.
+- [ ] Tutorials include a quick start and a procedures section.
+- [ ] Every doc ends with next steps.
 
 ### Clarity
 
-One idea per sentence. No Latin abbreviations, no nominalizations, serial comma throughout. Prefer concrete names (real files, commands, APIs, paths) over vague nouns, and precise verbs (`configure`, not `set up`; `verify`, not `check`). Use the passive only when the actor is genuinely unknown. Every sentence must carry information no earlier sentence carried; no placeholders, no invented symbols or values. If no draft exists yet, you may scaffold section structure from the document type, but flag every missing value as a gap rather than filling it in.
+- [ ] One idea per sentence, and every sentence adds information.
+- [ ] Concrete names (real files, commands, APIs, paths) instead of vague nouns.
+- [ ] Precise verbs (`configure` over `set up`, `verify` over `check`) and verbs over nominalizations.
+- [ ] Active voice unless the actor is unknown.
+- [ ] No placeholders and no invented symbols or values.
+- [ ] Jargon is defined on first use; requirement words (must, should) appear only where obligation is meant.
+- [ ] No anthropomorphizing software.
 
 ### Code examples
 
-Examples run, use named functions and realistic names, show error descriptions, and move from isolated snippets to full context with a sane code-to-context ratio, covering more than one language where the docs demand it. For CLI docs, trace every flag, default, precedence claim, and guarantee back to the current parser, resolver, constants, or observed help output; names and templates alone are not evidence. Quote help output and transcripts as verbatim and name the version or source state they describe. Never invent a transcript or claim an example was executed on the strength of reading source. Before trying any executable example, confirm the assignment authorizes its side effects, since documentation authority alone never authorizes builds, installs, network writes, or quickstart mutations. When execution is authorized, run the exact documented block, account for inherited environment and stale binaries, and record the actual exit result; otherwise mark execution unverified. Keep isolation, transactional, platform-support, and safety claims scoped to the components and phases the evidence actually covers. Invent no badges or volatile counts. Validate relative links and heading fragments, not just file existence.
+- [ ] Examples use realistic names, show expected output and error messages, and build from small snippets to full context.
+- [ ] Examples cover each language the docs promise to support.
+- [ ] Every CLI flag, default, precedence rule, and guarantee traces to the current parser, resolver, constants, or observed help output. Names and templates alone are not evidence.
+- [ ] Quoted help output and transcripts are verbatim and name the version or source state they describe. No transcript is invented, and reading source never counts as having run an example.
+- [ ] An example is executed only when the assignment authorizes its side effects. When it is, run the exact documented block, account for the inherited environment and stale binaries, and record the real exit result. Otherwise mark it unverified.
+- [ ] Isolation, transaction, platform-support, and safety claims stay scoped to the components and phases the evidence covers.
 
 ### Format
 
-Sentence-case headings; bold for UI elements and code font where each fits; descriptive link text; alt text on images; lowercase filenames; periods inside quotes; semantic HTML; parallel heading forms; consistently punctuated lists; tables with no empty cells that should hold data; a language tag on every code block.
+- [ ] Sentence-case headings in parallel form.
+- [ ] Code font for code, commands, and paths; bold for UI labels.
+- [ ] Every fenced code block has a language tag.
+- [ ] Descriptive link text and alt text on every image.
+- [ ] Lists punctuated consistently; tables have no empty cells that should hold data.
+- [ ] Lowercase filenames.
+- [ ] House defaults such as the serial comma or punctuation placement around quotes follow the project style guide; if none exists, pick one convention and apply it consistently.
 
-### Voice
+### Currency
 
-No anthropomorphism, no unexplained jargon, requirements language where obligation is meant.
+- [ ] Outdated content is deleted, not annotated. No temporal language ("new", "recently", "currently").
+- [ ] Experimental and changed behavior is labeled, and page metadata is current.
+- [ ] No invented badges or volatile counts.
+- [ ] Each version claim is classified before you change it: current-channel claim, minimum supported version, past event, or machine-consumed literal. Re-ground only current-channel claims against their own release or support source, and record the access date.
+- [ ] Historical events, version floors, exact machine literals, and simulated tool output stay unchanged; a prose release label never goes inside a tool readout.
+- [ ] Across a doc set, search by syntax variant, read status tables and identity claims that carry no version number, and recheck the surrounding paragraphs and any files the first pass missed.
+- [ ] A source that changed or is unreachable is reported as uncertain, even when the doc carries a date marker.
 
-### Hygiene
+### Navigation and links
 
-Delete outdated content, keep a docs directory, no temporal language, label experimental and retconned content, keep metadata current. When auditing currency across a named doc set, enumerate version claims by syntax class and read status tables and identity claims that carry no version number. Treat each candidate as a current-channel claim, a minimum supported version, a past event, or a machine-consumed literal before proposing any change. Re-ground current claims against their own release or support source and record the access date. Preserve historical events, version floors, exact machine literals, and simulated output, since a prose release label never belongs inside a tool readout. Check spelling variants, surrounding paragraphs, and files the first pass missed. Reconcile volatile claims with their sources before presenting; a changed or unreachable source is reported as uncertainty, never as grounded just because a date marker exists. Configuration changes, manifest bumps, commits, and remote operations stay outside this authority.
+- [ ] Every doc is linked from somewhere, using relative paths.
+- [ ] Relative links and heading fragments resolve, not just the target files.
+- [ ] Headings are searchable, breadcrumbs give context, navigation is not repeated, and nesting stays shallow.
+- [ ] API reference tables keep all five fields (name, type, default, description, example) for each entry.
 
-### Navigation
+## Review before writing
 
-Every doc linked, relative paths, searchable headings, breadcrumbs that give context, no repeated navigation, limited layer depth.
+Present the audited draft in chat and iterate there. Nothing reaches disk until the draft is approved.
 
-### Review and scan
+- If review rejects the draft, revise against the feedback and present it again.
+- A request to draft without writing files stays chat-only; no file is created for it, and any later write still needs approval.
+- An empty or invalid draft is discarded and the failure reported, never written.
 
-Verify links resolve. A check that cannot run (no resolver available) counts as unmet, not as passed. API references use a three-column layout whose entries still carry all five fields (name, type, default, description, example).
+After approval, write the file to the target path and confirm it exists. If a write fails partway, delete the partial file and report the rollback.
 
-### Screenshots for feature docs
+## Stop conditions
 
-Capture or request a screenshot of the feature in action, each with descriptive alt text and a caption naming the UI state shown. Where the runtime cannot produce screenshots, leave `<!-- screenshot: pending -->` and note the gap in your report.
-
-## Let the human read before anything is written
-
-Present the audited draft for review and iterate in chat; nothing reaches disk until the draft is approved. A request to draft without writing files stays chat-only, still gated on review before any later write, and no file is ever created for it. If review rejects the draft, revise against the feedback and present again. An empty or invalid draft is discarded with the failure reported, never written.
-
-After approval, write the file to the target path. If a partial write fails, delete the partial file and report the rollback. Then confirm the file exists and report its path. For a chat-only request, report instead that no file was written.
-
-## When the job cannot finish
-
-- Missing subject, audience, or format: stop, ask, write nothing.
-- Ambiguous Diataxis type that cannot be split: report it as blocked rather than guessing.
-- Type validation failure: keep the doc at its classified type and fix the failing predicate; never reclassify to pass.
-- Link verification with no resolver: record as unverified, which counts as not met.
-- Codebase contradicts the spec: document the discrepancy in a note and flag it; never silently align to one side.
-- Generation produces empty or invalid output: discard, report, write nothing.
-- Partial write failure: delete the partial file, report the rollback.
+| Condition | Action |
+|-----------|--------|
+| Subject, audience, or format missing | Ask; write nothing |
+| Target outside the named set or on a protected file | Name the rejected path; write nothing |
+| Diataxis type ambiguous and the doc cannot be split | Report blocked; do not guess |
+| Doc fails its type check | Fix the failing predicate; never reclassify to pass |
+| No link resolver available | Record links as unverified, which counts as unmet |
+| Code contradicts the spec | Note the discrepancy in the draft and flag it |
+| Empty or invalid draft | Discard, report, write nothing |
+| Partial write failure | Delete the partial file and report the rollback |
 
 ## What you hand back
 
-The rewritten, restructured, or newly written documentation files or diagram sources in the target directory, plus a report listing each doc's Diataxis type, its audit result (pass, unmet criterion, or blocked), and each saved path.
+- The approved docs or diagram sources at their target paths, or the draft in chat for a chat-only request with a note that no file was written.
+- A report listing each doc's Diataxis type, its audit result (pass, unmet criterion, or blocked), and each saved path.

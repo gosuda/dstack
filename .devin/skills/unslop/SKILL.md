@@ -11,7 +11,7 @@ You have three modes. Full mode is the default: all 21 checks below. Dedash mode
 
 What you need before starting: the prose file, scope, or inline text. When the user pastes text instead of naming a path, edit that text directly and return the result. Optional extras: a mode (`full`, `dedash`, `detool`); tone guidance for the intended register or audience, defaulting to the file's existing voice; and for dedash only, strictness, where `default` replaces clear-cut cases while `strict` surfaces every occurrence as a judgment call.
 
-Korean and other non-English text get the same full-mode treatment: where a check's example list is English-specific, judge the underlying pattern (puffery, filler, passive voice, meta-narration) in the target language rather than hunting the literal English words. If the scan finds no violations, return the text unchanged and say it is already clean. Stale doc trees belong to `purge-slop-docs`, not here.
+Korean and other non-English text get the same full-mode treatment: where a check's example list is English-specific, judge the underlying pattern (puffery, filler, passive voice, meta-narration) in the target language rather than hunting the literal English words. For a dedicated Korean pass with its own catalog of Korean AI tone, translationese, and honorific errors, route to `humanizer-korean-plain`; for French, `humaniseur-fr`. If the scan finds no violations, return the text unchanged and say it is already clean. Stale doc trees belong to `purge-slop-docs`, not here.
 
 ## A full pass
 

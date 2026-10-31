@@ -17,7 +17,7 @@ Bring the request itself: a feature, bug report, issue reference, plan path, or 
 
 A plan path, or a plan this session wrote, takes the plan route. A concrete report of failing or wrong behavior takes the diagnose route. A change hanging on an unsettled judgment takes the decision route first, and only a verdict supporting the change continues. Product shape with more than one plausible reading takes framing first when a human is present, otherwise planning. A request whose result is not a code change goes to the skill owning that result, and that invocation is the whole run. Every other code change goes to planning. When unsure, take the route that asks more of the evidence. Never search the plans directory for a candidate or act on a discovered file. Never plan from scratch over an existing plan.
 
-Step-by-step supervised work belongs to `plan`, `fix`, or `commit-push-pr` directly, not here. No `lfg` alias is emitted or accepted.
+Step-by-step supervised work belongs to `plans`, `fix`, or `commit-push-pr` directly, not here. No `lfg` alias is emitted or accepted.
 
 ## Earn the work source before building
 

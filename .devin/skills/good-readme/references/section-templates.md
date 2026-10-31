@@ -1,47 +1,27 @@
-# Section templates reference
+# Section templates
 
-Pick the template that matches the project, then adapt its sections to what the project actually does. Every README carries at least the minimum at the bottom. Keep adding template sections until the minimum is covered and the skill's done predicate holds.
+Every README follows the fixed order from the skill: title block, Install, Quick start, core sections, Development, License. The archetype decides only the core sections. Adapt them to what the project actually does, and fill each one from project files rather than guesses.
 
-## Library or package
+## Fixed frame
 
-1. Shop-window: name, tagline, one-sentence description, badges
-2. Installation
-3. Quick Start
-4. Features
-5. Usage (API examples, configuration)
-6. Contributing
-7. License
+1. Title block: name, tagline, optional badge row, opening paragraph, facts list, 4 to 10 line example with output
+2. Install
+3. Quick start
+4. Core sections: Features, Usage, then the archetype sections below
+5. Development: setup, test, build, and a Contributing subsection
+6. License
 
-## CLI tool
+## Core sections by archetype
 
-1. Shop-window: name, tagline, one-sentence description, badges
-2. Installation
-3. Quick Start
-4. Features
-5. Usage (command examples, flags, options)
-6. Contributing
-7. License
+Features and Usage open the core sections for every archetype. The table lists what each archetype adds to Usage and what follows it.
 
-A CLI Usage section shows real commands with their flags, not library import snippets.
+| Archetype | Detected from | Core sections after Features |
+|-----------|---------------|---------------|
+| Library or package | `package.json` with `main` or `exports`, `Cargo.toml` with `[lib]`, `Package.swift` library product, `pyproject.toml` | Usage (API examples), Configuration, API reference or a link to it |
+| CLI tool | `bin` entry, `Cargo.toml` with `[[bin]]`, `go.mod` with a `main` package, executable product | Usage (real commands with flags), Commands and options, Configuration |
+| Web application or service | Server entry point, `Dockerfile`, framework config | Usage (routes or endpoints), Configuration (environment variables), Deployment notes |
+| Desktop app | `*.xcodeproj`, app bundle target, Electron or Tauri config | Usage (main workflows, screenshots), Requirements, Configuration |
 
-## Web application
+A CLI Usage section shows real commands and their flags, not library import snippets. A web app keeps local setup, test, and build commands in Development so they stay out of the reader's first-run path.
 
-1. Shop-window: name, tagline, one-sentence description, screenshots (optional), badges
-2. Installation
-3. Quick Start
-4. Features
-5. Usage (routes, endpoints, configuration)
-6. Development (setup, test, build)
-7. Contributing
-8. License
-
-The Development section is where local setup, test, and build commands live, so they stay out of the reader's first-run path.
-
-## Minimum every README needs
-
-- Project name and tagline (shop-window)
-- Installation
-- Quick Start
-- License
-
-A short README with only these four still needs real content in each one, drawn from project files rather than guessed.
+Omit an archetype section when the project has no such surface. Install, Quick start, Features, Usage, Contributing, and License are never omitted.

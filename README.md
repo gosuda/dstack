@@ -36,7 +36,7 @@ for the full design rationale and traceability model.
 ## Implementation
 
 [dalcom-skills](https://github.com/gosuda/dalcom-skills) is the single source: 304
-skills in 22 plugins at release 2.1.8, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
+skills in 22 plugins at release 2.1.13, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
 Plugins client from the same tree. There is no separate per-agent repository to install or track.
 
 ---

@@ -1,3 +1,3 @@
 interface:
   display_name: "Humanizer Simple English Asd Ste100"
-  short_description: "Use when asked to rewrite technical English for STE compliance, stripping ambiguity and AI-style patterns."
+  short_description: "Use when asked to rewrite technical English toward ASD-STE100 Simplified Technical English: short, unambiguous sentences, one instruction per step, consistent terms, and AI-style padding removed."

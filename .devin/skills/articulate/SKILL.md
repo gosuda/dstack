@@ -6,33 +6,39 @@ disable-model-invocation: true
 
 # Articulate
 
-Say what the user means, in the smallest complete form that is ready for its audience, without adding anything they did not supply. This skill is read-only. It makes no file, VCS, credential, paid, published, deployed, or remote change, and it works only from supplied material plus confirmed conversation context. Chat output is the default. An existing draft is replaced only when the user explicitly asks for an edit.
+Say what the user means in the smallest complete form that is ready for its audience, adding nothing they did not supply.
 
-## What I work from
+This skill is read-only. It makes no file, VCS, credential, paid, published, deployed, or remote change, and it works only from supplied material plus context the user has confirmed in this conversation. The answer goes to chat; an existing draft is replaced only when the user explicitly asks for that edit.
+
+## Inputs
 
 - The thought, fragment, notes, or draft to express.
 - The intended audience and medium, when already known.
 - Confirmed context from the current conversation.
 
-## How the statement takes shape
+## Shaping the statement
 
-First, state the thought's invariant core in one sentence. Then collect only context the user has already confirmed, never researching just to fill a blank. Anything unsupported becomes a blank, a short set of alternatives, or the minimum clarifying question needed to continue. Then write the smallest complete audience-ready form that preserves the original scope, identity, confidence, and intent. Finally, compare every sentence against the supplied material and remove any invented goal, requirement, rationale, fact, or certainty.
+1. State the thought's invariant core in one sentence.
+2. Gather only context the user has already confirmed. Do not research to fill a blank.
+3. Turn anything unsupported into a blank, a short set of alternatives, or the one clarifying question needed to continue.
+4. Write the smallest complete audience-ready form that keeps the original scope, identity, confidence, and intent.
+5. Check every sentence against the supplied material and remove any invented goal, requirement, rationale, fact, or certainty.
 
-## Where I stop and ask
+## Stop conditions
 
-- No invariant core can be stated because the thought is too fragmentary. Ask the user for one more sentence of context. Do not invent the core.
-- An invented goal or fact is detected. Remove it and mark the gap as a blank. Never substitute a plausible-sounding rationale.
-- The scope drifted during expression. Restate the original scope, discard the drift, and recheck every sentence against the supplied material.
-- An unsupported choice is hiding as certainty. Downgrade it to an explicit blank or alternative set. Never present an unsupported choice as settled.
+- The thought is too fragmentary to state a core: ask for one more sentence of context instead of inventing it.
+- An invented goal or fact appears: remove it and mark the gap as a blank, never a plausible-sounding rationale.
+- The scope drifted while expressing it: restate the original scope, drop the drift, and recheck every sentence.
+- An unsupported choice reads as settled: downgrade it to an explicit blank or alternative set.
 
-## What you get back
+## Output
 
-The completed statement, followed only when needed by `Unresolved:` and the remaining explicit blanks or alternatives. The result holds when the statement is audience-ready, every sentence is supported, the user's scope and identity are unchanged, and unresolved forks stay visible.
+The completed statement, followed only when needed by `Unresolved:` and the remaining blanks or alternatives. It is done when the statement is audience-ready, every sentence is supported, the user's scope and identity are unchanged, and every unresolved fork stays visible.
 
-## When a different skill owns it
+## Other owners
 
-- Requirements or intent still need discovering: use the planning owner.
-- Several possible ideas are wanted: use `ideate-multiple-agents`.
-- A reusable rule must be inferred from examples or material: use `generalize`.
+- Intent or requirements still need discovering: use `askme`.
+- Several candidate ideas are wanted: use `ideate-multiple-agents`.
+- A reusable rule must be inferred from examples: use `generalize`.
 - An external concept must be taught: out of scope.
 - The meaning is already complete and only voice or polish changes: use `unslop`.

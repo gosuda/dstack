@@ -7,25 +7,43 @@ description: 'Use when asked to publish, read, comment on, suggest to, or pull a
 
 Work with one collaborative markdown document on the hosted Proof service through its HTTP API from `Bash`. The local file stays canonical; a Proof link is a share, never a second knowledge store. The durable learning bundle stays the YAML `docs/solutions/` records owned by `compound`.
 
-Provenance: `EveryInc/compound-engineering-plugin` pinned `fbd794b329f5b65d0ea00a5e6487336c385ff2be`, `skills/ce-proof/SKILL.md` plus `references/api.md` and `references/workflows.md`. Recipes conform to API v3 documented at https://www.proofeditor.ai/agent-docs and the pinned reference. Outward mutating writes require explicit user approval before execution and are never pre-verified with live writes. Identity `ai:compound-engineering` and display `Compound Engineering` are preserved as wire defaults; a caller may pass a distinct sub-agent identity pair when that agent owns the doc. No trademark SVG is reused as branding.
+## Provenance
 
-## Which job is this
+Adapted from `EveryInc/compound-engineering-plugin` pinned `fbd794b329f5b65d0ea00a5e6487336c385ff2be`: `skills/ce-proof/SKILL.md` plus `references/api.md` and `references/workflows.md`. Recipes conform to API v3 as documented at https://www.proofeditor.ai/agent-docs and the pinned reference. Outward mutating writes are never pre-verified with live writes. Identity `ai:compound-engineering` and display name `Compound Engineering` are kept as wire defaults; a caller may pass a distinct sub-agent identity pair when that agent owns the doc. No trademark SVG is reused as branding.
 
-Pick the narrowest operation for the request: `publish`, `read`, `review`, `comment`, `edit`, `suggest`, `pull`, `title`, or `delete`. Publish is one-way, local file to hosted doc. Read and review start from the live document as source of truth. Edit starts from a fresh read and touches as little as possible. Pull syncs the live markdown down to a local file. Delete only finishes an explicitly ephemeral scratch doc or an explicit user cleanup ask.
+## Pick the operation
 
-This skill owns the share, read, review, edit, and pull plumbing. It does not own durable learning (`compound`, `autolearn`) or local doc authoring (`docs-writing`); PR bodies belong to their own flow, not this one. It publishes source-file bytes; it never hand-writes the shared body.
+Choose the narrowest operation for the request:
 
-## What you need up front
+- `publish`: one-way, local file to hosted doc.
+- `read` and `review`: start from the live document as source of truth.
+- `comment`, `suggest`, and `edit`: start from a fresh read and touch as little as possible.
+- `pull`: sync the live markdown down to a local file.
+- `title`: set the title only when asked.
+- `delete`: only to finish an explicitly ephemeral scratch doc or on an explicit user cleanup ask.
 
-You need the local markdown path for publish or pull, or the Proof URL with slug and token for anything touching the hosted doc. You also need the user's explicit go-ahead for that operation: publishing, editing, commenting, suggesting, presence, a title change, a pull that overwrites as a side effect, and deletion each wait for their own explicit invocation, and any sensitive content placed in the doc needs its own explicit approval. Never put secrets, credentials, API keys, private tokens, or sensitive personal data into a Proof doc without that approval, and never silently swap a repo-tracked project doc for a Proof link.
+This skill owns the share, read, review, edit, and pull plumbing. Durable learning belongs to `compound` and `autolearn`, local doc authoring to `docs-writing`, and PR bodies to their own flow. It publishes source-file bytes and never hand-writes the shared body.
 
-Both credentials live in shell variables or session memory only, never in repo-tracked files, commits, or durable logs. `accessToken` is the everyday bearer; `ownerSecret` is owner-only, required for owner delete while unclaimed, and never appears in user-facing copy. Capture `slug`, `accessToken`, and `ownerSecret` immediately at creation and persist the two credentials for the session separately. Hand humans the tokenized `tokenUrl`, never a bare `/d/<slug>`.
+## Approval gates
 
-Prefer typed `proof_*` MCP tools when the harness already offers them; otherwise use the HTTP recipes below. In MCP mode the server injects `by`, `X-Agent-Id`, and presence identity. For docs the signer does not own, pass `?token=` as `shareToken` for edits and presence.
+Every outward write waits for the user's explicit go-ahead for that specific operation: publishing, editing, commenting, suggesting, presence, a title change, a pull that overwrites a file as a side effect, and deletion. Sensitive content needs its own explicit approval: never put secrets, credentials, API keys, private tokens, or sensitive personal data into a Proof doc without it. Never silently swap a repo-tracked project doc for a Proof link.
 
-## Announce yourself for the session
+## Inputs and credentials
 
-Presence is an outward network write, so it waits for the same gate as every other operation: bind it only after the user explicitly invoked presence, and skip it for read-only `read` and `review` jobs, which run unannounced. When presence is invoked, bind it with the CE identity defaults:
+Publish and pull need the local markdown path. Anything touching the hosted doc needs the Proof URL with its slug and token.
+
+Creation returns `slug`, `accessToken`, and `ownerSecret`. Capture all three immediately and keep the two credentials separately in shell variables or session memory, never in repo-tracked files, commits, or durable logs.
+
+- `accessToken` is the everyday bearer.
+- `ownerSecret` is owner-only, required for owner delete while the doc is unclaimed, and never appears in user-facing copy.
+
+Hand humans the tokenized `tokenUrl`, never a bare `/d/<slug>`.
+
+Prefer typed `proof_*` MCP tools when the harness offers them; otherwise use the HTTP recipes below. In MCP mode the server injects `by`, `X-Agent-Id`, and presence identity. For docs the signer does not own, pass the `?token=` value as `shareToken` for edits and presence.
+
+## Presence
+
+Presence is an outward network write behind the same gate as every other operation. Bind it only after the user explicitly invoked presence, and skip it for `read` and `review` jobs, which run unannounced. Use the CE identity defaults:
 
 ```bash
 TOKEN="xxx"; SLUG="abc123"; AGENT="ai:compound-engineering"
@@ -36,9 +54,9 @@ curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/presence" \
   -d '{"name":"Compound Engineering","status":"reading","summary":"Reviewing doc"}'
 ```
 
-## Publish the file's own bytes
+## Publish
 
-Publish only markdown, and only the bytes of the named local file: read the file in full, encode with `jq --rawfile` so newlines, quotes, and backticks survive, and never hand-write or placeholder the body. When the source is an HTML unified plan, do not upload; return the local browser or open path instead, and label a unified plan title by readiness when known.
+Publish only markdown, and only the bytes of the named local file. Read the file in full and encode it with `jq --rawfile` so newlines, quotes, and backticks survive; never hand-write or placeholder the body. When the source is an HTML unified plan, do not upload it; return the local browser or open path instead, and label a unified plan title by readiness when known.
 
 ```bash
 SRC="path/to/plan.md"; TITLE="Plan: Foo"
@@ -53,9 +71,9 @@ OWNER_SECRET=$(printf '%s' "$RESPONSE" | jq -r '.ownerSecret')
 
 Keep `OWNER_SECRET` in session memory only. After a planning-handoff publish, surface the URL and return control; do not auto-delete review docs.
 
-## Read and review from the live document
+## Read and review
 
-`GET /api/agent/<slug>/v3/document` is the source of truth. Its `comments[]` and `suggestions[]` are the review state: reply, resolve, unresolve, accept, reject, or modify by id. There is no delete-comment operation. An `orphaned: true` thread stays readable and replyable, but its old quote is not a live anchor.
+`GET /api/agent/<slug>/v3/document` is the source of truth. Its `comments[]` and `suggestions[]` are the review state: reply, resolve, unresolve, accept, reject, or modify by id. There is no delete-comment operation. An `orphaned: true` thread stays readable and replyable, but its old quote is no longer a live anchor.
 
 ```bash
 DOC=$(curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
@@ -64,9 +82,24 @@ DOC=$(curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
 
 When `mutationReady` is false and `revision` is null, omit `baseRevision` and re-read shortly.
 
-## Edit with the smallest touch that works
+## Edit
 
-Send `{by, baseRevision?, operations[]}` to `POST /api/agent/<slug>/v3/edit`. Targets are visible text, never raw markdown syntax or block refs. Content operations are `replace` (`find`, `with`, optional `occurrence`/`before`/`after`), `insert` (`markdown`, `after` or `before`), `delete` (`find`), and `set_document` (`markdown`, max 2 MiB). Review operations are `comment` (`on`, `body`, optional `occurrence`), `reply` (`comment` id, `body`, optional `resolve`), `resolve` and `unresolve` (`comment` id), `suggest` (`kind: "insert"|"delete"|"replace"`, `find`, `with`), `accept` and `reject` (`suggestion` id), and `modify_suggestion` (`suggestion` id, `with`). Prefer `replace`, `insert`, or `delete` for prose and `suggest` for visible tracked changes; reserve `set_document` for an explicitly requested whole-doc replacement or a change no narrow operation can express. At most 100 operations per request.
+Send `{by, baseRevision?, operations[]}` to `POST /api/agent/<slug>/v3/edit`, with at most 100 operations per request. Targets are visible text, never raw markdown syntax or block refs.
+
+| Operation | Fields |
+|---|---|
+| `replace` | `find`, `with`, optional `occurrence`/`before`/`after` |
+| `insert` | `markdown`, `after` or `before` |
+| `delete` | `find` |
+| `set_document` | `markdown`, max 2 MiB |
+| `comment` | `on`, `body`, optional `occurrence` |
+| `reply` | `comment` id, `body`, optional `resolve` |
+| `resolve`, `unresolve` | `comment` id |
+| `suggest` | `kind: "insert"\|"delete"\|"replace"`, `find`, `with` |
+| `accept`, `reject` | `suggestion` id |
+| `modify_suggestion` | `suggestion` id, `with` |
+
+Prefer `replace`, `insert`, or `delete` for prose and `suggest` for visible tracked changes. Reserve `set_document` for an explicitly requested whole-doc replacement or a change no narrow operation can express.
 
 ```bash
 curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/v3/edit" \
@@ -77,14 +110,25 @@ curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/v3/edit" \
   -d '{"by":"ai:compound-engineering","operations":[{"op":"replace","find":"old visible text","with":"new text"}]}'
 ```
 
-On `TARGET_AMBIGUOUS`, disambiguate with `occurrence`, `before`, or `after` from `error.candidates`; never silently take the first match. On `retryable: false` fix the request; on `retryable: true` with `error.current`, re-resolve and retry once. On `202`, `PENDING`, or `ok: false` with `partial: true`, re-read before chaining anything and retry only the failed operation with the same `Idempotency-Key`. After one fresh read plus one safe retry, report the bug per the service bridge (`POST https://www.proofeditor.ai/api/bridge/report_bug` with `by`, optional `slug`, and `error` object) rather than looping. A mutation counts as done when it returns `ok: true`, or, on `202` or `partial: true`, when a re-read of `v3/document` confirms it.
+Edits to a Proof doc preserve meaning: keep identifiers, numbers, bounds, error codes, references, backtick tokens, anchors, tables, and code exact unless the user asked to change them.
 
-## Pull the live text home
+## Errors and retries
 
-Read through the canonical endpoint and land the file with an atomic rename; `jq -jr` preserves trailing newlines without shell interpolation:
+- `TARGET_AMBIGUOUS`: disambiguate with `occurrence`, `before`, or `after` from `error.candidates`. Never silently take the first match.
+- `retryable: false`: fix the request.
+- `retryable: true` with `error.current`: re-resolve and retry once.
+- `202`, `PENDING`, or `ok: false` with `partial: true`: re-read before chaining anything, and retry only the failed operation with the same `Idempotency-Key`.
+
+After one fresh read plus one safe retry, stop looping and report the bug through the service bridge: `POST https://www.proofeditor.ai/api/bridge/report_bug` with `by`, optional `slug`, and an `error` object.
+
+A mutation is done when it returns `ok: true`, or, after a `202` or `partial: true`, when a re-read of `v3/document` confirms it.
+
+## Pull
+
+Read through the canonical endpoint and land the file with an atomic rename. `jq -jr` preserves trailing newlines without shell interpolation.
 
 ```bash
-SLUG=<slug>; TOKEN=<accessToken>; LOCAL=<absolute-path>
+SLUG=<slug>; TOKEN=<accessToken>; AGENT="ai:compound-engineering"; LOCAL=<absolute-path>
 STATE_TMP=$(mktemp "${TMPDIR:-/tmp}/ce-proof-state.XXXXXX")
 curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
   -H "Authorization: Bearer $TOKEN" -H "X-Agent-Id: $AGENT" > "$STATE_TMP"
@@ -93,11 +137,13 @@ jq -jr '.markdown' "$STATE_TMP" > "$TMP" && mv "$TMP" "$LOCAL"
 rm -f "$STATE_TMP"
 ```
 
-A pull overwrites the named local file. Confirm the path first when the pull is a side effect rather than the request; a silent overwrite is a defect. This pass creates no scratch files beyond the sync temps above and installs or commits nothing.
+A pull overwrites the named local file. When the pull is a side effect rather than the request, confirm the path first; a silent overwrite is a defect. The pull creates no scratch files beyond the sync temps above and installs or commits nothing.
 
-## Titles and deletion
+## Title and deletion
 
-Set the title only when asked. Delete only when the user asks or when finishing an explicitly ephemeral scratch doc. Deletion needs `ownerSecret` while unclaimed, or the owner session after claim; viewer, commenter, and editor tokens cannot delete. Two responses mean the secret was revoked (`403 DOCUMENT_DELETE_FORBIDDEN/CREDENTIAL_NOT_OWNER`, or `401` on the creation secret): stop using it rather than retrying. `DOCUMENT_HAS_NO_OWNER` means only the original secret can delete. Emptying the markdown does not scrub comment marks; a content wipe is not a privacy cleanup.
+Set the title only when asked. Delete only when the user asks or when finishing an explicitly ephemeral scratch doc.
+
+Deletion needs `ownerSecret` while the doc is unclaimed, or the owner session after claim; viewer, commenter, and editor tokens cannot delete. `403 DOCUMENT_DELETE_FORBIDDEN/CREDENTIAL_NOT_OWNER`, or `401` on the creation secret, means the secret was revoked: stop using it rather than retrying. `DOCUMENT_HAS_NO_OWNER` means only the original secret can delete. Emptying the markdown does not scrub comment marks, so a content wipe is not a privacy cleanup.
 
 ```bash
 curl -sS -X PUT "https://www.proofeditor.ai/api/documents/$SLUG/title" \
@@ -109,10 +155,13 @@ curl -sS -X DELETE "https://www.proofeditor.ai/api/documents/$SLUG" \
 
 ## Stop instead of guessing
 
-Stop, report the exact code and slug, and leave the doc and local files unchanged on an ambiguous target, a failed mutation after one safe retry, a revoked owner secret, or missing credentials. Refuse a request to place secrets or sensitive data without explicit approval and name the approval it needs. Refuse an empty-markdown wipe asked for as privacy cleanup and offer owner delete instead. Stop before overwriting on a side-effect pull with no confirmed path, and do not upload an HTML unified-plan source.
+Stop, report the exact code and slug, and leave the doc and local files unchanged on an ambiguous target, a failed mutation after one safe retry, a revoked owner secret, or missing credentials.
 
-For normative documents under edit, every requirement keeps its subject, modality, condition, exception, ordering, and consequence. Keep identifiers, numbers and bounds, error codes, references, citations, backtick tokens, uppercase states, anchors, tables, and code exact unless the user explicitly asked to change them. A sentence split may repeat a modal but must never detach it from the clause it governs.
+- A request to place secrets or sensitive data without explicit approval: refuse and name the approval it needs.
+- An empty-markdown wipe requested as privacy cleanup: refuse and offer owner delete instead.
+- A side-effect pull with no confirmed path: stop before overwriting.
+- An HTML unified-plan source: do not upload it.
 
-## What you hand back
+## Output
 
 The tokenized URL or the pulled local path, the confirmed revision or `ok` state, and a short summary of what changed. Review docs linger; deletion happens only on explicit cleanup.

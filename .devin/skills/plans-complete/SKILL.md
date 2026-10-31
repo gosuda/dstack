@@ -1,5 +1,5 @@
 ---
-name: plan-complete
+name: plans-complete
 description: 'Use when a plan must be proven complete before implementation begins. Extract every deliverable and proof obligation, compare it with the current tree, expose acceptance drift, and block on unresolved or unverifiable work.'
 ---
 
@@ -80,7 +80,7 @@ When the plan is tracked and a baseline is available, read the baseline plan fro
 
 ## List the checks you do not run
 
-For every required local check, record the check, its command, the expected outcome, its source in the plan, and the status: pending, not run by plan-complete. For every external or human-only check, record the check, the system or owner, the evidence it requires, and the status: unverifiable from this run. Never mark a check green because the plan says it should pass, and never swap a required check for a narrower familiar command.
+For every required local check, record the check, its command, the expected outcome, its source in the plan, and the status: pending, not run by plans-complete. For every external or human-only check, record the check, the system or owner, the evidence it requires, and the status: unverifiable from this run. Never mark a check green because the plan says it should pass, and never swap a required check for a narrower familiar command.
 
 ## Decide the gate
 

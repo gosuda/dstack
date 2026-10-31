@@ -1,5 +1,5 @@
 ---
-name: plan
+name: plans
 description: 'Use when multi-step work needs a structured implementation plan that preserves outcomes and constraints. Not for exploratory framing, executing the work, or running tests to learn from results.'
 ---
 
