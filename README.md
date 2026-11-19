@@ -17,7 +17,6 @@
 - [Implementation](#implementation)
 - [Install](#install)
 - [Comparison](#comparison)
-- [Status](#status-2026-09)
 - [Contributing](#contributing)
 - [License](#license)
 
