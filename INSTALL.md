@@ -36,6 +36,8 @@ tags sorted by date and version, `fsckObjects` on fetch, transfer, and receive, 
 `mergiraf` merge driver. Comments in the file are in Korean.
 
 Include it instead of copying it, so a `git pull` of this repository updates your configuration.
+A later change to the file in this repository then takes effect on your machine at the next pull,
+including the commands git runs. To keep a reviewed snapshot instead, copy the file.
 From the checkout root:
 
 ```bash
