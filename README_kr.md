@@ -32,7 +32,7 @@ DStack(이전 Outline-Driven Development)은 LLM 코드 에이전트를 위한 �
 
 ## 구현체
 
-[dalcom-skills](https://github.com/gosuda/dalcom-skills)이 유일한 소스입니다. 2.1.13 릴리스 기준 22개
+[dstack-skills](https://github.com/gosuda/dstack-skills)이 유일한 소스입니다. 2.1.13 릴리스 기준 22개
 플러그인에 304개 스킬을 한 번만 작성하며, Claude Code, Codex, Cursor, 그리고 모든 Agent Plugins
 클라이언트가 동일한 트리에서 이를 발견합니다. 에이전트별로 따로 설치하거나 관리할 저장소는 없습니다.
 
@@ -43,20 +43,20 @@ DStack(이전 Outline-Driven Development)은 LLM 코드 에이전트를 위한 �
 ### Claude Code
 
 ```
-/plugin marketplace add gosuda/dalcom-skills
+/plugin marketplace add gosuda/dstack-skills
 /plugin install dstack-core@dstack
 ```
 
 ### Codex
 
 ```
-codex plugin marketplace add gosuda/dalcom-skills
+codex plugin marketplace add gosuda/dstack-skills
 codex plugin add dstack-core@dstack
 ```
 
 ### Cursor
 
-Cursor에서 `gosuda/dalcom-skills` 마켓플레이스를 추가한 뒤:
+Cursor에서 `gosuda/dstack-skills` 마켓플레이스를 추가한 뒤:
 
 ```
 /plugin install dstack-core
@@ -84,7 +84,7 @@ Devin에는 마켓플레이스 단계가 없습니다. Devin은 `.devin/skills/<
 | 지식 관리 및 컨텍스트 유지 | `dstack-knowledge` |
 
 플러그인별 스킬 수를 포함한 전체 영역별 표는
-[dalcom-skills README](https://github.com/gosuda/dalcom-skills#choose-your-plugins)에 있습니다.
+[dstack-skills README](https://github.com/gosuda/dstack-skills#choose-your-plugins)에 있습니다.
 
 ### CLI 도구 설치
 
@@ -111,7 +111,7 @@ CLI 도구 사전 요구 사항과 상세 설정은 [INSTALL.md](INSTALL.md)를 
 아이디어 논의나 버그 보고를 위해 이슈를 여십시오. 방법론, 프롬프트, 도구 문서를 개선하는 PR을 환영합니다.
 
 이 저장소에서 `.devin/skills/`를 직접 수정하지 마십시오. 그 아래의 모든 파일은
-[dalcom-skills](https://github.com/gosuda/dalcom-skills)의
+[dstack-skills](https://github.com/gosuda/dstack-skills)의
 `scripts/sync-outline-skills.mjs`가 생성하며, 플러그인 트리에서 사라진 파일은 이 스크립트가 삭제합니다.
 해당 저장소의 `plugins/<plugin>/skills/<slug>/`에서 스킬을 수정한 뒤 그곳에서 `just sync-outline`을
 실행하십시오. 스크립트는 기본적으로 형제 디렉터리 `../dstack`에 기록하며,
