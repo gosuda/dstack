@@ -35,17 +35,31 @@ the pager, `difft` as the external diff, histogram diff with `zdiff3` conflict m
 tags sorted by date and version, `fsckObjects` on fetch, transfer, and receive, `rerere`, and a
 `mergiraf` merge driver. Comments in the file are in Korean.
 
-Include it instead of copying it, so a `git pull` of this repository updates your configuration.
-A later change to the file in this repository then takes effect on your machine at the next pull,
-including the commands git runs. To keep a reviewed snapshot instead, copy the file.
-From the checkout root:
+Copy the file into your own config once, then review each update by hand.
+A later pull must never change the way git behaves on your machine without
+your review. This file sets commands git runs (`core.pager`, `diff.external`,
+and the `mergiraf` merge driver), so an unreviewed change could redirect
+those commands to something else.
+From the checkout root, copy the commit you reviewed:
 
 ```bash
-git config --global include.path "$(pwd)/recommended.gitconfig"
+git show <commit>:recommended.gitconfig > ~/.config/git/recommended.gitconfig
+git config --global include.path ~/.config/git/recommended.gitconfig
 ```
 
+Before you move to a newer commit, read the diff first:
+
+```bash
+git diff <old-commit> <new-commit> -- recommended.gitconfig
+```
+
+Copy the new file over only after you have read the diff. If you install
+from a release tarball, use its `gitconfig/recommended.gitconfig` copy and
+review it the same way. Do not point `include.path` at a file inside this
+checkout.
+
 Git reads the included file at the position of the `[include]` entry, so any key you set later in
-your own global config overrides the file's value.
+your own global config overrides the copied file's value.
 
 Requirements:
 
