@@ -34,7 +34,7 @@ for the full design rationale and traceability model.
 
 ## Implementation
 
-[dalcom-skills](https://github.com/gosuda/dalcom-skills) is the single source: 304
+[dstack-skills](https://github.com/gosuda/dstack-skills) is the single source: 304
 skills in 22 plugins at release 2.1.13, authored once and discovered by Claude Code, Codex, Cursor, and any Agent
 Plugins client from the same tree. There is no separate per-agent repository to install or track.
 
@@ -45,20 +45,20 @@ Plugins client from the same tree. There is no separate per-agent repository to 
 ### Claude Code
 
 ```
-/plugin marketplace add gosuda/dalcom-skills
+/plugin marketplace add gosuda/dstack-skills
 /plugin install dstack-core@dstack
 ```
 
 ### Codex
 
 ```
-codex plugin marketplace add gosuda/dalcom-skills
+codex plugin marketplace add gosuda/dstack-skills
 codex plugin add dstack-core@dstack
 ```
 
 ### Cursor
 
-Add the `gosuda/dalcom-skills` marketplace in Cursor, then:
+Add the `gosuda/dstack-skills` marketplace in Cursor, then:
 
 ```
 /plugin install dstack-core
@@ -86,7 +86,7 @@ work in and skip the rest. Every one installs the same way, for example
 | Knowledge and context retention | `dstack-knowledge` |
 
 The full domain-to-plugin table, with the skill count per plugin, is in the
-[dalcom-skills README](https://github.com/gosuda/dalcom-skills#choose-your-plugins).
+[dstack-skills README](https://github.com/gosuda/dstack-skills#choose-your-plugins).
 
 ### CLI tools
 
@@ -113,7 +113,7 @@ See [INSTALL.md](INSTALL.md) for CLI tool prerequisites and detailed setup.
 Open an issue to discuss ideas or report bugs. PRs improving the methodology, prompts, or tooling documentation are welcome.
 
 Do not edit `.devin/skills/` here. Every file under it is written by `scripts/sync-outline-skills.mjs`
-in [dalcom-skills](https://github.com/gosuda/dalcom-skills), which also deletes any
+in [dstack-skills](https://github.com/gosuda/dstack-skills), which also deletes any
 file the plugin tree no longer carries. Change the skill under `plugins/<plugin>/skills/<slug>/` in
 that repository and run `just sync-outline` there. The script writes to the sibling checkout
 `../dstack` by default; `node scripts/sync-outline-skills.mjs --target <path>`
