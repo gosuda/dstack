@@ -144,6 +144,9 @@ git config --file 'SOURCE_CONFIG' --fixed-value --replace-all 'INCLUDE_KEY' 'SNA
 Use `include.path` for an unconditional include or the full
 `includeif....path` key for a conditional include. Keep every argument quoted,
 including an old value that starts with `~/`, so the shell does not expand it.
+If a value contains an apostrophe, escape it for the shell you use. In a
+POSIX shell, write `Dev's config` as `'Dev'"'"'s config'`. In PowerShell,
+write it as `'Dev''s config'`. Apply the same escaping to each placeholder.
 Replacing a conditional include preserves its condition; a conditional-only
 installation remains conditional. Repeat the original
 inspection until no live checkout include remains. An installation that
