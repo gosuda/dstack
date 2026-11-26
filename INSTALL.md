@@ -35,31 +35,108 @@ the pager, `difft` as the external diff, histogram diff with `zdiff3` conflict m
 tags sorted by date and version, `fsckObjects` on fetch, transfer, and receive, `rerere`, and a
 `mergiraf` merge driver. Comments in the file are in Korean.
 
-Copy the file into your own config once, then review each update by hand.
-A later pull must never change the way git behaves on your machine without
-your review. This file sets commands git runs (`core.pager`, `diff.external`,
-and the `mergiraf` merge driver), so an unreviewed change could redirect
-those commands to something else.
-From the checkout root, copy the commit you reviewed:
+Keep a reviewed snapshot outside this checkout. This file sets commands Git
+runs (`core.pager`, `diff.external`, and the `mergiraf` merge driver), so review
+the file before enabling it and review each replacement before installing it.
 
-```bash
-git show <commit>:recommended.gitconfig > ~/.config/git/recommended.gitconfig
-git config --global include.path ~/.config/git/recommended.gitconfig
+### Remove previous live includes
+
+Before updating an existing installation, inspect both global configuration
+files and their includes:
+
+```sh
+git config --global --includes --show-origin --get-regexp '^(include|includeif\..*)\.path$'
 ```
 
-Before you move to a newer commit, read the diff first:
+For every include that points inside this checkout, remove its exact value
+from the source file shown in that output. Preserve unrelated includes. For
+example, replace the placeholders below with the reported file, key and value:
 
-```bash
-git diff <old-commit> <new-commit> -- recommended.gitconfig
+```sh
+git config --file SOURCE_CONFIG --fixed-value --unset-all include.path LIVE_CHECKOUT_PATH
 ```
 
-Copy the new file over only after you have read the diff. If you install
-from a release tarball, use its `gitconfig/recommended.gitconfig` copy and
-review it the same way. Do not point `include.path` at a file inside this
-checkout.
+For a conditional include, use its full `includeif....path` key instead of
+`include.path`. Repeat the inspection until no live checkout include remains.
+This also covers includes in `$XDG_CONFIG_HOME/git/config`, `~/.gitconfig`,
+and files they include; changing one `--global include.path` value alone does
+not remove the others.
 
-Git reads the included file at the position of the `[include]` entry, so any key you set later in
-your own global config overrides the copied file's value.
+### Stage the reviewed snapshot
+
+Run the following commands from the checkout root. Replace `REVIEWED_COMMIT`
+with the commit hash you reviewed. The candidate ends in `.next`, so a failed
+copy or an update leaves the installed snapshot intact.
+
+Linux/macOS:
+
+```bash
+dstack_commit=REVIEWED_COMMIT
+dstack_config="${XDG_CONFIG_HOME:-$HOME/.config}/git/recommended.gitconfig"
+mkdir -p "$(dirname "$dstack_config")" &&
+  git show "${dstack_commit}:recommended.gitconfig" > "$dstack_config.next"
+```
+
+Windows PowerShell, including 5.1:
+
+```powershell
+$dstackCommit = 'REVIEWED_COMMIT'
+$dstackDirectory = Join-Path $env:USERPROFILE '.config\git'
+$dstackConfig = Join-Path $dstackDirectory 'recommended.gitconfig'
+$dstackTemporary = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Force -Path $dstackDirectory -ErrorAction Stop | Out-Null
+New-Item -ItemType Directory -Path $dstackTemporary -ErrorAction Stop | Out-Null
+try {
+    $dstackArchive = Join-Path $dstackTemporary 'reviewed.zip'
+    git archive --format=zip "--output=$dstackArchive" $dstackCommit -- recommended.gitconfig
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot read the reviewed Git configuration.' }
+    Expand-Archive -LiteralPath $dstackArchive -DestinationPath $dstackTemporary -ErrorAction Stop
+    Copy-Item -LiteralPath (Join-Path $dstackTemporary 'recommended.gitconfig') -Destination "$dstackConfig.next" -ErrorAction Stop
+} finally {
+    Remove-Item -LiteralPath $dstackTemporary -Recurse -Force
+}
+```
+
+The ZIP extraction preserves the original bytes. PowerShell's text redirection
+is not used, because Windows PowerShell 5.1 would encode the output as UTF-16LE.
+
+### Review and install
+
+On a first installation, read the candidate. On an update, compare the candidate
+directly with the installed snapshot so that local edits are visible:
+
+```bash
+git --no-pager diff --no-ext-diff --no-textconv --no-index -- "$dstack_config" "$dstack_config.next"
+```
+
+In PowerShell, use `$dstackConfig` and `"$dstackConfig.next"` for the two paths.
+Git's exit status 1 means the files differ. Save any local overrides before
+replacing the snapshot. Put those overrides after the include in your global
+configuration, so later snapshot updates preserve them.
+
+After review, install the candidate and register its path only if installation
+succeeds. The fixed-value replacement preserves unrelated include entries and
+does not add another copy of the same include on a repeated installation.
+
+Linux/macOS:
+
+```bash
+mv "$dstack_config.next" "$dstack_config" &&
+  git config --global --fixed-value --replace-all include.path "$dstack_config" "$dstack_config"
+```
+
+PowerShell:
+
+```powershell
+Move-Item -LiteralPath "$dstackConfig.next" -Destination $dstackConfig -Force -ErrorAction Stop
+git config --global --fixed-value --replace-all include.path $dstackConfig $dstackConfig
+if ($LASTEXITCODE -ne 0) { throw 'The snapshot was copied, but its include was not registered.' }
+```
+
+If you install from a release tarball, stage its `gitconfig/recommended.gitconfig`
+as the candidate and follow the same review and replacement steps. Never point
+an include at the working checkout. Git reads the included file at the position
+of its `[include]` entry; later settings in your global configuration override it.
 
 Requirements:
 
