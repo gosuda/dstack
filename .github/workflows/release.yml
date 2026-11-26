@@ -5,13 +5,14 @@ on:
     tags:
       - 'v*.*.*'
 
-permissions:
-  contents: write
-  id-token: write
+# Release runs must never cancel each other; leave this workflow unthrottled.
 
 jobs:
   release:
     runs-on: depot-ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Strict semver guard
         run: |
@@ -20,10 +21,12 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        with:
+          cosign-release: 'v2.5.2'
 
       - name: Build tarball
         run: |
@@ -59,7 +62,7 @@ jobs:
             SHA256SUMS
 
       - name: Create GitHub Release and upload assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             ${{ env.TARBALL }}
