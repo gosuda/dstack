@@ -39,7 +39,7 @@ Keep a reviewed snapshot outside this checkout. This file sets commands Git
 runs (`core.pager`, `diff.external`, and the `mergiraf` merge driver), so review
 the file before enabling it and review each replacement before installing it.
 
-### Remove previous live includes
+### Locate previous live includes
 
 Before updating an existing installation, inspect both global configuration
 files and their includes:
@@ -48,19 +48,12 @@ files and their includes:
 git config --global --includes --show-origin --get-regexp '^(include|includeif\..*)\.path$'
 ```
 
-For every include that points inside this checkout, remove its exact value
-from the source file shown in that output. Preserve unrelated includes. For
-example, replace the placeholders below with the reported file, key and value:
-
-```sh
-git config --file SOURCE_CONFIG --fixed-value --unset-all include.path LIVE_CHECKOUT_PATH
-```
-
-For a conditional include, use its full `includeif....path` key instead of
-`include.path`. Repeat the inspection until no live checkout include remains.
-This also covers includes in `$XDG_CONFIG_HOME/git/config`, `~/.gitconfig`,
-and files they include; changing one `--global include.path` value alone does
-not remove the others.
+For every include that points inside this checkout, record its source file,
+key and exact value. Keep these entries in place until the reviewed snapshot
+is installed. Replacing their values in place preserves the order of local
+overrides; removing and then appending an include can reverse that order.
+Inspect `$XDG_CONFIG_HOME/git/config`, `~/.gitconfig`, and files they include.
+The `file:` prefix in the origin output is not part of the filename.
 
 ### Stage the reviewed snapshot
 
@@ -114,24 +107,57 @@ Git's exit status 1 means the files differ. Save any local overrides before
 replacing the snapshot. Put those overrides after the include in your global
 configuration, so later snapshot updates preserve them.
 
-After review, install the candidate and register its path only if installation
-succeeds. The fixed-value replacement preserves unrelated include entries and
-does not add another copy of the same include on a repeated installation.
+After review, install the candidate. Change include entries only after this
+operation succeeds.
 
 Linux/macOS:
 
 ```bash
-mv "$dstack_config.next" "$dstack_config" &&
-  git config --global --fixed-value --replace-all include.path "$dstack_config" "$dstack_config"
+mv "$dstack_config.next" "$dstack_config"
 ```
 
 PowerShell:
 
 ```powershell
-Move-Item -LiteralPath "$dstackConfig.next" -Destination $dstackConfig -Force -ErrorAction Stop
-git config --global --fixed-value --replace-all include.path $dstackConfig $dstackConfig
-if ($LASTEXITCODE -ne 0) { throw 'The snapshot was copied, but its include was not registered.' }
+if ([IO.File]::Exists($dstackConfig)) {
+    $dstackBackup = "$dstackConfig.previous-$([guid]::NewGuid())"
+    [IO.File]::Replace("$dstackConfig.next", $dstackConfig, $dstackBackup)
+} else {
+    [IO.File]::Move("$dstackConfig.next", $dstackConfig)
+}
 ```
+
+Windows keeps the replaced snapshot in the reported `$dstackBackup` path.
+Keep that backup until the new settings work. If replacement fails, stop and
+check the installed file and backup before retrying; do not remove either.
+The first-install move refuses to overwrite a file that appears concurrently.
+
+For each existing live include recorded above, replace its exact value in its
+original source file. Replace the placeholders with the source filename, full
+key, absolute snapshot path and exact old value. This preserves unrelated
+includes and the position of settings that already override this include:
+
+```sh
+git config --file SOURCE_CONFIG --fixed-value --replace-all INCLUDE_KEY SNAPSHOT_PATH LIVE_CHECKOUT_PATH
+```
+
+Use `include.path` for an unconditional include or the full
+`includeif....path` key for a conditional include. Repeat the original
+inspection until no live checkout include remains. An installation that
+already includes the snapshot needs no registration change.
+
+For a first installation with no existing live or snapshot include, register
+the installed path once:
+
+```bash
+git config --global --fixed-value --replace-all include.path "$dstack_config" "$dstack_config"
+```
+
+In PowerShell, use `$dstackConfig` for both values and check `$LASTEXITCODE`
+before continuing. Review the resulting include position and put any local
+overrides after it. For example, inspect the effective `core.autocrlf` value
+and its origins with `git config --global --includes --show-origin --get-all
+core.autocrlf`; the last value takes precedence.
 
 If you install from a release tarball, stage its `gitconfig/recommended.gitconfig`
 as the candidate and follow the same review and replacement steps. Never point
