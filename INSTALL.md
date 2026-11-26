@@ -138,11 +138,14 @@ key, absolute snapshot path and exact old value. This preserves unrelated
 includes and the position of settings that already override this include:
 
 ```sh
-git config --file SOURCE_CONFIG --fixed-value --replace-all INCLUDE_KEY SNAPSHOT_PATH LIVE_CHECKOUT_PATH
+git config --file 'SOURCE_CONFIG' --fixed-value --replace-all 'INCLUDE_KEY' 'SNAPSHOT_PATH' 'LIVE_CHECKOUT_PATH'
 ```
 
 Use `include.path` for an unconditional include or the full
-`includeif....path` key for a conditional include. Repeat the original
+`includeif....path` key for a conditional include. Keep every argument quoted,
+including an old value that starts with `~/`, so the shell does not expand it.
+Replacing a conditional include preserves its condition; a conditional-only
+installation remains conditional. Repeat the original
 inspection until no live checkout include remains. An installation that
 already includes the snapshot needs no registration change.
 
